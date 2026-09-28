@@ -1,0 +1,6 @@
+{
+  "name": "Échiquier IA & Analyse Stockfish",
+  "description": "Analyse approfondie de parties d'échecs avec moteur Stockfish, détection des gaffes et erreurs, graphiques d'évaluation et explications tactiques pédagogiques par IA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
