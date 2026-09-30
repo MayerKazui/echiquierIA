@@ -8,7 +8,6 @@ import {
   Sparkles,
   TrendingUp,
   AlertCircle,
-  Award,
 } from 'lucide-react';
 import { MoveAnalysis, PlayerStats, GameMetadata } from '../../types/chess';
 import { PhaseStats } from '../../utils/phaseStats';
@@ -47,13 +46,37 @@ interface PlayerRadarChartProps {
   phaseStats: PhaseStats;
 }
 
+// Geometry configuration for 5-axis spider chart
+const cx = 150;
+const cy = 145;
+const R = 95;
+const numAxes = 5;
+
+// Compute (x, y) for an axis index and a normalized value (0 to 1)
+const getCoordinates = (index: number, valueRatio: number) => {
+  const angle = -Math.PI / 2 + (index * 2 * Math.PI) / numAxes;
+  return {
+    x: cx + R * valueRatio * Math.cos(angle),
+    y: cy + R * valueRatio * Math.sin(angle),
+  };
+};
+
+// Build SVG polygon points path string
+const buildPolygonPoints = (profile: PlayerProfileData) => {
+  return profile.dimensions
+    .map((d, i) => {
+      const { x, y } = getCoordinates(i, Math.max(0.15, d.score / 100));
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+};
+
 export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
   moves,
   statsWhite,
   statsBlack,
   metadata,
   userColor = 'w',
-  userPseudo = '',
   phaseStats,
 }) => {
   const [activeView, setActiveView] = useState<'user' | 'white' | 'black' | 'both'>('user');
@@ -213,31 +236,6 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
       : activeView === 'white'
       ? whiteProfile
       : blackProfile;
-
-  // Geometry configuration for 5-axis spider chart
-  const cx = 150;
-  const cy = 145;
-  const R = 95;
-  const numAxes = 5;
-
-  // Compute (x, y) for an axis index and a normalized value (0 to 1)
-  const getCoordinates = (index: number, valueRatio: number) => {
-    const angle = -Math.PI / 2 + (index * 2 * Math.PI) / numAxes;
-    return {
-      x: cx + R * valueRatio * Math.cos(angle),
-      y: cy + R * valueRatio * Math.sin(angle),
-    };
-  };
-
-  // Build SVG polygon points path string
-  const buildPolygonPoints = (profile: PlayerProfileData) => {
-    return profile.dimensions
-      .map((d, i) => {
-        const { x, y } = getCoordinates(i, Math.max(0.15, d.score / 100));
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(' ');
-  };
 
   const whitePolygon = useMemo(() => buildPolygonPoints(whiteProfile), [whiteProfile]);
   const blackPolygon = useMemo(() => buildPolygonPoints(blackProfile), [blackProfile]);

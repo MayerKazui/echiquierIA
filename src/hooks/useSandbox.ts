@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Chess } from 'chess.js';
+import { useCallback, useEffect, useState } from 'react';
+import { Chess, Square } from 'chess.js';
 import { stockfishService } from '../services/stockfishEngine';
 import { chessAudio } from '../utils/chessAudio';
 
@@ -72,7 +72,7 @@ export function useSandbox(baseFen: string, onEnter?: () => void) {
     (square: string) => {
       if (selectedSquare && tryMove(selectedSquare, square)) return;
       const chess = loadActivePosition();
-      const piece = chess.get(square as any);
+      const piece = chess.get(square as Square);
       setSelectedSquare(piece && piece.color === chess.turn() ? square : null);
     },
     [selectedSquare, tryMove, loadActivePosition]

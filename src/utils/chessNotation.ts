@@ -101,14 +101,19 @@ export function formatPvToFrench(
       if (!uci || uci.length < 4) break;
 
       const isWhiteTurn = chess.turn() === 'w';
-      const moveNumber = Math.floor(chess.history().length / 2) + 1;
+      // Fullmove number of the position itself (history() is empty when starting from a FEN)
+      const moveNumber = chess.moveNumber();
 
-      const move = chess.move({
-        from: uci.substring(0, 2),
-        to: uci.substring(2, 4),
-        promotion: uci.length > 4 ? uci[4] : undefined,
-      });
-
+      let move;
+      try {
+        move = chess.move({
+          from: uci.substring(0, 2),
+          to: uci.substring(2, 4),
+          promotion: uci.length > 4 ? uci[4] : undefined,
+        });
+      } catch {
+        break; // Illegal move: keep what was formatted so far
+      }
       if (!move) break;
 
       const sanFr = toFrenchSan(move.san);

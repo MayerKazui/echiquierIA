@@ -5,16 +5,12 @@ import {
   BookOpen,
   BrainCircuit,
   CheckCircle2,
-  ChevronRight,
   Clock,
   Eye,
-  HelpCircle,
   Lightbulb,
-  ShieldAlert,
   Sparkles,
   Target,
   TrendingDown,
-  TrendingUp,
   XCircle,
 } from 'lucide-react';
 import { MoveAnalysis } from '../../types/chess';
@@ -29,13 +25,13 @@ import { TacticalThreat } from '../../utils/tacticalThreats';
 function formatPlanSteps(planText: string): string[] {
   if (!planText) return [];
   const normalized = planText
-    .replace(/([^a-hA-H\d\s]|\b[a-zA-ZÀ-ÿ]+(?<![a-hA-H]))\s*([1-9])[\.)]\s+/g, '$1\n$2. ')
-    .replace(/([a-zA-ZÀ-ÿ]+(?<![a-hA-H]))([1-9])[\.)]\s*/g, '$1\n$2. ');
+    .replace(/([^a-hA-H\d\s]|\b[a-zA-ZÀ-ÿ]+(?<![a-hA-H]))\s*([1-9])[.)]\s+/g, '$1\n$2. ')
+    .replace(/([a-zA-ZÀ-ÿ]+(?<![a-hA-H]))([1-9])[.)]\s*/g, '$1\n$2. ');
 
   const lines = normalized.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const steps: string[] = [];
   for (const line of lines) {
-    const cleaned = line.replace(/^[1-9][\.)]\s*/, '').trim();
+    const cleaned = line.replace(/^[1-9][.)]\s*/, '').trim();
     if (cleaned) steps.push(cleaned);
   }
   return steps.length > 0 ? steps : [planText];
@@ -67,7 +63,6 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
   sanHistory,
   userColor,
   openingName,
-  eco,
   tacticalThreatsSuggestion = [],
   tacticalThreatsPlayed = [],
   threatsMode = 'suggestion',

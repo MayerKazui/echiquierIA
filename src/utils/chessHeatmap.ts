@@ -1,4 +1,4 @@
-import { Chess } from 'chess.js';
+import { Chess, Square } from 'chess.js';
 
 export interface SquareControl {
   square: string;
@@ -66,7 +66,7 @@ export function computeBoardHeatmap(fen: string): BoardHeatmapData {
       attackMap[targetSq] = (attackMap[targetSq] || 0) + 1;
 
       // If an obstacle piece is encountered, ray stops (the occupied square IS protected/attacked)
-      const piece = chess.get(targetSq as any);
+      const piece = chess.get(targetSq as Square);
       if (piece) {
         break;
       }
@@ -80,7 +80,7 @@ export function computeBoardHeatmap(fen: string): BoardHeatmapData {
   for (let rank = 1; rank <= 8; rank++) {
     for (let col = 0; col < 8; col++) {
       const sq = toSquare(col, rank);
-      const piece = chess.get(sq as any);
+      const piece = chess.get(sq as Square);
       if (!piece) continue;
 
       const isWhite = piece.color === 'w';

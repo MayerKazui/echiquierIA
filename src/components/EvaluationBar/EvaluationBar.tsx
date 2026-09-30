@@ -12,7 +12,7 @@ export const EvaluationBar: React.FC<EvaluationBarProps> = ({
   isFlipped = false,
 }) => {
   // Convert evaluation into percentage height for White (0% = Black winning, 100% = White winning, 50% = Equal)
-  let whitePercent = 50;
+  let whitePercent: number;
 
   if (mate !== null) {
     whitePercent = mate > 0 ? 100 : 0;
@@ -23,7 +23,7 @@ export const EvaluationBar: React.FC<EvaluationBarProps> = ({
   }
 
   // Display label
-  let label = '0.0';
+  let label: string;
   if (mate !== null) {
     label = `M${Math.abs(mate)}`;
   } else {

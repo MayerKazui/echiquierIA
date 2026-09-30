@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Activity, BarChart2, TrendingUp, Zap } from 'lucide-react';
+import { Activity, TrendingUp, Zap } from 'lucide-react';
 import { MoveAnalysis } from '../../types/chess';
 
 export type ChartMode = 'eval' | 'momentum' | 'accuracy';
@@ -53,9 +53,9 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
   }, [moves]);
 
   // 2. Momentum & Swing Calculations (Initiative Shift)
-  const { momentumBars, turningPoints, maxSwing } = useMemo(() => {
+  const { momentumBars, turningPoints } = useMemo(() => {
     if (moves.length === 0) {
-      return { momentumBars: [], turningPoints: [], maxSwing: 200 };
+      return { momentumBars: [], turningPoints: [] };
     }
 
     const effectiveWidth = width - paddingX * 2;
@@ -115,7 +115,7 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
       };
     });
 
-    return { momentumBars: bars, turningPoints: tPoints, maxSwing: clampSwing };
+    return { momentumBars: bars, turningPoints: tPoints };
   }, [moves]);
 
   // 3. Cumulative Running Accuracy Points

@@ -193,9 +193,6 @@ export function extractGameClocks(
   }
 
   // 3. Calculate thinking time (elapsed duration) for each move
-  let prevClockWhite: number | null = null;
-  let prevClockBlack: number | null = null;
-
   // Determine starting base times
   const firstWhiteClock = rawClocks.find((_, idx) => history[idx].color === 'w')?.clockSeconds;
   const firstBlackClock = rawClocks.find((_, idx) => history[idx].color === 'b')?.clockSeconds;
@@ -203,8 +200,8 @@ export function extractGameClocks(
   const baseWhite = timeControl ? timeControl.baseTime : firstWhiteClock ? inferBaseTime(firstWhiteClock) : 600;
   const baseBlack = timeControl ? timeControl.baseTime : firstBlackClock ? inferBaseTime(firstBlackClock) : 600;
 
-  prevClockWhite = baseWhite;
-  prevClockBlack = baseBlack;
+  let prevClockWhite: number | null = baseWhite;
+  let prevClockBlack: number | null = baseBlack;
 
   const moveThinks: Array<{
     clock?: string;

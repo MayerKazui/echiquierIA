@@ -1,5 +1,4 @@
 import { Chess, Square } from 'chess.js';
-import { toFrenchSan } from './chessNotation';
 
 export type TacticalThreatType = 'attack' | 'check' | 'pin' | 'fork' | 'hanging' | 'skewer';
 
