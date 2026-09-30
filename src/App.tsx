@@ -955,7 +955,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Dedicated Board Controls Toolbar (Annotations, Contrôle de l'espace, Thèmes, Clavier, Taille, Lichess) */}
+              {/* Dedicated Board Controls Toolbar (Annotations, Contrôle de l'espace, Thèmes, Taille, Lichess) */}
               <div className="flex items-center justify-between gap-1.5 flex-wrap px-2 py-1.5 rounded-xl bg-slate-900/70 border border-slate-800/80 text-[11px]">
                 <div className="flex items-center gap-1 flex-wrap">
                   <button
@@ -1062,16 +1062,6 @@ export default function App() {
                       <span className="hidden xs:inline">Bleu</span>
                     </button>
                   </div>
-
-                  {/* Shortcuts Cheat Sheet Button */}
-                  <button
-                    onClick={() => setIsShortcutsModalOpen(true)}
-                    className="p-1 px-1.5 rounded-md bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 transition-colors cursor-pointer flex items-center gap-1"
-                    title="Afficher les raccourcis clavier"
-                  >
-                    <Keyboard className="w-3 h-3 text-slate-400" />
-                    <span className="hidden sm:inline">Clavier</span>
-                  </button>
 
                   {/* Board Size Selector (Agrandir l'échiquier) */}
                   <div className="flex items-center rounded-lg bg-slate-950 border border-slate-800 p-0.5" title="Ajuster la taille de l'échiquier (Normal 500px, Grand 640px, XL 760px)">
