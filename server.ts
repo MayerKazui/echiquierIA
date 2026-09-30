@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
+import { resolvePort } from './server/config';
 import type { ZodType } from 'zod';
 import {
   explainSchema,
@@ -441,7 +442,7 @@ app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ success: false, error: 'Erreur serveur' });
 });
 
-const PORT = 3000;
+const PORT = resolvePort();
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
   if (!isProd) {

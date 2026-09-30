@@ -22,8 +22,6 @@ export interface EngineEvaluation {
 interface WorkerSlot {
   id: number;
   worker: Worker;
-  /** Script the worker was started from (kept to restart it with the same engine). */
-  script: string;
   busy: boolean;
   failed: boolean;
 }
@@ -40,6 +38,13 @@ interface CachedEvaluation {
   /** Depth the search reached: a cached entry only answers requests for this depth or less. */
   depth: number;
 }
+
+/**
+ * Engine loaded by every worker: Stockfish 19, lite single-threaded WebAssembly build. The files come from
+ * the `stockfish` package (see vite/stockfishPlugin.ts); the `#` part tells the loader where its .wasm is.
+ * There is no other engine: when it cannot run, positions are evaluated by the built-in heuristic.
+ */
+const ENGINE_SCRIPT = '/stockfish-19.js#stockfish-19.wasm';
 
 /** Above this the extra workers bring little and each one costs memory (hash table + wasm instance). */
 const MAX_WORKERS = 6;
@@ -93,7 +98,6 @@ export class StockfishService {
   private workers: WorkerSlot[] = [];
   private taskQueue: QueuedTask[] = [];
   private cache: LruCache<string, CachedEvaluation>;
-  private workerScript = '/stockfish-19.js#stockfish-19.wasm';
 
   constructor(private readonly options: StockfishServiceOptions = {}) {
     this.cache = new LruCache(options.cacheCapacity ?? CACHE_CAPACITY);
@@ -104,19 +108,20 @@ export class StockfishService {
     if (!this.options.createWorker && typeof window === 'undefined') return;
 
     try {
-      // Test wasm support
       const wasmSupported =
         typeof WebAssembly === 'object' &&
         WebAssembly.validate(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]));
-
-      this.workerScript = wasmSupported ? '/stockfish-19.js#stockfish-19.wasm' : '/stockfish.js';
+      if (!wasmSupported) {
+        console.warn('WebAssembly is not available: positions are evaluated with the built-in heuristic.');
+        return;
+      }
 
       const numWorkers =
         this.options.workerCount ??
         defaultWorkerCount(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined);
 
       for (let i = 0; i < numWorkers; i++) {
-        this.createWorkerSlot(i, this.workerScript);
+        this.createWorkerSlot(i);
       }
     } catch (err) {
       console.warn('Could not instantiate Stockfish Web Workers:', err);
@@ -128,34 +133,27 @@ export class StockfishService {
     return this.workers.filter((w) => !w.failed).length;
   }
 
-  private createWorkerSlot(id: number, script?: string) {
-    const targetScript = script || this.workerScript;
+  private createWorkerSlot(id: number) {
     try {
-      const worker = this.options.createWorker ? this.options.createWorker(targetScript) : new Worker(targetScript);
+      const worker = this.options.createWorker ? this.options.createWorker(ENGINE_SCRIPT) : new Worker(ENGINE_SCRIPT);
       const slot: WorkerSlot = {
         id,
         worker,
-        script: targetScript,
         busy: false,
         failed: false,
       };
 
       worker.onerror = (e: ErrorEvent | Event) => {
         swallowEvent(e);
-        console.warn(`Stockfish Worker #${id} (${targetScript}) error intercepted:`, e);
+        console.warn(`Stockfish Worker #${id} error intercepted:`, e);
 
-        // Cascading resilient fallbacks: Stockfish 19 -> Stockfish classic JS -> Heuristic
-        if (targetScript.includes('stockfish-19')) {
-          console.info(`Attempting fallback to Stockfish classic for Worker #${id}...`);
-          try {
-            worker.terminate();
-          } catch {
-            // Already terminated
-          }
-          this.createWorkerSlot(id, '/stockfish.js');
-          return;
+        // No other engine to fall back on: this worker is out, and once every worker is, searches are
+        // answered by the heuristic evaluation (see processQueue)
+        try {
+          worker.terminate();
+        } catch {
+          // Already terminated
         }
-
         slot.failed = true;
         slot.busy = false;
         this.processQueue();
@@ -175,7 +173,7 @@ export class StockfishService {
         this.workers.push(slot);
       }
     } catch (e) {
-      console.warn(`Failed creating worker #${id} with script ${targetScript}`, e);
+      console.warn(`Failed creating worker #${id}`, e);
     }
   }
 
@@ -209,14 +207,14 @@ export class StockfishService {
     }
   }
 
-  /** Replaces a worker by a fresh one running the same engine (used when it stops answering). */
+  /** Replaces a worker by a fresh one (used when it stops answering). */
   private restartWorker(slot: WorkerSlot) {
     try {
       slot.worker.terminate();
     } catch {
       // Already terminated
     }
-    this.createWorkerSlot(slot.id, slot.script);
+    this.createWorkerSlot(slot.id);
     this.processQueue();
   }
 

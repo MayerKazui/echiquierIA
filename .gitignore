@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Bun est le seul gestionnaire de paquets du projet (bun.lock) : pas d'autre fichier de verrouillage
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
