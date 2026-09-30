@@ -10,7 +10,6 @@ import {
   Eye,
   HelpCircle,
   Lightbulb,
-  MessageSquare,
   ShieldAlert,
   Sparkles,
   Target,
@@ -77,9 +76,6 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
   onToggleShowThreats,
 }) => {
   const [loadingAi, setLoadingAi] = useState(false);
-  const [userQuestion, setUserQuestion] = useState('');
-  const [customAnswer, setCustomAnswer] = useState<string | null>(null);
-  const [loadingQuestion, setLoadingQuestion] = useState(false);
 
   if (!currentMove) {
     return (
@@ -248,49 +244,6 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
       console.error('Failed to get AI coach explanation:', err);
     } finally {
       setLoadingAi(false);
-    }
-  };
-
-  // Ask coach a custom question about this specific position
-  const handleAskQuestion = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userQuestion.trim()) return;
-
-    setLoadingQuestion(true);
-    try {
-      const response = await fetch('/api/coach/explain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fen: currentMove.fenBefore,
-          movePlayed: { san: currentMove.san, uci: currentMove.uci },
-          moveBest: { san: currentMove.bestMoveSan, uci: currentMove.bestMoveUci },
-          evalPlayed: formatEval(currentMove.evalAfter, currentMove.mateAfter),
-          evalBest: formatEval(currentMove.evalBefore, currentMove.mateBefore),
-          classification: `${badge.label} - Question de l'élève: "${userQuestion}"`,
-          pv: currentMove.pv.slice(0, 5).join(' '),
-          playerColor: isWhite ? 'white' : 'black',
-          moveNumber: currentMove.moveNumber,
-          sanHistory: sanHistory.slice(0, currentMove.ply + 1),
-        }),
-      });
-
-      const res = await response.json();
-      if (res.success && res.data) {
-        const planFormatted = res.data.plan
-          ? `\n\nPlan suggéré :\n${formatPlanSteps(res.data.plan)
-              .map((s, idx) => `${idx + 1}. ${s}`)
-              .join('\n')}`
-          : '';
-        setCustomAnswer(
-          `${res.data.whyBestIsBetter || res.data.whyPlayedIsBad}${planFormatted}`
-        );
-      }
-    } catch (err) {
-      console.error('Failed to answer custom question:', err);
-      setCustomAnswer("Désolé, impossible d'obtenir la réponse de l'entraîneur.");
-    } finally {
-      setLoadingQuestion(false);
     }
   };
 
@@ -763,36 +716,6 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
               Cliquez sur <strong className="text-slate-200">« Expliquer le plan tactique »</strong> pour comprendre en français les motifs tactiques, les faiblesses créées et le plan stratégique suggéré par l'IA.
             </div>
           )
-        )}
-
-        {/* Ask Coach Follow-Up */}
-        <form onSubmit={handleAskQuestion} className="mt-2 pt-3 border-t border-slate-800/80 flex gap-2">
-          <input
-            type="text"
-            value={userQuestion}
-            onChange={(e) => setUserQuestion(e.target.value)}
-            placeholder="Posez une question au coach (ex: Pourquoi pas Dd8 ? Quelle était la menace ?)..."
-            className="flex-1 bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
-          <button
-            type="submit"
-            disabled={loadingQuestion || !userQuestion.trim()}
-            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
-          >
-            {loadingQuestion ? (
-              <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <MessageSquare className="w-3.5 h-3.5" />
-            )}
-            <span>Demander</span>
-          </button>
-        </form>
-
-        {customAnswer && (
-          <div className="p-3 bg-slate-900/90 border border-indigo-500/30 rounded-lg text-xs text-slate-200 whitespace-pre-line mt-2">
-            <span className="font-semibold text-indigo-400 block mb-1">Réponse de l'entraîneur :</span>
-            {customAnswer}
-          </div>
         )}
       </div>
     </div>

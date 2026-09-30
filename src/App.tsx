@@ -11,7 +11,6 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Eye,
-  FileDown,
   FileText,
   Flame,
   FlaskConical,
@@ -41,7 +40,6 @@ import { toFrenchSan } from './utils/chessNotation';
 import { analyzeTacticalThreatsForMove } from './utils/tacticalThreats';
 import { parsePgnHeaders } from './utils/pgnParser';
 import { SAMPLE_GAMES } from './utils/sampleGames';
-import { generateChessAnalysisPdf } from './utils/pdfExport';
 import { chessAudio } from './utils/chessAudio';
 import { computeBoardMaterial } from './utils/chessMaterial';
 import { computeBoardHeatmap } from './utils/chessHeatmap';
@@ -814,7 +812,7 @@ export default function App() {
               </div>
             )}
 
-            {/* Action Buttons: Import PGN & Export PDF */}
+            {/* Action Button: Import PGN */}
             {analysisResult && (
               <div className="flex items-center gap-1">
                 <button
@@ -824,14 +822,6 @@ export default function App() {
                 >
                   <FileText className="w-3.5 h-3.5 text-indigo-400" />
                   <span className="hidden md:inline ml-1">Autre PGN</span>
-                </button>
-                <button
-                  onClick={() => generateChessAnalysisPdf(analysisResult)}
-                  className="p-1.5 sm:px-2.5 sm:py-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-sm border border-indigo-500/40 transition-all cursor-pointer"
-                  title="Télécharger le rapport PDF"
-                >
-                  <FileDown className="w-3.5 h-3.5" />
-                  <span className="hidden md:inline ml-1">PDF</span>
                 </button>
               </div>
             )}

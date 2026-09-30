@@ -7,17 +7,18 @@ Légende : `[ ]` à faire · `[x]` fait
 
 ## Épuration de l'interface (fait)
 
-Fonctionnalités retirées pour alléger l'app (≈3 700 lignes supprimées) :
+Fonctionnalités retirées pour alléger l'app (≈4 200 lignes supprimées) :
 
-- [x] **Bilan pédagogique du Grand Maître IA** (Dashboard) et l'endpoint `POST /api/coach/summary`, le type `aiSummary` et la section 4 du PDF (qui n'affichait plus que du texte générique sans lui).
+- [x] **Bilan pédagogique du Grand Maître IA** (Dashboard) et l'endpoint `POST /api/coach/summary`, le type `aiSummary`.
 - [x] **Moments décisifs** (Dashboard) : accessibles depuis l'analyse (saut d'erreur en erreur, liste des coups).
 - [x] **Radar** de menace ennemie (bouton, bandeau, touche `R`, `enemyThreatRadar.ts`).
 - [x] **Structure** de pions (labo, surbrillances sur l'échiquier, touche `P`, `pawnStructure.ts`).
 - [x] **Plein écran** (`FullscreenBoard.tsx`, les deux boutons, `Maj + F` / `F11`).
 - [x] Boutons **FEN** (copie), **FEN Lichess** et **Image** (`exportBoardImage.ts`, touche `C`).
+- [x] **Export PDF** (boutons de l'en-tête et du Dashboard, `pdfExport.ts`, dépendance `jspdf`).
 - [x] **Flèches + Menaces fusionnés** en un seul bouton « Annotations » (touche `E` ; la touche `T` est supprimée).
 
-Conservés : « Partie Lichess » (`/api/lichess/import`), le graphique radar du joueur (`PlayerRadarChart`), « Clavier », le thème, la taille de l'échiquier, le contrôle de l'espace et l'export PDF (sections 1 à 3).
+Conservés : « Partie Lichess » (`/api/lichess/import`), le graphique radar du joueur (`PlayerRadarChart`), « Clavier », le thème, la taille de l'échiquier, le contrôle de l'espace et « Partager le Bilan » (copie d'un résumé texte).
 
 ## Priorité haute
 
@@ -67,7 +68,7 @@ Conservés : « Partie Lichess » (`/api/lichess/import`), le graphique radar du
 - [ ] Navigation clavier sur l'échiquier et la liste de coups, labels ARIA, annonce des coups (état actuel non vérifié).
 
 ### 8. Performance front
-- [ ] Lazy-loading de jsPDF, de `public/openings.json` (1,1 Mo) et des graphiques ; découpage du bundle.
+- [ ] Lazy-loading de `public/openings.json` (1,1 Mo) et des graphiques ; découpage du bundle.
 
 ### 9. Persistance
 - [ ] Sauvegarder les parties analysées (IndexedDB) pour éviter de relancer Stockfish après un rechargement.
