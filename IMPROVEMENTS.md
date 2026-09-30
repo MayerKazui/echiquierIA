@@ -73,12 +73,24 @@ Commandes : `bun run test` (Vitest), `bun run lint` (ESLint), `bun run typecheck
 - [ ] Choisir un seul gestionnaire de paquets (`bun.lock` présent, scripts npm/tsx) et le documenter.
 - [ ] Ajouter un README ; adapter `.env.example` (actuellement orienté AI Studio) ; lire le port depuis `process.env.PORT` (codé en dur à 3000).
 
-### 6. Moteur Stockfish (`src/services/stockfishEngine.ts`)
+### 6. Moteur Stockfish (`src/services/stockfishEngine.ts`) — fait
 
-- [ ] Adapter le nombre de workers (fixé à 2) à `navigator.hardwareConcurrency`.
-- [ ] Rendre la profondeur (12 par défaut) ou le temps d'analyse réglable.
-- [ ] Borner la table de transposition (croissance illimitée).
-- [ ] Envisager les en-têtes COOP/COEP si la version multithread est visée (aucun en-tête de ce type trouvé).
+Mesures (partie réelle de 82 demi-coups, machine à 4 cœurs, navigateur headless) :
+
+| Workers | 1     | 2     | 3 (défaut ici) | 4     |
+| ------- | ----- | ----- | -------------- | ----- |
+| d = 14  | 3,9 s | 2,6 s | 1,8 s          | 1,7 s |
+
+| Profondeur        | 8     | 10    | 12    | 14    | 16    | 18   | 20   |
+| ----------------- | ----- | ----- | ----- | ----- | ----- | ---- | ---- |
+| Durée (3 workers) | 0,9 s | 1,0 s | 0,9 s | 1,8 s | 5,7 s | 14 s | 20 s |
+
+- [x] **Nombre de workers** : `defaultWorkerCount(navigator.hardwareConcurrency)` = cœurs − 1, entre 1 et 6 (2 si inconnu). Sur 4 cœurs : 3 workers au lieu de 2, soit −30 % de temps (le 4ᵉ n'apporte rien). L'écran d'import affiche le nombre de processus utilisés.
+- [x] **Profondeur et temps réglables** : le choix de profondeur existait mais n'était pas mémorisé et ses durées affichées (« ~15 s », « ~35 s ») étaient 10 à 20 fois trop pessimistes. Il est maintenant conservé entre les sessions, les durées sont les mesures ci-dessus, et deux niveaux s'ajoutent : Expert (16) et Maître (18). Le délai maximum par position (`searchTimeLimitMs`) n'est plus fixé à 3,5 s : il reste à 3,5 s jusqu'à la profondeur 12 puis croît de 50 % par niveau (plafond 30 s), sinon une analyse profonde était coupée en silence.
+- [x] **Table de transposition bornée** : cache LRU de 2 000 évaluations (`utils/lruCache.ts`). Il mémorise aussi la profondeur atteinte : avant, une position analysée à d = 8 était resservie telle quelle à d = 14, et les évaluations heuristiques de repli (timeout, erreur) étaient mises en cache définitivement. Seules les évaluations issues du moteur sont désormais conservées, et une entrée ne répond qu'aux demandes de profondeur égale ou inférieure.
+- [x] **COOP/COEP : inutiles, décision prise.** `public/stockfish-19.js` + `.wasm` est la build _lite mono-thread_ de `stockfish` (mêmes tailles : 21 415 o et 1,79 Mo) ; la build multi-thread pèse ~94 Mo et exige l'isolation cross-origin. Pour analyser une partie entière, le parallélisme entre positions (un worker par position) est de toute façon plus efficace qu'une recherche multi-thread sur une seule position. Aucun en-tête à ajouter. (Le badge « Stockfish 19 » désigne donc la version lite.)
+- [x] **Bug corrigé : `bestmove` périmé après un timeout.** À l'expiration du délai, le worker était réutilisé aussitôt pour la position suivante alors qu'il n'avait pas fini d'afficher le `bestmove` de la recherche interrompue : celui-ci pouvait terminer la recherche suivante avec le mauvais coup. Le worker reste maintenant occupé jusqu'à ce `bestmove`, et est redémarré s'il ne répond pas dans les 1,5 s.
+- Tests : 27 tests du service avec un faux worker UCI (pool, file d'attente, cache, timeout, course `bestmove`, worker muet, repli classique, `destroy`), vérifiés par mutation (en réintroduisant les deux défauts, 4 tests échouent).
 
 ## Priorité basse
 

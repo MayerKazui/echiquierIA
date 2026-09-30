@@ -9,6 +9,7 @@ import {
   ensureOpeningBookLoaded,
 } from './openingBook';
 import { toFrenchSan } from '../utils/chessNotation';
+import { LruCache } from '../utils/lruCache';
 
 export interface EngineEvaluation {
   cp: number; // centipawns from White's perspective (+ White, - Black)
@@ -21,9 +22,10 @@ export interface EngineEvaluation {
 interface WorkerSlot {
   id: number;
   worker: Worker;
+  /** Script the worker was started from (kept to restart it with the same engine). */
+  script: string;
   busy: boolean;
   failed: boolean;
-  currentTask?: QueuedTask;
 }
 
 interface QueuedTask {
@@ -31,6 +33,50 @@ interface QueuedTask {
   depth: number;
   resolve: (evaluation: EngineEvaluation) => void;
   reject: (err: unknown) => void;
+}
+
+interface CachedEvaluation {
+  evaluation: EngineEvaluation;
+  /** Depth the search reached: a cached entry only answers requests for this depth or less. */
+  depth: number;
+}
+
+/** Above this the extra workers bring little and each one costs memory (hash table + wasm instance). */
+const MAX_WORKERS = 6;
+const DEFAULT_WORKERS = 2;
+/** Evaluations kept in memory (one game needs about 2 x its plies). */
+const CACHE_CAPACITY = 2000;
+/** How long a stopped worker has to report its `bestmove` before it is restarted. */
+const STOP_GRACE_MS = 1500;
+
+/**
+ * Number of engine workers for a machine: all logical cores but one (the page keeps a core),
+ * between 1 and MAX_WORKERS. Unknown core count: 2.
+ */
+export function defaultWorkerCount(hardwareConcurrency?: number): number {
+  if (!hardwareConcurrency || !Number.isFinite(hardwareConcurrency) || hardwareConcurrency < 1) {
+    return DEFAULT_WORKERS;
+  }
+  return Math.min(MAX_WORKERS, Math.max(1, Math.floor(hardwareConcurrency) - 1));
+}
+
+/**
+ * Wall-clock limit of one position search. Up to depth 12 it stays at 3.5 s, then it grows by 50% per
+ * extra ply (capped at 30 s) so that a deeper analysis is not silently cut back to a shallow one.
+ */
+export function searchTimeLimitMs(depth: number): number {
+  const base = 3500;
+  const extraPlies = Math.max(0, depth - 12);
+  return Math.min(30_000, Math.round(base * Math.pow(1.5, extraPlies)));
+}
+
+export interface StockfishServiceOptions {
+  /** Number of workers (default: derived from `navigator.hardwareConcurrency`). */
+  workerCount?: number;
+  /** Creates the worker running `script` (default: `new Worker(script)`). */
+  createWorker?: (script: string) => Worker;
+  /** Maximum number of cached evaluations. */
+  cacheCapacity?: number;
 }
 
 /** Keeps a worker error from reaching the console/window: the service recovers with its own fallbacks. */
@@ -46,16 +92,16 @@ function swallowEvent(e: Event) {
 export class StockfishService {
   private workers: WorkerSlot[] = [];
   private taskQueue: QueuedTask[] = [];
-  private transpositionTable = new Map<string, EngineEvaluation>();
+  private cache: LruCache<string, CachedEvaluation>;
   private workerScript = '/stockfish-19.js#stockfish-19.wasm';
-  private allWorkersFailed = false;
 
-  constructor() {
+  constructor(private readonly options: StockfishServiceOptions = {}) {
+    this.cache = new LruCache(options.cacheCapacity ?? CACHE_CAPACITY);
     this.initWorkers();
   }
 
   private initWorkers() {
-    if (typeof window === 'undefined') return;
+    if (!this.options.createWorker && typeof window === 'undefined') return;
 
     try {
       // Test wasm support
@@ -65,25 +111,31 @@ export class StockfishService {
 
       this.workerScript = wasmSupported ? '/stockfish-19.js#stockfish-19.wasm' : '/stockfish.js';
 
-      // Keep worker pool lightweight (2 workers) for optimal responsiveness and stability in iframe
-      const numWorkers = 2;
+      const numWorkers =
+        this.options.workerCount ??
+        defaultWorkerCount(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined);
 
       for (let i = 0; i < numWorkers; i++) {
         this.createWorkerSlot(i, this.workerScript);
       }
     } catch (err) {
       console.warn('Could not instantiate Stockfish Web Workers:', err);
-      this.allWorkersFailed = true;
     }
+  }
+
+  /** Number of workers currently able to run a search. */
+  public get activeWorkerCount(): number {
+    return this.workers.filter((w) => !w.failed).length;
   }
 
   private createWorkerSlot(id: number, script?: string) {
     const targetScript = script || this.workerScript;
     try {
-      const worker = new Worker(targetScript);
+      const worker = this.options.createWorker ? this.options.createWorker(targetScript) : new Worker(targetScript);
       const slot: WorkerSlot = {
         id,
         worker,
+        script: targetScript,
         busy: false,
         failed: false,
       };
@@ -91,14 +143,6 @@ export class StockfishService {
       worker.onerror = (e: ErrorEvent | Event) => {
         swallowEvent(e);
         console.warn(`Stockfish Worker #${id} (${targetScript}) error intercepted:`, e);
-
-        // If a task was running on this worker slot, resolve immediately with heuristic
-        if (slot.currentTask) {
-          const task = slot.currentTask;
-          slot.currentTask = undefined;
-          slot.busy = false;
-          task.resolve(this.evaluateHeuristic(task.fen));
-        }
 
         // Cascading resilient fallbacks: Stockfish 19 -> Stockfish classic JS -> Heuristic
         if (targetScript.includes('stockfish-19')) {
@@ -118,6 +162,8 @@ export class StockfishService {
       };
 
       worker.postMessage('uci');
+      // /stockfish-19.js is the lite single-threaded build (no SharedArrayBuffer, so no COOP/COEP headers
+      // needed): parallelism comes from running one search per worker on different positions.
       worker.postMessage('setoption name Threads value 1');
       worker.postMessage('setoption name Hash value 16');
       worker.postMessage('isready');
@@ -163,6 +209,47 @@ export class StockfishService {
     }
   }
 
+  /** Replaces a worker by a fresh one running the same engine (used when it stops answering). */
+  private restartWorker(slot: WorkerSlot) {
+    try {
+      slot.worker.terminate();
+    } catch {
+      // Already terminated
+    }
+    this.createWorkerSlot(slot.id, slot.script);
+    this.processQueue();
+  }
+
+  /**
+   * After a search was interrupted (timeout), the worker still has to print the `bestmove` of that
+   * search. Keeping the slot busy until then matters: otherwise the stale `bestmove` would complete the
+   * next task started on this worker. A worker that stays silent is restarted.
+   */
+  private releaseAfterStop(slot: WorkerSlot) {
+    const onMessage = (event: MessageEvent) => {
+      if (typeof event.data === 'string' && event.data.startsWith('bestmove')) release();
+    };
+    const release = () => {
+      clearTimeout(guard);
+      slot.worker.removeEventListener('message', onMessage);
+      slot.busy = false;
+      this.processQueue();
+    };
+    const guard = setTimeout(() => {
+      slot.worker.removeEventListener('message', onMessage);
+      this.restartWorker(slot);
+    }, STOP_GRACE_MS);
+
+    slot.worker.addEventListener('message', onMessage);
+    try {
+      slot.worker.postMessage('stop');
+    } catch {
+      clearTimeout(guard);
+      slot.worker.removeEventListener('message', onMessage);
+      this.restartWorker(slot);
+    }
+  }
+
   private runWorkerTask(slot: WorkerSlot, task: QueuedTask) {
     const { fen, depth, resolve } = task;
     const chess = new Chess(fen);
@@ -175,27 +262,27 @@ export class StockfishService {
       bestMoveSan: '',
       pv: [],
     };
-
+    let reachedDepth = 0;
     let completed = false;
 
-    const timeoutId = setTimeout(() => {
-      if (completed) return;
+    /** Resolves the task once. Only evaluations that come from the engine are cached. */
+    const settle = (evaluation: EngineEvaluation, cachedDepth: number | null) => {
+      if (completed) return false;
       completed = true;
       cleanup();
-      slot.busy = false;
+      if (cachedDepth !== null) this.cache.set(fen, { evaluation, depth: cachedDepth });
+      resolve(evaluation);
+      return true;
+    };
 
-      // Interrupt search on worker
-      try {
-        slot.worker.postMessage('stop');
-      } catch {
-        // ignore
-      }
+    // Partial result of an interrupted search: usable once the engine has a move, else the heuristic
+    const partialResult = () =>
+      currentEval.bestMoveUci ? settle(currentEval, reachedDepth) : settle(this.evaluateHeuristic(fen), null);
 
-      const finalEval = currentEval.bestMoveUci ? currentEval : this.evaluateHeuristic(fen);
-      this.transpositionTable.set(fen, finalEval);
-      resolve(finalEval);
-      this.processQueue();
-    }, 3500);
+    const timeoutId = setTimeout(() => {
+      if (!partialResult()) return;
+      this.releaseAfterStop(slot); // the slot stays busy until the interrupted search has ended
+    }, searchTimeLimitMs(depth));
 
     const onMessage = (event: MessageEvent) => {
       const line = typeof event.data === 'string' ? event.data : '';
@@ -203,6 +290,13 @@ export class StockfishService {
       // info depth X score cp/mate ... pv ...
       if (line.startsWith('info') && line.includes('score')) {
         const parts = line.split(' ');
+
+        const depthIdx = parts.indexOf('depth');
+        if (depthIdx !== -1) {
+          const reported = parseInt(parts[depthIdx + 1], 10);
+          if (!isNaN(reported)) reachedDepth = Math.max(reachedDepth, reported);
+        }
+
         const scoreIdx = parts.indexOf('score');
         if (scoreIdx !== -1) {
           const type = parts[scoreIdx + 1];
@@ -228,14 +322,8 @@ export class StockfishService {
       }
 
       // bestmove ...
-      if (line.startsWith('bestmove')) {
-        if (completed) return;
-        completed = true;
-        cleanup();
-        slot.busy = false;
-
-        const parts = line.split(' ');
-        const bestMove = parts[1];
+      if (line.startsWith('bestmove') && !completed) {
+        const bestMove = line.split(' ')[1];
         if (bestMove && bestMove !== '(none)') {
           currentEval.bestMoveUci = bestMove;
           try {
@@ -252,21 +340,16 @@ export class StockfishService {
           }
         }
 
-        this.transpositionTable.set(fen, currentEval);
-        resolve(currentEval);
+        settle(currentEval, depth);
+        slot.busy = false;
         this.processQueue();
       }
     };
 
     const onTaskError = (errEv: ErrorEvent | Event) => {
       swallowEvent(errEv);
-      if (completed) return;
-      completed = true;
-      cleanup();
+      if (!partialResult()) return;
       slot.busy = false;
-      const fallbackEval = currentEval.bestMoveUci ? currentEval : this.evaluateHeuristic(fen);
-      this.transpositionTable.set(fen, fallbackEval);
-      resolve(fallbackEval);
       this.processQueue();
     };
 
@@ -278,7 +361,6 @@ export class StockfishService {
       } catch {
         // Worker already gone
       }
-      slot.currentTask = undefined;
     };
 
     slot.worker.addEventListener('message', onMessage);
@@ -288,9 +370,8 @@ export class StockfishService {
       slot.worker.postMessage(`position fen ${fen}`);
       slot.worker.postMessage(`go depth ${depth}`);
     } catch {
-      cleanup();
+      settle(this.evaluateHeuristic(fen), null);
       slot.busy = false;
-      resolve(this.evaluateHeuristic(fen));
       this.processQueue();
     }
   }
@@ -311,15 +392,15 @@ export class StockfishService {
       };
     }
 
-    // 2. Transposition table (instant 0 ms cache)
-    if (this.transpositionTable.has(fen)) {
-      return this.transpositionTable.get(fen)!;
+    // 2. Evaluation cache (instant): only valid if the stored search was at least as deep as requested
+    const cached = this.cache.get(fen);
+    if (cached && cached.depth >= depth) {
+      return cached.evaluation;
     }
 
     // 3. Opening Book lookup (instant 0 ms theoretical cache)
     const bookEval = getOpeningBookEvaluation(fen);
     if (bookEval) {
-      this.transpositionTable.set(fen, bookEval);
       return bookEval;
     }
 
@@ -327,9 +408,7 @@ export class StockfishService {
     try {
       const chess = new Chess(fen);
       if (chess.isGameOver()) {
-        const terminalEval = this.evaluateHeuristic(fen);
-        this.transpositionTable.set(fen, terminalEval);
-        return terminalEval;
+        return this.evaluateHeuristic(fen);
       }
 
       // 5. Forced single moves: if only 1 legal move exists, depth 4 is instantaneous
@@ -642,7 +721,10 @@ export class StockfishService {
       }
     }
     this.workers = [];
+    // Nothing will run these searches any more: answer them so callers do not wait forever
+    for (const task of this.taskQueue) task.resolve(this.evaluateHeuristic(task.fen));
     this.taskQueue = [];
+    this.cache.clear();
   }
 }
 
