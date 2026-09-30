@@ -155,6 +155,9 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   // Keyboard navigation: roving tabindex, one square of the grid is in the tab order at a time
   const [focusedSquare, setFocusedSquare] = useState<string>('e4');
   const cellRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // A click or a tap gives the square the focus; the grid must keep the arrow keys only when the focus
+  // came from the keyboard, otherwise the arrows stop navigating the game after any click on the board.
+  const pointerInteraction = useRef(false);
 
   const BOARD_KEYS: readonly string[] = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
   const handleGridKeyDown = (e: React.KeyboardEvent) => {
@@ -218,6 +221,15 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
         aria-rowcount={8}
         aria-colcount={8}
         onKeyDown={handleGridKeyDown}
+        onPointerDownCapture={() => {
+          pointerInteraction.current = true;
+        }}
+        onPointerUpCapture={() => {
+          pointerInteraction.current = false;
+        }}
+        onPointerCancelCapture={() => {
+          pointerInteraction.current = false;
+        }}
         className="grid grid-cols-8 grid-rows-8 w-full h-full rounded-lg overflow-hidden"
       >
         {ranks.map((rank, rankRowIdx) => (
@@ -274,7 +286,10 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
                     threat: primaryThreat?.label,
                   })}
                   tabIndex={squareName === focusedSquare ? 0 : -1}
-                  onFocus={() => setFocusedSquare(squareName)}
+                  onFocus={(e) => {
+                    setFocusedSquare(squareName);
+                    if (pointerInteraction.current) e.currentTarget.blur(); // focus from the mouse: not the keyboard
+                  }}
                   title={
                     isHeatmapActive && heatmap
                       ? heatmapSquareTitle(

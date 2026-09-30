@@ -1,5 +1,6 @@
 import { Chess } from 'chess.js';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { loadOpeningsFromDisk } from '../test/openings';
 import {
   checkIsTheoreticalMove,
   ensureOpeningBookLoaded,
@@ -8,6 +9,7 @@ import {
   normalizeFen,
 } from './openingBook';
 
+const FEN_AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 /** FENs before each ply of a game given as SAN moves. */
@@ -75,7 +77,7 @@ describe('opening book (built-in lines)', () => {
 
 describe('opening book (full dataset)', () => {
   beforeAll(async () => {
-    await ensureOpeningBookLoaded();
+    await ensureOpeningBookLoaded(loadOpeningsFromDisk);
   });
 
   it('identifies the opening that ends exactly on the last position', () => {
@@ -142,6 +144,30 @@ describe('opening book (full dataset)', () => {
   });
 
   it('is idempotent', async () => {
-    await expect(ensureOpeningBookLoaded()).resolves.toBeUndefined();
+    await expect(ensureOpeningBookLoaded(loadOpeningsFromDisk)).resolves.toBeUndefined();
+  });
+});
+
+describe('ensureOpeningBookLoaded (download)', () => {
+  it('uses the given loader, and retries after a failure instead of staying empty', async () => {
+    // Fresh module state: this file's other tests already loaded the dataset, so use an isolated copy
+    vi.resetModules();
+    const fresh = await import('./openingBook');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const failing = vi.fn().mockRejectedValue(new Error('offline'));
+    await fresh.ensureOpeningBookLoaded(failing);
+    expect(failing).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalled();
+
+    const dataset = await loadOpeningsFromDisk();
+    const working = vi.fn().mockResolvedValue(dataset);
+    await fresh.ensureOpeningBookLoaded(working); // retried, now it works
+    expect(working).toHaveBeenCalledTimes(1);
+    expect(fresh.identifyGameOpening([FEN_AFTER_E4])?.eco).toBe('B00');
+
+    await fresh.ensureOpeningBookLoaded(working); // loaded: no second download
+    expect(working).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 });

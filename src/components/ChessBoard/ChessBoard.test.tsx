@@ -117,6 +117,27 @@ describe('ChessBoard accessibility', () => {
     expect(cell('e7').getAttribute('aria-label')).toBe('e7, pion noir, menace : Attaque sur le pion e7');
   });
 
+  it('does not keep the focus after a mouse click, so the arrows still navigate the game', async () => {
+    const user = userEvent.setup();
+    const onSquareClick = vi.fn();
+    render(<ChessBoard fen={START} onSquareClick={onSquareClick} />);
+    await user.click(cell('e2'));
+    expect(onSquareClick).toHaveBeenCalledWith('e2');
+    expect(document.activeElement).toBe(document.body);
+    // the clicked square is where the keyboard will start from
+    expect(cell('e2').tabIndex).toBe(0);
+  });
+
+  it('keeps the focus on a square reached with the keyboard', async () => {
+    const user = userEvent.setup();
+    render(<ChessBoard fen={START} />);
+    await user.click(cell('e2')); // mouse, then the keyboard
+    await user.tab();
+    expect(document.activeElement).toBe(cell('e2'));
+    await user.keyboard('{ArrowUp}');
+    expect(document.activeElement).toBe(cell('e3'));
+  });
+
   it('keeps the mouse interaction', () => {
     const onSquareClick = vi.fn();
     render(<ChessBoard fen={START} onSquareClick={onSquareClick} />);

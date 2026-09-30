@@ -102,6 +102,7 @@ function setup(
       return worker as unknown as Worker;
     },
   });
+  service.warmUp(); // the tests look at the workers right away; laziness has its own tests
   return { service, workers };
 }
 
@@ -141,6 +142,47 @@ describe('searchTimeLimitMs', () => {
     expect(searchTimeLimitMs(14)).toBeGreaterThan(searchTimeLimitMs(13));
     expect(searchTimeLimitMs(13)).toBeGreaterThan(3500);
     expect(searchTimeLimitMs(40)).toBe(30_000);
+  });
+});
+
+describe('lazy start', () => {
+  function lazyService() {
+    const created: string[] = [];
+    const service = new StockfishService({
+      workerCount: 2,
+      createWorker: (script) => {
+        created.push(script);
+        return new FakeWorker(script, { searchMs: 100, bestMoves: ['e2a6'] }, { searches: 0 }) as unknown as Worker;
+      },
+    });
+    return { service, created };
+  }
+
+  it('creates no worker (and downloads no engine) until it is needed', () => {
+    const { created } = lazyService();
+    expect(created).toHaveLength(0);
+  });
+
+  it('does not start the workers for positions answered without the engine', async () => {
+    const { service, created } = lazyService();
+    await service.evaluatePosition('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'); // start position
+    await service.evaluatePosition('rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3'); // checkmate
+    expect(created).toHaveLength(0);
+  });
+
+  it('starts them at the first search that needs the engine', () => {
+    const { service, created } = lazyService();
+    service.evaluatePosition(FEN_A, 10);
+    expect(created).toHaveLength(2);
+  });
+
+  it('warmUp() starts them ahead of time, once', () => {
+    const { service, created } = lazyService();
+    service.warmUp();
+    service.warmUp();
+    expect(created).toHaveLength(2);
+    service.evaluatePosition(FEN_A, 10);
+    expect(created).toHaveLength(2);
   });
 });
 

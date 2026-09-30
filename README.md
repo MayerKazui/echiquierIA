@@ -6,6 +6,7 @@ coups brillants, trace la courbe d'évaluation et un « entraîneur IA » (Gemin
 - Import d'un PGN (collé, fichier ou exemples) avec reconnaissance de l'ouverture (base lichess, ~3 800 lignes)
 - Analyse Stockfish en parallèle dans des Web Workers, profondeur réglable (8 à 18)
 - Bilan par joueur : précision, phases de jeu, répartition des coups, gestion du temps si le PGN contient les pendules
+- Accessible : échiquier et toutes les commandes utilisables au clavier (touche `?` pour la liste des raccourcis), annonces pour lecteurs d'écran, contrastes et mouvement réduit respectés
 - Échiquier interactif : exploration libre (« Et si j'avais joué… ? »), flèches et surbrillances au clic droit,
   contrôle de l'espace, menaces tactiques, lecture automatique, raccourcis clavier
 - Explications pédagogiques via l'API Gemini, appelée uniquement côté serveur
@@ -82,7 +83,7 @@ erreurs génériques côté client.
 
 ## Déploiement
 
-`bun run build` puis `bun run start`. Le serveur écoute sur `PORT` (3000 par défaut) et sert `dist/`. Derrière un
+`bun run build` puis `bun run start`. Le serveur écoute sur `PORT` (3000 par défaut) et sert `dist/` compressé (brotli/gzip), avec un cache long pour les fichiers hachés et une revalidation pour le reste. Derrière un
 reverse proxy, définissez `TRUST_PROXY` (automatique sur Cloud Run) et `APP_URL`.
 
 ## Suivi des améliorations

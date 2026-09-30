@@ -4,6 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { resolvePort } from './server/config';
+import { spaFallback, staticMiddlewares } from './server/static';
 import type { ZodType } from 'zod';
 import {
   explainSchema,
@@ -452,10 +453,8 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static('dist'));
-    app.get('*', (req, res) => {
-      res.sendFile('dist/index.html', { root: '.' });
-    });
+    app.use(...staticMiddlewares('dist'));
+    app.get('*', spaFallback('dist'));
   }
 
   app.listen(PORT, '0.0.0.0', () => {
