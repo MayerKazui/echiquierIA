@@ -11,6 +11,7 @@ import {
   Award,
 } from 'lucide-react';
 import { MoveAnalysis, PlayerStats, GameMetadata } from '../../types/chess';
+import { PhaseStats } from '../../utils/phaseStats';
 
 export interface SkillDimension {
   id: string;
@@ -43,11 +44,7 @@ interface PlayerRadarChartProps {
   metadata: GameMetadata;
   userColor?: 'w' | 'b';
   userPseudo?: string;
-  phaseStats: {
-    opening: any;
-    middlegame: any;
-    endgame: any;
-  };
+  phaseStats: PhaseStats;
 }
 
 export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
