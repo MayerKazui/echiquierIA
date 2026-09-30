@@ -79,10 +79,20 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
       {/* Top/Left Row: Step Controls & Critical Error Jumpers */}
       <div className="flex items-center justify-between sm:justify-start gap-1 sm:gap-1.5 flex-wrap">
         <div className="flex items-center gap-1">
-          <button onClick={onStart} disabled={currentPly <= 0} className={STEP_BUTTON} title="Début de la partie (Flèche Haut)">
+          <button
+            onClick={onStart}
+            disabled={currentPly <= 0}
+            className={STEP_BUTTON}
+            title="Début de la partie (Flèche Haut)"
+          >
             <ChevronsLeft className="w-4 h-4" />
           </button>
-          <button onClick={onPrev} disabled={currentPly <= 0} className={STEP_BUTTON} title="Coup précédent (Flèche Gauche)">
+          <button
+            onClick={onPrev}
+            disabled={currentPly <= 0}
+            className={STEP_BUTTON}
+            title="Coup précédent (Flèche Gauche)"
+          >
             <ChevronLeft className="w-4 h-4" />
           </button>
 
@@ -100,7 +110,10 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           </button>
 
           {/* Playback Speed Selector */}
-          <div className="flex items-center rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-[10px]" title="Vitesse de lecture automatique">
+          <div
+            className="flex items-center rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-[10px]"
+            title="Vitesse de lecture automatique"
+          >
             {SPEEDS.map(({ speed, perMove }) => (
               <button
                 key={speed}
@@ -138,7 +151,10 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           </button>
 
           {criticalCount > 0 && (
-            <span className="px-1 text-[10px] font-mono text-slate-400 font-semibold" title="Moments critiques détectés">
+            <span
+              className="px-1 text-[10px] font-mono text-slate-400 font-semibold"
+              title="Moments critiques détectés"
+            >
               {currentErrorIndex ? `${currentErrorIndex}/${criticalCount}` : `${criticalCount} err.`}
             </span>
           )}

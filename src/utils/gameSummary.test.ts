@@ -63,6 +63,8 @@ describe('buildGameSummary', () => {
     expect(text).toContain('Finale (coups 31+) : Non atteinte');
 
     const long = analysis({}, 80);
-    expect(buildGameSummary(long, computePhaseStats(long.moves))).toMatch(/Finale \(coups 31\+\) : Blancs [\d.]+% \| Noirs/);
+    expect(buildGameSummary(long, computePhaseStats(long.moves))).toMatch(
+      /Finale \(coups 31\+\) : Blancs [\d.]+% \| Noirs/
+    );
   });
 });

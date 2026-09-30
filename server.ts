@@ -241,10 +241,10 @@ function generateSituationalExplanation(
       isCapture
         ? 'élimine une pièce adverse clé tout en maintenant une coordination optimale'
         : isCheck
-        ? 'attaque directement le Roi adverse et force une réponse défensive immédiate'
-        : targetMove.includes('O-O')
-        ? 'met le Roi en totale sécurité et connecte les Tours'
-        : `active efficacement ${pieceName} vers la case ${targetSquare || 'clé'}, renforçant la pression sur le camp adverse`
+          ? 'attaque directement le Roi adverse et force une réponse défensive immédiate'
+          : targetMove.includes('O-O')
+            ? 'met le Roi en totale sécurité et connecte les Tours'
+            : `active efficacement ${pieceName} vers la case ${targetSquare || 'clé'}, renforçant la pression sur le camp adverse`
     }.`;
   } else {
     whyPlayedIsBad = isBlunder
@@ -264,9 +264,13 @@ function generateSituationalExplanation(
     }.`,
   ];
   if (pvList.length > 1) {
-    steps.push(`2. Enchaîner avec la suite tactique ${pvList.slice(1).join(' ➔ ')} afin de déstabiliser les pièces ${oppColor}.`);
+    steps.push(
+      `2. Enchaîner avec la suite tactique ${pvList.slice(1).join(' ➔ ')} afin de déstabiliser les pièces ${oppColor}.`
+    );
   }
-  steps.push(`3. Poursuivre en augmentant la pression sur les cases sensibles du camp adverse tout en consolidant l'initiative.`);
+  steps.push(
+    `3. Poursuivre en augmentant la pression sur les cases sensibles du camp adverse tout en consolidant l'initiative.`
+  );
   const plan = steps.join('\n');
 
   return {
@@ -362,14 +366,7 @@ Format JSON strict requis :
       setCachedExplanation(cacheKey, parsed);
     } catch (genErr) {
       console.warn('Gemini calls failed, falling back to situational dynamic chess analysis:', genErr);
-      parsed = generateSituationalExplanation(
-        movePlayed,
-        moveBest,
-        pv,
-        playerColor,
-        moveNumber,
-        classificationKey
-      );
+      parsed = generateSituationalExplanation(movePlayed, moveBest, pv, playerColor, moveNumber, classificationKey);
     }
 
     res.json({ success: true, data: parsed });

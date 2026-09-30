@@ -103,8 +103,14 @@ export function computeBoardHeatmap(fen: string): BoardHeatmapData {
       // 2. Knight attacks (8 jumps)
       else if (pieceType === 'n') {
         const jumps = [
-          [-2, -1], [-2, 1], [-1, -2], [-1, 2],
-          [1, -2], [1, 2], [2, -1], [2, 1],
+          [-2, -1],
+          [-2, 1],
+          [-1, -2],
+          [-1, 2],
+          [1, -2],
+          [1, 2],
+          [2, -1],
+          [2, 1],
         ];
         jumps.forEach(([dCol, dRank]) => {
           const targetCol = col + dCol;
@@ -119,9 +125,14 @@ export function computeBoardHeatmap(fen: string): BoardHeatmapData {
       // 3. King attacks (8 adjacent squares)
       else if (pieceType === 'k') {
         const deltas = [
-          [-1, -1], [-1, 0], [-1, 1],
-          [0, -1],           [0, 1],
-          [1, -1],  [1, 0],  [1, 1],
+          [-1, -1],
+          [-1, 0],
+          [-1, 1],
+          [0, -1],
+          [0, 1],
+          [1, -1],
+          [1, 0],
+          [1, 1],
         ];
         deltas.forEach(([dCol, dRank]) => {
           const targetCol = col + dCol;
@@ -135,14 +146,24 @@ export function computeBoardHeatmap(fen: string): BoardHeatmapData {
 
       // 4. Bishop attacks (4 diagonals)
       else if (pieceType === 'b') {
-        [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(([dCol, dRank]) => {
+        [
+          [-1, -1],
+          [-1, 1],
+          [1, -1],
+          [1, 1],
+        ].forEach(([dCol, dRank]) => {
           traceRay(col, rank, dCol, dRank, attackMap);
         });
       }
 
       // 5. Rook attacks (4 orthogonals)
       else if (pieceType === 'r') {
-        [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([dCol, dRank]) => {
+        [
+          [-1, 0],
+          [1, 0],
+          [0, -1],
+          [0, 1],
+        ].forEach(([dCol, dRank]) => {
           traceRay(col, rank, dCol, dRank, attackMap);
         });
       }
@@ -150,8 +171,14 @@ export function computeBoardHeatmap(fen: string): BoardHeatmapData {
       // 6. Queen attacks (8 directions)
       else if (pieceType === 'q') {
         [
-          [-1, -1], [-1, 1], [1, -1], [1, 1],
-          [-1, 0],  [1, 0],  [0, -1], [0, 1],
+          [-1, -1],
+          [-1, 1],
+          [1, -1],
+          [1, 1],
+          [-1, 0],
+          [1, 0],
+          [0, -1],
+          [0, 1],
         ].forEach(([dCol, dRank]) => {
           traceRay(col, rank, dCol, dRank, attackMap);
         });

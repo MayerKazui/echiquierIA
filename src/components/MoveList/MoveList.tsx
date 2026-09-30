@@ -78,15 +78,11 @@ export const MoveList: React.FC<MoveListProps> = ({
     }
 
     if (filterLongThinks) {
-      filtered = filtered.filter(
-        (p) => (p.white && p.white.isLongThink) || (p.black && p.black.isLongThink)
-      );
+      filtered = filtered.filter((p) => (p.white && p.white.isLongThink) || (p.black && p.black.isLongThink));
     }
 
     if (filterRushed) {
-      filtered = filtered.filter(
-        (p) => (p.white && p.white.isRushed) || (p.black && p.black.isRushed)
-      );
+      filtered = filtered.filter((p) => (p.white && p.white.isRushed) || (p.black && p.black.isRushed));
     }
 
     return filtered;
@@ -262,10 +258,10 @@ export const MoveList: React.FC<MoveListProps> = ({
                     isWhiteActive
                       ? 'bg-indigo-600 text-white font-bold shadow'
                       : pair.white.isLongThink
-                      ? 'bg-amber-950/20 hover:bg-amber-950/40 text-slate-200 border border-amber-500/30'
-                      : pair.white.classification === 'book'
-                      ? 'text-violet-200 hover:bg-violet-950/25 border border-violet-500/20'
-                      : 'text-slate-200 hover:bg-slate-800'
+                        ? 'bg-amber-950/20 hover:bg-amber-950/40 text-slate-200 border border-amber-500/30'
+                        : pair.white.classification === 'book'
+                          ? 'text-violet-200 hover:bg-violet-950/25 border border-violet-500/20'
+                          : 'text-slate-200 hover:bg-slate-800'
                   }`}
                 >
                   <span className="truncate min-w-0">{toFrenchSan(pair.white.san)}</span>
@@ -277,23 +273,25 @@ export const MoveList: React.FC<MoveListProps> = ({
                           pair.white.isRushed
                             ? 'bg-rose-500/25 text-rose-300 border border-rose-500/50 font-bold shadow-sm'
                             : pair.white.isLongThink
-                            ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50 font-bold shadow-sm'
-                            : isWhiteActive
-                            ? 'text-indigo-200 bg-indigo-700/50'
-                            : 'text-slate-400 bg-slate-800/80'
+                              ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50 font-bold shadow-sm'
+                              : isWhiteActive
+                                ? 'text-indigo-200 bg-indigo-700/50'
+                                : 'text-slate-400 bg-slate-800/80'
                         }`}
                         title={
                           pair.white.isRushed
                             ? `⚡ Coup précipité (${pair.white.thinkTimeFormatted}) ayant conduit à une faute ! Prenez plus de temps pour calculer.`
                             : pair.white.isLongThink
-                            ? `⚠️ Réflexion anormalement longue : ${pair.white.thinkTimeFormatted} (${pair.white.thinkRatioToAverage}x la moyenne)${pair.white.clock ? ` · Horloge: ${pair.white.clock}` : ''}`
-                            : `Temps de réflexion : ${pair.white.thinkTimeFormatted}${pair.white.clock ? ` · Horloge: ${pair.white.clock}` : ''}`
+                              ? `⚠️ Réflexion anormalement longue : ${pair.white.thinkTimeFormatted} (${pair.white.thinkRatioToAverage}x la moyenne)${pair.white.clock ? ` · Horloge: ${pair.white.clock}` : ''}`
+                              : `Temps de réflexion : ${pair.white.thinkTimeFormatted}${pair.white.clock ? ` · Horloge: ${pair.white.clock}` : ''}`
                         }
                       >
                         {pair.white.isRushed ? (
                           <span className="text-[10px] leading-none text-rose-300">⚡</span>
                         ) : (
-                          <Clock className={`w-2.5 h-2.5 ${pair.white.isLongThink ? 'text-amber-300' : 'opacity-70'}`} />
+                          <Clock
+                            className={`w-2.5 h-2.5 ${pair.white.isLongThink ? 'text-amber-300' : 'opacity-70'}`}
+                          />
                         )}
                         <span className="hidden xs:inline">{pair.white.thinkTimeFormatted}</span>
                       </span>
@@ -319,10 +317,10 @@ export const MoveList: React.FC<MoveListProps> = ({
                     isBlackActive
                       ? 'bg-indigo-600 text-white font-bold shadow'
                       : pair.black.isLongThink
-                      ? 'bg-amber-950/20 hover:bg-amber-950/40 text-slate-300 border border-amber-500/30'
-                      : pair.black.classification === 'book'
-                      ? 'text-violet-200 hover:bg-violet-950/25 border border-violet-500/20'
-                      : 'text-slate-300 hover:bg-slate-800'
+                        ? 'bg-amber-950/20 hover:bg-amber-950/40 text-slate-300 border border-amber-500/30'
+                        : pair.black.classification === 'book'
+                          ? 'text-violet-200 hover:bg-violet-950/25 border border-violet-500/20'
+                          : 'text-slate-300 hover:bg-slate-800'
                   }`}
                 >
                   <span className="truncate min-w-0">{toFrenchSan(pair.black.san)}</span>
@@ -334,23 +332,25 @@ export const MoveList: React.FC<MoveListProps> = ({
                           pair.black.isRushed
                             ? 'bg-rose-500/25 text-rose-300 border border-rose-500/50 font-bold shadow-sm'
                             : pair.black.isLongThink
-                            ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50 font-bold shadow-sm'
-                            : isBlackActive
-                            ? 'text-indigo-200 bg-indigo-700/50'
-                            : 'text-slate-400 bg-slate-800/80'
+                              ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50 font-bold shadow-sm'
+                              : isBlackActive
+                                ? 'text-indigo-200 bg-indigo-700/50'
+                                : 'text-slate-400 bg-slate-800/80'
                         }`}
                         title={
                           pair.black.isRushed
                             ? `⚡ Coup précipité (${pair.black.thinkTimeFormatted}) ayant conduit à une faute ! Prenez plus de temps pour calculer.`
                             : pair.black.isLongThink
-                            ? `⚠️ Réflexion anormalement longue : ${pair.black.thinkTimeFormatted} (${pair.black.thinkRatioToAverage}x la moyenne)${pair.black.clock ? ` · Horloge: ${pair.black.clock}` : ''}`
-                            : `Temps de réflexion : ${pair.black.thinkTimeFormatted}${pair.black.clock ? ` · Horloge: ${pair.black.clock}` : ''}`
+                              ? `⚠️ Réflexion anormalement longue : ${pair.black.thinkTimeFormatted} (${pair.black.thinkRatioToAverage}x la moyenne)${pair.black.clock ? ` · Horloge: ${pair.black.clock}` : ''}`
+                              : `Temps de réflexion : ${pair.black.thinkTimeFormatted}${pair.black.clock ? ` · Horloge: ${pair.black.clock}` : ''}`
                         }
                       >
                         {pair.black.isRushed ? (
                           <span className="text-[10px] leading-none text-rose-300">⚡</span>
                         ) : (
-                          <Clock className={`w-2.5 h-2.5 ${pair.black.isLongThink ? 'text-amber-300' : 'opacity-70'}`} />
+                          <Clock
+                            className={`w-2.5 h-2.5 ${pair.black.isLongThink ? 'text-amber-300' : 'opacity-70'}`}
+                          />
                         )}
                         <span className="hidden xs:inline">{pair.black.thinkTimeFormatted}</span>
                       </span>
@@ -373,7 +373,9 @@ export const MoveList: React.FC<MoveListProps> = ({
 
         {movePairs.length === 0 && (
           <div className="h-full flex items-center justify-center text-slate-500 text-xs py-8 text-center">
-            {filterLongThinks ? 'Aucune longue réflexion identifiée avec ce filtre.' : 'Aucune faute détectée avec ce filtre.'}
+            {filterLongThinks
+              ? 'Aucune longue réflexion identifiée avec ce filtre.'
+              : 'Aucune faute détectée avec ce filtre.'}
           </div>
         )}
       </div>

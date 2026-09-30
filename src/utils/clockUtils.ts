@@ -13,7 +13,10 @@ export interface ParsedClockInfo {
  */
 export function parseDurationToSeconds(str: string): number | null {
   if (!str) return null;
-  const clean = str.trim().replace(/^\[%clk\s*|^\[%emt\s*|^\[|\]$/gi, '').trim();
+  const clean = str
+    .trim()
+    .replace(/^\[%clk\s*|^\[%emt\s*|^\[|\]$/gi, '')
+    .trim();
   const parts = clean.split(':');
 
   if (parts.length === 3) {
@@ -258,7 +261,7 @@ export function extractGameClocks(
     // - >= 2.2x the player's average think time AND >= 15 seconds
     // - OR absolute duration >= 60 seconds
     // - OR >= 30 seconds if average is fast (<= 10s)
-    const isLong = (m.thinkSec >= Math.max(15, avg * 2.2)) || (m.thinkSec >= 60) || (avg <= 10 && m.thinkSec >= 30);
+    const isLong = m.thinkSec >= Math.max(15, avg * 2.2) || m.thinkSec >= 60 || (avg <= 10 && m.thinkSec >= 30);
 
     return {
       clock: m.clock,

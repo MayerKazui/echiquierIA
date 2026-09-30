@@ -118,7 +118,11 @@ describe('lichessImportSchema', () => {
 
 describe('explanationSchema', () => {
   it('accepts the expected reply and defaults the missing critique to an empty string', () => {
-    const parsed = explanationSchema.parse({ concept: 'Centre', whyBestIsBetter: 'Parce que', plan: '1. a\n2. b\n3. c' });
+    const parsed = explanationSchema.parse({
+      concept: 'Centre',
+      whyBestIsBetter: 'Parce que',
+      plan: '1. a\n2. b\n3. c',
+    });
     expect(parsed.whyPlayedIsBad).toBe('');
   });
 

@@ -5,12 +5,7 @@ import { AppTab, BoardSize, BoardTheme, HeatmapMode, PlayerColor, ThreatsMode } 
 import { toFrenchSan } from './utils/chessNotation';
 import { computeBoardMaterial } from './utils/chessMaterial';
 import { computeBoardHeatmap } from './utils/chessHeatmap';
-import {
-  BOARD_COLUMN_SPAN,
-  BOARD_MAX_WIDTH,
-  PAGE_MAX_WIDTH,
-  SIDE_COLUMN_SPAN,
-} from './utils/boardLayout';
+import { BOARD_COLUMN_SPAN, BOARD_MAX_WIDTH, PAGE_MAX_WIDTH, SIDE_COLUMN_SPAN } from './utils/boardLayout';
 
 import { oneOf, usePersistentState } from './hooks/usePersistentState';
 import { useGameAnalysis } from './hooks/useGameAnalysis';
@@ -69,10 +64,14 @@ export default function App() {
   const [filterOnlyErrors, setFilterOnlyErrors] = useState(false);
 
   // Game analysis and navigation
-  const { pgn, isAnalyzing, progress, result: analysis, analyze, updateAiExplanation } = useGameAnalysis(
-    userPseudo,
-    userColor
-  );
+  const {
+    pgn,
+    isAnalyzing,
+    progress,
+    result: analysis,
+    analyze,
+    updateAiExplanation,
+  } = useGameAnalysis(userPseudo, userColor);
   const moves = analysis?.moves;
   const totalMoves = moves?.length ?? 0;
   const lastPly = Math.max(0, totalMoves - 1);

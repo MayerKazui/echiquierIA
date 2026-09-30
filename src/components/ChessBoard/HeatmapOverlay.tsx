@@ -17,10 +17,10 @@ export function heatmapSquareTitle(square: string, mode: ActiveHeatmapMode, ctrl
     net !== undefined && net > 0
       ? `+${net} Blancs`
       : net !== undefined && net < 0
-      ? `${net} Noirs`
-      : ctrl?.isContested
-      ? 'Contestée'
-      : 'Neutre';
+        ? `${net} Noirs`
+        : ctrl?.isContested
+          ? 'Contestée'
+          : 'Neutre';
   return `${name} : ${white} attaquant(s) blancs vs ${black} noirs (${balance})`;
 }
 
@@ -66,17 +66,20 @@ export const HeatmapSquareOverlay: React.FC<{ ctrl: SquareControl | undefined; m
   if (ctrl.whiteCount <= 0 && ctrl.blackCount <= 0) return null;
   const bg = ctrl.net > 0 ? 'bg-blue-500' : ctrl.net < 0 ? 'bg-rose-500' : 'bg-amber-400';
   const opacity =
-    ctrl.net !== 0
-      ? Math.min(0.48, 0.16 + Math.min(Math.abs(ctrl.net), 4) * 0.08)
-      : ctrl.isContested
-      ? 0.22
-      : 0;
+    ctrl.net !== 0 ? Math.min(0.48, 0.16 + Math.min(Math.abs(ctrl.net), 4) * 0.08) : ctrl.isContested ? 0.22 : 0;
   const badge =
     ctrl.net > 0
       ? 'text-blue-200 border-blue-400/70'
       : ctrl.net < 0
-      ? 'text-rose-200 border-rose-400/70'
-      : 'text-amber-300 border-amber-400/70';
+        ? 'text-rose-200 border-rose-400/70'
+        : 'text-amber-300 border-amber-400/70';
 
-  return <Tint bg={bg} opacity={opacity} badge={badge} label={ctrl.net > 0 ? `+${ctrl.net}` : ctrl.net < 0 ? `${ctrl.net}` : '='} />;
+  return (
+    <Tint
+      bg={bg}
+      opacity={opacity}
+      badge={badge}
+      label={ctrl.net > 0 ? `+${ctrl.net}` : ctrl.net < 0 ? `${ctrl.net}` : '='}
+    />
+  );
 };

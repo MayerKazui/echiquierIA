@@ -46,9 +46,11 @@ export function toFrenchSan(san: string): string {
     const frenchPiece = ENGLISH_TO_FRENCH_PIECES[firstChar];
     const rest = result.slice(1);
     // If disambiguation has a piece letter (e.g. N/R disambiguation like Nbd7), check
-    result = frenchPiece + rest.replace(/^([a-h1-8]?)([KQRBN])/, (_, prefix, disambigPiece) => {
-      return prefix + (ENGLISH_TO_FRENCH_PIECES[disambigPiece] || disambigPiece);
-    });
+    result =
+      frenchPiece +
+      rest.replace(/^([a-h1-8]?)([KQRBN])/, (_, prefix, disambigPiece) => {
+        return prefix + (ENGLISH_TO_FRENCH_PIECES[disambigPiece] || disambigPiece);
+      });
   }
 
   return result;
@@ -83,12 +85,7 @@ export function convertUciToFrenchSan(fen: string, uciMove: string): string {
  *   ['d1f3', 'c7c6', 'h2h3', 'f6d7']
  *   -> 'Df3 c6 h3 Cfd7' (or with move numbers: '10. Df3 c6  11. h3 Cfd7')
  */
-export function formatPvToFrench(
-  fen: string,
-  pvUci: string[],
-  maxMoves = 6,
-  includeMoveNumbers = true
-): string {
+export function formatPvToFrench(fen: string, pvUci: string[], maxMoves = 6, includeMoveNumbers = true): string {
   if (!pvUci || pvUci.length === 0) return '';
 
   const formattedMoves: string[] = [];

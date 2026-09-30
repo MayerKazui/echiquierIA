@@ -215,7 +215,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
             const moveAnimationFrom: string | null =
               isLastMoveTo && lastMove?.from
                 ? lastMove.from
-                : CASTLING_ROOK_FROM[`${lastMove?.from}-${lastMove?.to}-${squareName}`] ?? null;
+                : (CASTLING_ROOK_FROM[`${lastMove?.from}-${lastMove?.to}-${squareName}`] ?? null);
 
             let animationStyle: React.CSSProperties = {};
             if (moveAnimationFrom && moveAnimationFrom.length === 2) {
@@ -237,7 +237,11 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
                 data-square={squareName}
                 title={
                   isHeatmapActive && heatmap
-                    ? heatmapSquareTitle(squareName, effectiveHeatmapMode as Exclude<HeatmapMode, 'none'>, heatmap.squares[squareName])
+                    ? heatmapSquareTitle(
+                        squareName,
+                        effectiveHeatmapMode as Exclude<HeatmapMode, 'none'>,
+                        heatmap.squares[squareName]
+                      )
                     : undefined
                 }
                 className={`relative flex items-center justify-center cursor-pointer transition-colors duration-100 ${
@@ -314,12 +318,16 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
 
                 {/* Rank notation (left edge) and file notation (bottom edge) */}
                 {file === files[0] && (
-                  <span className={`absolute top-0.5 left-1 text-[10px] font-bold pointer-events-none select-none ${coordTextColor}`}>
+                  <span
+                    className={`absolute top-0.5 left-1 text-[10px] font-bold pointer-events-none select-none ${coordTextColor}`}
+                  >
                     {rank}
                   </span>
                 )}
                 {rank === ranks[7] && (
-                  <span className={`absolute bottom-0.5 right-1 text-[10px] font-bold pointer-events-none select-none ${coordTextColor}`}>
+                  <span
+                    className={`absolute bottom-0.5 right-1 text-[10px] font-bold pointer-events-none select-none ${coordTextColor}`}
+                  >
                     {file}
                   </span>
                 )}
@@ -338,7 +346,9 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
                     }}
                     onDragEnd={() => setDraggedSquare(null)}
                     className={`relative w-[84%] h-[84%] z-10 select-none ${
-                      canDragPiece ? 'cursor-grab active:cursor-grabbing hover:scale-105 transition-transform' : 'pointer-events-none'
+                      canDragPiece
+                        ? 'cursor-grab active:cursor-grabbing hover:scale-105 transition-transform'
+                        : 'pointer-events-none'
                     } ${draggedSquare === squareName ? 'opacity-40' : 'opacity-100'} ${
                       moveAnimationFrom ? 'animate-piece-slide' : ''
                     }`}

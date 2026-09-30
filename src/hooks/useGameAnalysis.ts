@@ -74,17 +74,14 @@ export function useGameAnalysis(userPseudo: string, userColor: PlayerColor) {
     [userPseudo, userColor]
   );
 
-  const updateAiExplanation = useCallback(
-    (ply: number, explanation: NonNullable<MoveAnalysis['aiExplanation']>) => {
-      setResult((prev) => {
-        if (!prev) return null;
-        const moves = [...prev.moves];
-        if (moves[ply]) moves[ply] = { ...moves[ply], aiExplanation: explanation };
-        return { ...prev, moves };
-      });
-    },
-    []
-  );
+  const updateAiExplanation = useCallback((ply: number, explanation: NonNullable<MoveAnalysis['aiExplanation']>) => {
+    setResult((prev) => {
+      if (!prev) return null;
+      const moves = [...prev.moves];
+      if (moves[ply]) moves[ply] = { ...moves[ply], aiExplanation: explanation };
+      return { ...prev, moves };
+    });
+  }, []);
 
   return { pgn, isAnalyzing, progress, result, analyze, updateAiExplanation };
 }

@@ -1,13 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import {
-  FileText,
-  Upload,
-  Play,
-  Sliders,
-  AlertCircle,
-  User,
-  BookOpen,
-} from 'lucide-react';
+import { FileText, Upload, Play, Sliders, AlertCircle, User, BookOpen } from 'lucide-react';
 import { Chess } from 'chess.js';
 import { SAMPLE_GAMES, SampleGame } from '../../utils/sampleGames';
 import { validatePgn, parsePgnHeaders } from '../../utils/pgnParser';
@@ -150,9 +142,7 @@ export const PgnInput: React.FC<PgnInputProps> = ({
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <label className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">
-              Contenu PGN
-            </label>
+            <label className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">Contenu PGN</label>
             {detectedOpening && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-950/60 border border-indigo-700/50 text-[10px] text-indigo-300 font-medium">
                 <BookOpen className="w-3 h-3 text-indigo-400 shrink-0" />
@@ -167,12 +157,7 @@ export const PgnInput: React.FC<PgnInputProps> = ({
           <label className="cursor-pointer inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-medium">
             <Upload className="w-3.5 h-3.5" />
             <span>Charger un fichier .pgn</span>
-            <input
-              type="file"
-              accept=".pgn,.txt"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
+            <input type="file" accept=".pgn,.txt" onChange={handleFileUpload} className="hidden" />
           </label>
         </div>
 
@@ -183,7 +168,7 @@ export const PgnInput: React.FC<PgnInputProps> = ({
             setPgnText(e.target.value);
             if (validationError) setValidationError(null);
           }}
-          placeholder="[Event &quot;Tournoi&quot;]&#10;1. e4 e5 2. Nf3 Nc6..."
+          placeholder='[Event "Tournoi"]&#10;1. e4 e5 2. Nf3 Nc6...'
           className="w-full font-mono text-xs bg-slate-950 border border-slate-700/80 rounded-xl p-3 text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
 
@@ -202,9 +187,7 @@ export const PgnInput: React.FC<PgnInputProps> = ({
             <User className="w-4 h-4 text-indigo-400" />
           </div>
           <div>
-            <span className="text-xs font-semibold text-slate-200 block">
-              Mon pseudo de joueur (optionnel)
-            </span>
+            <span className="text-xs font-semibold text-slate-200 block">Mon pseudo de joueur (optionnel)</span>
             <span className="text-[10px] text-slate-400">
               Oriente l'échiquier et personnalise les conseils de votre point de vue
             </span>
@@ -225,9 +208,7 @@ export const PgnInput: React.FC<PgnInputProps> = ({
         <div className="flex items-center justify-between flex-wrap gap-1">
           <div className="flex items-center gap-2">
             <Sliders className="w-4 h-4 text-indigo-400 shrink-0" />
-            <span className="text-xs font-semibold text-slate-200">
-              Profondeur de calcul Stockfish 19
-            </span>
+            <span className="text-xs font-semibold text-slate-200">Profondeur de calcul Stockfish 19</span>
           </div>
           <span className="text-[11px] text-indigo-300 font-medium">
             Sélectionné : <strong className="text-white">Profondeur {selectedDepth}</strong>

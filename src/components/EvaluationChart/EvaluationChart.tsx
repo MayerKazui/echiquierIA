@@ -10,11 +10,7 @@ interface EvaluationChartProps {
   onSelectPly: (ply: number) => void;
 }
 
-export const EvaluationChart: React.FC<EvaluationChartProps> = ({
-  moves,
-  currentPly,
-  onSelectPly,
-}) => {
+export const EvaluationChart: React.FC<EvaluationChartProps> = ({ moves, currentPly, onSelectPly }) => {
   const [chartMode, setChartMode] = useState<ChartMode>('eval');
   const [hoveredPly, setHoveredPly] = useState<number | null>(null);
 
@@ -75,7 +71,15 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
 
     const clampSwing = Math.min(600, Math.max(250, peakSwing));
 
-    const tPoints: Array<{ ply: number; moveNumber: number; color: string; san: string; swing: number; x: number; y: number }> = [];
+    const tPoints: Array<{
+      ply: number;
+      moveNumber: number;
+      color: string;
+      san: string;
+      swing: number;
+      x: number;
+      y: number;
+    }> = [];
 
     const bars = swings.map(({ m, swing, index }) => {
       const x = paddingX + (index / Math.max(1, moves.length - 1)) * effectiveWidth;
@@ -223,9 +227,7 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
           <button
             onClick={() => setChartMode('eval')}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
-              chartMode === 'eval'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+              chartMode === 'eval' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
             }`}
             title="Courbe continue de l'évaluation Stockfish"
           >
@@ -236,9 +238,7 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
           <button
             onClick={() => setChartMode('momentum')}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
-              chartMode === 'momentum'
-                ? 'bg-amber-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+              chartMode === 'momentum' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
             }`}
             title="Impulsions et tournants majeurs du match"
           >
@@ -254,9 +254,7 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
           <button
             onClick={() => setChartMode('accuracy')}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
-              chartMode === 'accuracy'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+              chartMode === 'accuracy' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
             }`}
             title="Précision cumulative tour par tour des Blancs vs Noirs"
           >
@@ -269,7 +267,10 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
         <div className="flex items-center gap-2 text-slate-300 font-mono text-[11px] truncate min-w-0">
           {activePoint && (
             <span className="text-slate-200 truncate">
-              <strong>{activePoint.moveNumber}{activePoint.color === 'w' ? '.' : '...'} {activePoint.san}</strong>
+              <strong>
+                {activePoint.moveNumber}
+                {activePoint.color === 'w' ? '.' : '...'} {activePoint.san}
+              </strong>
               {chartMode === 'eval' && (
                 <span className="text-indigo-300 ml-1.5 font-bold">
                   Score : {formatEval(activePoint.evalAfter, activePoint.mateAfter)}
@@ -277,7 +278,9 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
               )}
               {chartMode === 'momentum' && activeMomentum && (
                 <span className={`ml-1.5 font-bold ${activeMomentum.swing >= 0 ? 'text-blue-400' : 'text-rose-400'}`}>
-                  {activeMomentum.swing >= 0 ? `+${(activeMomentum.swing / 100).toFixed(1)} Blancs` : `${(activeMomentum.swing / 100).toFixed(1)} Noirs`}
+                  {activeMomentum.swing >= 0
+                    ? `+${(activeMomentum.swing / 100).toFixed(1)} Blancs`
+                    : `${(activeMomentum.swing / 100).toFixed(1)} Noirs`}
                 </span>
               )}
               {chartMode === 'accuracy' && activeAccW && activeAccB && (
@@ -372,15 +375,7 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
           {chartMode === 'eval' && (
             <>
               {/* Zero line */}
-              <line
-                x1="0"
-                y1={zeroY}
-                x2={width}
-                y2={zeroY}
-                stroke="#475569"
-                strokeDasharray="3 3"
-                strokeWidth="1"
-              />
+              <line x1="0" y1={zeroY} x2={width} y2={zeroY} stroke="#475569" strokeDasharray="3 3" strokeWidth="1" />
               <text x={8} y={zeroY - 4} fill="#64748b" fontSize="9" fontFamily="monospace">
                 0.0
               </text>
@@ -392,18 +387,10 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
               </text>
 
               {/* Area fill for White advantage */}
-              <path
-                d={whiteAreaD}
-                fill="url(#whiteAdvantageGrad)"
-                clipPath="url(#aboveZeroClip)"
-              />
+              <path d={whiteAreaD} fill="url(#whiteAdvantageGrad)" clipPath="url(#aboveZeroClip)" />
 
               {/* Area fill for Black advantage */}
-              <path
-                d={blackAreaD}
-                fill="url(#blackAdvantageGrad)"
-                clipPath="url(#belowZeroClip)"
-              />
+              <path d={blackAreaD} fill="url(#blackAdvantageGrad)" clipPath="url(#belowZeroClip)" />
 
               {/* Main evaluation curve line */}
               <path
@@ -463,15 +450,7 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
           {chartMode === 'momentum' && (
             <>
               {/* Zero line */}
-              <line
-                x1="0"
-                y1={zeroY}
-                x2={width}
-                y2={zeroY}
-                stroke="#475569"
-                strokeDasharray="2 2"
-                strokeWidth="1"
-              />
+              <line x1="0" y1={zeroY} x2={width} y2={zeroY} stroke="#475569" strokeDasharray="2 2" strokeWidth="1" />
               <text x={8} y={zeroY - 4} fill="#64748b" fontSize="9" fontFamily="monospace">
                 0.0
               </text>
@@ -490,8 +469,8 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
                     ? '#3b82f6'
                     : '#60a5fa'
                   : b.isMajorSwing
-                  ? '#e11d48'
-                  : '#f43f5e';
+                    ? '#e11d48'
+                    : '#f43f5e';
 
                 return (
                   <rect
@@ -522,14 +501,7 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
                     strokeWidth="1.5"
                     className="animate-pulse"
                   />
-                  <text
-                    x={tp.x - 3}
-                    y={tp.y + 3}
-                    fill="#ffffff"
-                    fontSize="7"
-                    fontWeight="bold"
-                    pointerEvents="none"
-                  >
+                  <text x={tp.x - 3} y={tp.y + 3} fill="#ffffff" fontSize="7" fontWeight="bold" pointerEvents="none">
                     ⚡
                   </text>
                 </g>
@@ -541,14 +513,56 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
           {chartMode === 'accuracy' && (
             <>
               {/* Reference Grid lines: 100%, 80%, 60% */}
-              <line x1="0" y1={paddingY} x2={width} y2={paddingY} stroke="#334155" strokeDasharray="3 3" strokeWidth="1" />
-              <text x={8} y={paddingY + 9} fill="#94a3b8" fontSize="9" fontFamily="monospace">100%</text>
+              <line
+                x1="0"
+                y1={paddingY}
+                x2={width}
+                y2={paddingY}
+                stroke="#334155"
+                strokeDasharray="3 3"
+                strokeWidth="1"
+              />
+              <text x={8} y={paddingY + 9} fill="#94a3b8" fontSize="9" fontFamily="monospace">
+                100%
+              </text>
 
-              <line x1="0" y1={paddingY + (height - paddingY * 2) / 3} x2={width} y2={paddingY + (height - paddingY * 2) / 3} stroke="#334155" strokeDasharray="3 3" strokeWidth="1" />
-              <text x={8} y={paddingY + (height - paddingY * 2) / 3 - 3} fill="#64748b" fontSize="9" fontFamily="monospace">80%</text>
+              <line
+                x1="0"
+                y1={paddingY + (height - paddingY * 2) / 3}
+                x2={width}
+                y2={paddingY + (height - paddingY * 2) / 3}
+                stroke="#334155"
+                strokeDasharray="3 3"
+                strokeWidth="1"
+              />
+              <text
+                x={8}
+                y={paddingY + (height - paddingY * 2) / 3 - 3}
+                fill="#64748b"
+                fontSize="9"
+                fontFamily="monospace"
+              >
+                80%
+              </text>
 
-              <line x1="0" y1={paddingY + ((height - paddingY * 2) * 2) / 3} x2={width} y2={paddingY + ((height - paddingY * 2) * 2) / 3} stroke="#334155" strokeDasharray="3 3" strokeWidth="1" />
-              <text x={8} y={paddingY + ((height - paddingY * 2) * 2) / 3 - 3} fill="#64748b" fontSize="9" fontFamily="monospace">60%</text>
+              <line
+                x1="0"
+                y1={paddingY + ((height - paddingY * 2) * 2) / 3}
+                x2={width}
+                y2={paddingY + ((height - paddingY * 2) * 2) / 3}
+                stroke="#334155"
+                strokeDasharray="3 3"
+                strokeWidth="1"
+              />
+              <text
+                x={8}
+                y={paddingY + ((height - paddingY * 2) * 2) / 3 - 3}
+                fill="#64748b"
+                fontSize="9"
+                fontFamily="monospace"
+              >
+                60%
+              </text>
 
               {/* White Running Accuracy Line */}
               <path
@@ -590,8 +604,8 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
                   chartMode === 'accuracy'
                     ? activeAccW?.y || height / 2
                     : chartMode === 'momentum'
-                    ? zeroY
-                    : activePoint.y
+                      ? zeroY
+                      : activePoint.y
                 }
                 r="5"
                 fill="#38bdf8"
@@ -640,7 +654,8 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({
                   : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border-slate-800 hover:text-white'
               }`}
             >
-              {tp.moveNumber}{tp.color === 'w' ? '.' : '...'} {tp.san}{' '}
+              {tp.moveNumber}
+              {tp.color === 'w' ? '.' : '...'} {tp.san}{' '}
               <span className={tp.swing >= 0 ? 'text-blue-400 font-bold' : 'text-rose-400 font-bold'}>
                 ({tp.swing >= 0 ? `+${(tp.swing / 100).toFixed(1)}` : (tp.swing / 100).toFixed(1)})
               </span>

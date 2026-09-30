@@ -124,9 +124,10 @@ export function computePlayerStats(playerMoves: MoveAnalysis[]): PlayerStats {
 
   // Calculate think time metrics if available
   const movesWithThink = playerMoves.filter((m) => m.thinkTimeSeconds !== undefined);
-  const avgThinkTimeSeconds = movesWithThink.length > 0
-    ? Math.round(movesWithThink.reduce((a, b) => a + (b.thinkTimeSeconds || 0), 0) / movesWithThink.length)
-    : undefined;
+  const avgThinkTimeSeconds =
+    movesWithThink.length > 0
+      ? Math.round(movesWithThink.reduce((a, b) => a + (b.thinkTimeSeconds || 0), 0) / movesWithThink.length)
+      : undefined;
   const longThinksCount = playerMoves.filter((m) => m.isLongThink).length;
   const rushedMovesCount = playerMoves.filter((m) => m.isRushed).length;
 

@@ -82,5 +82,5 @@ createRoot(document.getElementById('root')!).render(
     <AppErrorBoundary>
       <App />
     </AppErrorBoundary>
-  </StrictMode>,
+  </StrictMode>
 );

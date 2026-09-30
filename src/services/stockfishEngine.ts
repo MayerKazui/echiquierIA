@@ -400,9 +400,9 @@ export class StockfishService {
         // Central control bonus for pawns and knights
         if (piece.type === 'p') {
           if ((r === 3 || r === 4) && (c === 3 || c === 4)) posBonus += 25;
-          else if ((r >= 2 && r <= 5) && (c >= 2 && c <= 5)) posBonus += 10;
+          else if (r >= 2 && r <= 5 && c >= 2 && c <= 5) posBonus += 10;
         } else if (piece.type === 'n') {
-          if ((r >= 2 && r <= 5) && (c >= 2 && c <= 5)) posBonus += 20;
+          if (r >= 2 && r <= 5 && c >= 2 && c <= 5) posBonus += 20;
         }
 
         if (piece.color === 'w') {
@@ -547,7 +547,8 @@ export class StockfishService {
 
       // Check if played move was a piece sacrifice
       const pieceType = move.piece;
-      const isSacrifice = (pieceType === 'q' || pieceType === 'r' || pieceType === 'b' || pieceType === 'n') &&
+      const isSacrifice =
+        (pieceType === 'q' || pieceType === 'r' || pieceType === 'b' || pieceType === 'n') &&
         move.captured === undefined &&
         evalAfterRes.cp * (isWhite ? 1 : -1) > 100;
 

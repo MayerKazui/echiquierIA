@@ -119,27 +119,23 @@ describe('computePlayerStats', () => {
   });
 
   it('attributes mistakes and blunders to the opening, middlegame or endgame by ply', () => {
-    const stats = computePlayerStats(
-      [
-        move({ ply: 4, classification: 'mistake' }),
-        move({ ply: 30, classification: 'blunder' }),
-        move({ ply: 31, classification: 'mistake' }),
-        move({ ply: 70, classification: 'missedWin' }),
-      ]
-    );
+    const stats = computePlayerStats([
+      move({ ply: 4, classification: 'mistake' }),
+      move({ ply: 30, classification: 'blunder' }),
+      move({ ply: 31, classification: 'mistake' }),
+      move({ ply: 70, classification: 'missedWin' }),
+    ]);
     expect(stats.openingBlunders).toBe(1);
     expect(stats.middlegameBlunders).toBe(2);
     expect(stats.endgameBlunders).toBe(1);
   });
 
   it('reports think-time metrics only when clock data exists', () => {
-    const withClock = computePlayerStats(
-      [
-        move({ thinkTimeSeconds: 4, isRushed: true }),
-        move({ thinkTimeSeconds: 11, isLongThink: true }),
-        move({ thinkTimeSeconds: 3 }),
-      ]
-    );
+    const withClock = computePlayerStats([
+      move({ thinkTimeSeconds: 4, isRushed: true }),
+      move({ thinkTimeSeconds: 11, isLongThink: true }),
+      move({ thinkTimeSeconds: 3 }),
+    ]);
     expect(withClock.avgThinkTimeSeconds).toBe(6);
     expect(withClock.longThinksCount).toBe(1);
     expect(withClock.rushedMovesCount).toBe(1);
