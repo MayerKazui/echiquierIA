@@ -1,4 +1,7 @@
-import express from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
+import { Chess } from 'chess.js';
+import { z } from 'zod';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
@@ -6,18 +9,126 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
-app.use(express.json());
 
-// Enable CORS for preview iframe and cross-origin fetch requests
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
+// Behind a reverse proxy (Cloud Run sets K_SERVICE) the client IP comes from X-Forwarded-For.
+// Without this, every visitor would share the proxy's IP and therefore one rate-limit bucket.
+// Override with TRUST_PROXY (number of proxy hops, or an express "trust proxy" value).
+const trustProxy = process.env.TRUST_PROXY ?? (process.env.K_SERVICE ? '1' : undefined);
+if (trustProxy) {
+  app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
+}
+
+// The API only takes small JSON bodies (a FEN and a few moves, or one PGN).
+app.use(express.json({ limit: '100kb' }));
+
+// CORS: same-origin requests are always accepted. Other sites must be listed in
+// APP_URL / ALLOWED_ORIGINS (comma-separated); everything else gets a 403.
+function toOrigin(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value.trim()).origin;
+  } catch {
+    return null;
   }
+}
+
+const allowedOrigins = new Set(
+  [process.env.APP_URL, ...(process.env.ALLOWED_ORIGINS ?? '').split(',')]
+    .map(toOrigin)
+    .filter((origin): origin is string => origin !== null && origin !== 'null')
+);
+
+app.use('/api', (req, res, next) => {
+  const origin = req.get('Origin');
+  if (!origin) return next(); // Non-browser client or same-origin GET
+
+  const originUrl = toOrigin(origin);
+  const isSameOrigin = originUrl !== null && new URL(originUrl).host === req.get('Host');
+  if (!originUrl || (!isSameOrigin && !allowedOrigins.has(originUrl))) {
+    return res.status(403).json({ success: false, error: 'Origine non autorisée' });
+  }
+
+  res.vary('Origin');
+  if (!isSameOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', originUrl);
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
+
+// Rate limits (per client IP). Explanations cost Gemini quota; Lichess rate-limits imports itself.
+const rateLimitResponse = { success: false, error: 'Trop de requêtes, réessayez dans un instant' };
+const explainLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: rateLimitResponse,
+});
+const lichessImportLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: rateLimitResponse,
+});
+
+// Request validation. Every string that ends up in the Gemini prompt is restricted to a
+// character set with no quotes, braces or line breaks, so it cannot carry instructions.
+const moveToken = z
+  .string()
+  .max(12)
+  .regex(/^[\p{L}\p{N}+#=\-@()]*$/u);
+const moveRef = z.object({ san: moveToken.optional(), uci: moveToken.optional() });
+const evalLabel = z.string().regex(/^(M\d{1,3}|[+-]?\d{1,5}(\.\d)?)$/);
+
+const isValidFen = (fen: string) => {
+  try {
+    new Chess(fen);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const explainSchema = z.object({
+  fen: z.string().max(100).refine(isValidFen, 'FEN invalide'),
+  movePlayed: moveRef,
+  moveBest: moveRef,
+  evalPlayed: evalLabel,
+  evalBest: evalLabel,
+  // Usually a label such as "Gaffe critique", but it can also be an opening name.
+  classification: z
+    .string()
+    .min(1)
+    .max(120)
+    .regex(/^[\p{L}\p{N} '’:,.()\-/&]+$/u),
+  pv: z
+    .string()
+    .max(120)
+    .regex(/^[\p{L}\p{N}+#=\-@() ]*$/u)
+    .optional(),
+  playerColor: z.enum(['white', 'black']),
+  moveNumber: z.number().int().min(1).max(1000),
+  sanHistory: z.array(moveToken).max(1000).optional(),
+});
+
+const lichessImportSchema = z.object({
+  pgn: z.string().min(1).max(60_000),
+});
+
+function validateBody(schema: z.ZodType) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: 'Requête invalide' });
+    }
+    req.body = parsed.data;
+    next();
+  };
+}
 
 const apiKey = process.env.GEMINI_API_KEY || undefined;
 const ai = new GoogleGenAI({
@@ -173,7 +284,7 @@ function generateSituationalExplanation(
 }
 
 // Endpoint: AI Tactical & Strategic Move Explanation
-app.post('/api/coach/explain', async (req, res) => {
+app.post('/api/coach/explain', explainLimiter, validateBody(explainSchema), async (req, res) => {
   try {
     const {
       fen,
@@ -283,12 +394,9 @@ Format JSON strict requis :
 });
 
 // Proxy endpoint to import PGN directly to Lichess via official API without CORS or CSRF restrictions
-app.post('/api/lichess/import', async (req, res) => {
+app.post('/api/lichess/import', lichessImportLimiter, validateBody(lichessImportSchema), async (req, res) => {
   try {
     const { pgn } = req.body;
-    if (!pgn || typeof pgn !== 'string') {
-      return res.status(400).json({ success: false, error: 'PGN requis' });
-    }
 
     const lichessResponse = await fetch('https://lichess.org/api/import', {
       method: 'POST',
@@ -297,24 +405,47 @@ app.post('/api/lichess/import', async (req, res) => {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({ pgn }),
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!lichessResponse.ok) {
       const errText = await lichessResponse.text();
       console.warn('Lichess import API error:', lichessResponse.status, errText);
-      return res.status(lichessResponse.status).json({ success: false, error: errText });
+      if (lichessResponse.status === 429) {
+        return res
+          .status(429)
+          .json({ success: false, error: 'Lichess limite temporairement les imports, réessayez plus tard' });
+      }
+      return res.status(502).json({ success: false, error: "L'import vers Lichess a échoué" });
     }
 
-    const data: any = await lichessResponse.json();
+    const data = (await lichessResponse.json()) as { id?: unknown };
+    if (typeof data.id !== 'string' || !/^[A-Za-z0-9]{8,12}$/.test(data.id)) {
+      console.warn('Lichess import API returned an unexpected id:', data.id);
+      return res.status(502).json({ success: false, error: "L'import vers Lichess a échoué" });
+    }
     return res.json({
       success: true,
       id: data.id,
-      url: data.url || `https://lichess.org/${data.id}`,
+      url: `https://lichess.org/${data.id}`,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in /api/lichess/import:', error);
-    return res.status(500).json({ success: false, error: error.message || 'Erreur serveur Lichess' });
+    return res.status(500).json({ success: false, error: 'Erreur serveur Lichess' });
   }
+});
+
+// Body-parser errors (oversized or malformed JSON) and anything unexpected: never leak details.
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (res.headersSent) return next(err);
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json({ success: false, error: 'Requête trop volumineuse' });
+  }
+  if (err?.type === 'entity.parse.failed') {
+    return res.status(400).json({ success: false, error: 'Requête invalide' });
+  }
+  console.error('Unhandled server error:', err);
+  res.status(500).json({ success: false, error: 'Erreur serveur' });
 });
 
 const PORT = 3000;
