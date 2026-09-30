@@ -1,9 +1,23 @@
 # Pistes d'amélioration
 
 Suivi des améliorations identifiées lors de la revue du dépôt (2026-09-30).
-Basé sur la lecture du code : l'app n'a pas été lancée et `tsc` n'a pas été exécuté.
+Les points de la revue initiale sont basés sur la lecture du code. L'épuration de l'interface a été vérifiée avec `tsc --noEmit`, `vite build`, un lancement de l'app et un export PDF.
 
 Légende : `[ ]` à faire · `[x]` fait
+
+## Épuration de l'interface (fait)
+
+Fonctionnalités retirées pour alléger l'app (≈3 700 lignes supprimées) :
+
+- [x] **Bilan pédagogique du Grand Maître IA** (Dashboard) et l'endpoint `POST /api/coach/summary`, le type `aiSummary` et la section 4 du PDF (qui n'affichait plus que du texte générique sans lui).
+- [x] **Moments décisifs** (Dashboard) : accessibles depuis l'analyse (saut d'erreur en erreur, liste des coups).
+- [x] **Radar** de menace ennemie (bouton, bandeau, touche `R`, `enemyThreatRadar.ts`).
+- [x] **Structure** de pions (labo, surbrillances sur l'échiquier, touche `P`, `pawnStructure.ts`).
+- [x] **Plein écran** (`FullscreenBoard.tsx`, les deux boutons, `Maj + F` / `F11`).
+- [x] Boutons **FEN** (copie), **FEN Lichess** et **Image** (`exportBoardImage.ts`, touche `C`).
+- [x] **Flèches + Menaces fusionnés** en un seul bouton « Annotations » (touche `E` ; la touche `T` est supprimée).
+
+Conservés : « Partie Lichess » (`/api/lichess/import`), le graphique radar du joueur (`PlayerRadarChart`), « Clavier », le thème, la taille de l'échiquier, le contrôle de l'espace et l'export PDF (sections 1 à 3).
 
 ## Priorité haute
 
@@ -22,13 +36,13 @@ Légende : `[ ]` à faire · `[x]` fait
 - [ ] Envoyer `MoveClassification` tel quel au serveur au lieu de tester des sous-chaînes françaises (`includes('gaffe')`, `'manquée'`…).
 
 ### 3. Découpage des gros fichiers
-- [ ] `src/App.tsx` (2300 lignes, 77 hooks) : extraire `useLocalStorage` (5 usages dupliqués), `useGameAnalysis`, `usePlayback`, l'import Lichess, l'export, et des sous-composants.
-- [ ] `ChessBoard.tsx` (1079 lignes) et `Dashboard.tsx` (1087 lignes) : découper de la même façon.
+- [ ] `src/App.tsx` (1766 lignes, 56 hooks après l'épuration de l'interface ; 2300 lignes / 77 hooks avant) : extraire `useLocalStorage` (5 usages dupliqués), `useGameAnalysis`, `usePlayback`, l'import Lichess, l'export, et des sous-composants.
+- [ ] `ChessBoard.tsx` (999 lignes) et `Dashboard.tsx` (608 lignes) : découper de la même façon.
 
 ## Priorité moyenne
 
 ### 4. Qualité et outillage
-- [ ] Ajouter des tests (Vitest) sur la logique pure : classification des coups, calcul de précision, `pgnParser`, `openingBook`, `clockUtils`, `pawnStructure`.
+- [ ] Ajouter des tests (Vitest) sur la logique pure : classification des coups, calcul de précision, `pgnParser`, `openingBook`, `clockUtils`.
 - [ ] Ajouter ESLint et Prettier (`lint` ne fait aujourd'hui que `tsc --noEmit`).
 - [ ] Ajouter une CI (lint + typecheck + tests + build).
 - [ ] Réduire les `any` (29 dans `src/`, 8 dans `server.ts`), surtout les corps de requête du serveur.

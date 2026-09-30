@@ -30,14 +30,6 @@ interface ChessBoardProps {
   onClearCustomArrows?: () => void;
   maxWidthClass?: string;
   className?: string;
-  enemyThreatMove?: { from: string; to: string; san?: string; isCapture?: boolean } | null;
-  enemyThreatenedSquares?: string[];
-  pawnStructureHighlights?: {
-    passedSquares?: string[];
-    weakSquares?: string[];
-    outpostSquares?: string[];
-    breakArrows?: Array<{ from: string; to: string }>;
-  } | null;
 }
 
 export const ChessBoard: React.FC<ChessBoardProps> = ({
@@ -56,9 +48,6 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   selectedSquare = null,
   maxWidthClass,
   className,
-  enemyThreatMove = null,
-  enemyThreatenedSquares = [],
-  pawnStructureHighlights = null,
 }) => {
   const effectiveHeatmapMode: HeatmapMode = heatmapMode ?? (showHeatmap ? 'both' : 'none');
   const isHeatmapActive = effectiveHeatmapMode !== 'none';
@@ -482,33 +471,6 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
                   <div className="absolute inset-0 bg-rose-500/40 rounded-sm animate-pulse z-0" />
                 )}
 
-                {/* Enemy Threat Highlighted Square */}
-                {enemyThreatenedSquares.includes(squareName) && (
-                  <div className="absolute inset-0 bg-rose-500/25 ring-2 ring-inset ring-rose-500/70 pointer-events-none z-10 animate-pulse" />
-                )}
-
-                {/* Pawn Structure Outpost Highlight */}
-                {pawnStructureHighlights?.outpostSquares?.includes(squareName) && (
-                  <>
-                    <div className="absolute inset-0 bg-amber-400/20 ring-2 ring-inset ring-amber-400/60 pointer-events-none z-10" />
-                    <div className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 pointer-events-none z-20 flex items-center justify-center">
-                      <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-amber-500 text-slate-950 font-bold text-[9px] sm:text-[10px] flex items-center justify-center shadow-md">
-                        ★
-                      </span>
-                    </div>
-                  </>
-                )}
-
-                {/* Pawn Structure Passed Pawn Highlight */}
-                {pawnStructureHighlights?.passedSquares?.includes(squareName) && (
-                  <div className="absolute inset-0 bg-emerald-500/25 ring-2 ring-inset ring-emerald-400/60 pointer-events-none z-10" />
-                )}
-
-                {/* Pawn Structure Weakness Highlight */}
-                {pawnStructureHighlights?.weakSquares?.includes(squareName) && (
-                  <div className="absolute inset-0 bg-orange-500/20 ring-1 ring-inset ring-orange-400/50 pointer-events-none z-10" />
-                )}
-
                 {/* Heatmap space control overlay */}
                 {isHeatmapActive && heatmap && (() => {
                   const ctrl = heatmap.squares[squareName];
@@ -925,48 +887,6 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
               );
             })()
           )}
-
-        {/* Enemy Threat Arrow (pulsed rose/red dashed arrow) */}
-        {enemyThreatMove && enemyThreatMove.from && enemyThreatMove.to && (
-          (() => {
-            const start = squareToPercent(enemyThreatMove.from);
-            const end = squareToPercent(enemyThreatMove.to);
-            return (
-              <line
-                x1={start.x}
-                y1={start.y}
-                x2={end.x}
-                y2={end.y}
-                stroke="#f43f5e"
-                strokeWidth="2.8"
-                strokeOpacity="0.95"
-                strokeDasharray="4 2"
-                strokeLinecap="round"
-                markerEnd="url(#threatArrowRed)"
-              />
-            );
-          })()
-        )}
-
-        {/* Pawn Structure Break Arrows (Gold/Amber) */}
-        {pawnStructureHighlights?.breakArrows?.map((breakArrow, idx) => {
-          const start = squareToPercent(breakArrow.from);
-          const end = squareToPercent(breakArrow.to);
-          return (
-            <line
-              key={`break-${idx}-${breakArrow.from}-${breakArrow.to}`}
-              x1={start.x}
-              y1={start.y}
-              x2={end.x}
-              y2={end.y}
-              stroke="#f59e0b"
-              strokeWidth="2.5"
-              strokeOpacity="0.9"
-              strokeLinecap="round"
-              markerEnd="url(#threatArrowAmber)"
-            />
-          );
-        })}
 
         {/* --- USER DRAWN CUSTOM ARROWS --- */}
         {userArrows.map((arrow, idx) => {

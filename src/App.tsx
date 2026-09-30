@@ -5,14 +5,11 @@ import {
   BarChart3,
   BookOpen,
   Brain,
-  Camera,
   Check,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Copy,
-  ExternalLink,
   Eye,
   FileDown,
   FileText,
@@ -20,7 +17,6 @@ import {
   FlaskConical,
   Keyboard,
   LayoutDashboard,
-  Maximize2,
   Palette,
   Pause,
   Play,
@@ -36,8 +32,6 @@ import {
   Volume2,
   VolumeX,
   X,
-  Radar,
-  Layers,
   Boxes,
 } from 'lucide-react';
 
@@ -51,21 +45,15 @@ import { generateChessAnalysisPdf } from './utils/pdfExport';
 import { chessAudio } from './utils/chessAudio';
 import { computeBoardMaterial } from './utils/chessMaterial';
 import { computeBoardHeatmap } from './utils/chessHeatmap';
-import { copyBoardImageToClipboard } from './utils/exportBoardImage';
-import { analyzePawnSkeleton, PawnStructureAnalysis } from './utils/pawnStructure';
-import { detectEnemyThreatRadar, EnemyThreatRadarResult } from './utils/enemyThreatRadar';
 
 import { ChessBoard } from './components/ChessBoard/ChessBoard';
 import { CapturedPieces } from './components/ChessBoard/CapturedPieces';
-import { FullscreenBoard } from './components/ChessBoard/FullscreenBoard';
 import { EvaluationBar } from './components/EvaluationBar/EvaluationBar';
 import { EvaluationChart } from './components/EvaluationChart/EvaluationChart';
 import { MoveComparison } from './components/MoveComparison/MoveComparison';
 import { MoveList } from './components/MoveList/MoveList';
 import { Dashboard } from './components/Dashboard/Dashboard';
 import { PgnInput } from './components/PgnInput/PgnInput';
-import { EnemyThreatBanner } from './components/ChessBoard/EnemyThreatBanner';
-import { PawnStructureLab } from './components/ChessBoard/PawnStructureLab';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'board' | 'dashboard'>('board');
@@ -98,8 +86,7 @@ export default function App() {
   // Board navigation state
   const [currentPly, setCurrentPly] = useState<number>(-1);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [showArrows, setShowArrows] = useState(true);
-  const [showThreats, setShowThreats] = useState(true);
+  const [showAnnotations, setShowAnnotations] = useState(true);
   const [heatmapMode, setHeatmapMode] = useState<'none' | 'both' | 'white' | 'black'>('none');
   const [threatsMode, setThreatsMode] = useState<'suggestion' | 'played'>('suggestion');
   const [isPreviewingAlternative, setIsPreviewingAlternative] = useState(false);
@@ -135,55 +122,6 @@ export default function App() {
       localStorage.setItem('chess_board_size', size);
     }
   }, []);
-
-  // Fullscreen state & container ref
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const fullscreenContainerRef = useRef<HTMLDivElement | null>(null);
-
-  const handleToggleFullscreen = useCallback(async () => {
-    if (!isFullscreen) {
-      setIsFullscreen(true);
-      try {
-        if (fullscreenContainerRef.current?.requestFullscreen) {
-          await fullscreenContainerRef.current.requestFullscreen();
-        } else if ((fullscreenContainerRef.current as any)?.webkitRequestFullscreen) {
-          await (fullscreenContainerRef.current as any).webkitRequestFullscreen();
-        }
-      } catch (e) {
-        console.warn('Native fullscreen request blocked, falling back to windowed overlay:', e);
-      }
-    } else {
-      try {
-        if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
-          if (document.exitFullscreen) {
-            await document.exitFullscreen();
-          } else if ((document as any)?.webkitExitFullscreen) {
-            await (document as any).webkitExitFullscreen();
-          }
-        }
-      } catch (e) {
-        console.warn('Exit fullscreen error:', e);
-      }
-      setIsFullscreen(false);
-    }
-  }, [isFullscreen]);
-
-  useEffect(() => {
-    const onFullscreenChange = () => {
-      const isCurrentlyFullscreen = Boolean(
-        document.fullscreenElement || (document as any).webkitFullscreenElement
-      );
-      if (!isCurrentlyFullscreen && isFullscreen) {
-        setIsFullscreen(false);
-      }
-    };
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', onFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
-    };
-  }, [isFullscreen]);
 
   // Audio and Auto-play state
   const [isMuted, setIsMuted] = useState<boolean>(() => chessAudio.getIsMuted());
@@ -395,10 +333,6 @@ export default function App() {
   >([]);
   const [sandboxEval, setSandboxEval] = useState<{ cp: number; mate: number | null }>({ cp: 0, mate: null });
 
-  // Copied FEN notification state
-  const [copiedFen, setCopiedFen] = useState(false);
-  const [copiedImage, setCopiedImage] = useState<string | null>(null);
-  const [isExportingImage, setIsExportingImage] = useState(false);
   const [copiedPgnToast, setCopiedPgnToast] = useState(false);
   const [isImportingLichess, setIsImportingLichess] = useState(false);
 
@@ -419,12 +353,6 @@ export default function App() {
       }
       return { ...prev, moves: updatedMoves };
     });
-  };
-
-  // Update AI summary on analysis object
-  const handleUpdateAiSummary = (summary: NonNullable<GameAnalysisResult['aiSummary']>) => {
-    if (!analysisResult) return;
-    setAnalysisResult((prev) => (prev ? { ...prev, aiSummary: summary } : null));
   };
 
   // Played vs Best arrows for board
@@ -469,123 +397,17 @@ export default function App() {
     };
   }, [activeMove, threatsMode, isPreviewingAlternative]);
 
-  // Enemy Threat Radar state
-  const [isEnemyThreatActive, setIsEnemyThreatActive] = useState<boolean>(false);
-  const [isLoadingEnemyThreat, setIsLoadingEnemyThreat] = useState<boolean>(false);
-  const [enemyThreatData, setEnemyThreatData] = useState<EnemyThreatRadarResult | null>(null);
-  const [isSimulatingEnemyThreat, setIsSimulatingEnemyThreat] = useState<boolean>(false);
-  const [simulatedThreatFen, setSimulatedThreatFen] = useState<string | null>(null);
-
-  // Pawn Structure Lab state
-  const [isPawnStructureLabOpen, setIsPawnStructureLabOpen] = useState<boolean>(false);
-  const [showPawnStructureOverlay, setShowPawnStructureOverlay] = useState<boolean>(false);
-
-  // Active FEN on the board (simulated threat vs sandbox vs alternative preview vs game position)
+  // Active FEN on the board (sandbox vs alternative preview vs game position)
   const sandboxCurrentFen = useMemo(() => {
     if (!isSandboxMode || sandboxHistory.length === 0) return null;
     return sandboxHistory[sandboxHistory.length - 1].fen;
   }, [isSandboxMode, sandboxHistory]);
 
-  const activeBoardFen = isSimulatingEnemyThreat && simulatedThreatFen
-    ? simulatedThreatFen
-    : isSandboxMode && sandboxCurrentFen
+  const activeBoardFen = isSandboxMode && sandboxCurrentFen
     ? sandboxCurrentFen
     : isPreviewingAlternative && alternativeFen
     ? alternativeFen
     : currentFen;
-
-  // Pawn Structure Analysis (instantaneous memoized analysis)
-  const pawnStructureAnalysis = useMemo(() => {
-    try {
-      return analyzePawnSkeleton(currentFen);
-    } catch {
-      return null;
-    }
-  }, [currentFen]);
-
-  const pawnStructureHighlights = useMemo(() => {
-    if (!showPawnStructureOverlay || !pawnStructureAnalysis) return null;
-    return {
-      outpostSquares: pawnStructureAnalysis.outposts.map((o) => o.square),
-      passedSquares: [
-        ...pawnStructureAnalysis.whitePawns.filter((p) => p.isPassed).map((p) => p.square),
-        ...pawnStructureAnalysis.blackPawns.filter((p) => p.isPassed).map((p) => p.square),
-      ],
-      weakSquares: [
-        ...pawnStructureAnalysis.whitePawns
-          .filter((p) => p.isIsolated || p.isBackward || p.isDoubled)
-          .map((p) => p.square),
-        ...pawnStructureAnalysis.blackPawns
-          .filter((p) => p.isIsolated || p.isBackward || p.isDoubled)
-          .map((p) => p.square),
-      ],
-      breakArrows: pawnStructureAnalysis.breaks.map((b) => ({ from: b.fromSquare, to: b.toSquare })),
-    };
-  }, [showPawnStructureOverlay, pawnStructureAnalysis]);
-
-  // Compute Enemy Threat Radar when active or ply changes
-  useEffect(() => {
-    if (!isEnemyThreatActive) {
-      setIsSimulatingEnemyThreat(false);
-      setSimulatedThreatFen(null);
-      setEnemyThreatData(null);
-      return;
-    }
-
-    let isCancelled = false;
-    setIsLoadingEnemyThreat(true);
-    setIsSimulatingEnemyThreat(false);
-    setSimulatedThreatFen(null);
-
-    detectEnemyThreatRadar(currentFen)
-      .then((res) => {
-        if (!isCancelled) {
-          setEnemyThreatData(res);
-          setIsLoadingEnemyThreat(false);
-        }
-      })
-      .catch(() => {
-        if (!isCancelled) {
-          setIsLoadingEnemyThreat(false);
-        }
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [isEnemyThreatActive, currentFen]);
-
-  const handleToggleSimulateThreat = useCallback(() => {
-    if (isSimulatingEnemyThreat) {
-      setIsSimulatingEnemyThreat(false);
-      setSimulatedThreatFen(null);
-      return;
-    }
-
-    if (enemyThreatData?.threatMove && enemyThreatData.nullMoveValid) {
-      try {
-        const parts = currentFen.split(' ');
-        parts[1] = enemyThreatData.opponentColor;
-        parts[3] = '-';
-        const oppChess = new Chess(parts.join(' '));
-        const move = oppChess.move({
-          from: enemyThreatData.threatMove.from,
-          to: enemyThreatData.threatMove.to,
-          promotion:
-            enemyThreatData.threatMove.uci.length > 4
-              ? enemyThreatData.threatMove.uci[4]
-              : undefined,
-        });
-        if (move) {
-          setSimulatedThreatFen(oppChess.fen());
-          setIsSimulatingEnemyThreat(true);
-          chessAudio.playForMove(move.san, move.san.includes('+') || move.san.includes('#'));
-        }
-      } catch (err) {
-        console.warn('Could not simulate threat move:', err);
-      }
-    }
-  }, [isSimulatingEnemyThreat, enemyThreatData, currentFen]);
 
   // Real-time material differential & captured pieces
   const boardMaterial = useMemo(() => {
@@ -703,60 +525,6 @@ export default function App() {
     setSandboxHistory([]);
     setSelectedSquare(null);
   }, []);
-
-  const handleCopyFen = useCallback(() => {
-    navigator.clipboard.writeText(activeBoardFen);
-    setCopiedFen(true);
-    setTimeout(() => setCopiedFen(false), 2000);
-  }, [activeBoardFen]);
-
-  const handleCopyBoardImage = useCallback(async () => {
-    if (isExportingImage) return;
-    setIsExportingImage(true);
-    try {
-      const activeLastMove =
-        isSandboxMode && sandboxHistory.length > 0
-          ? {
-              from: sandboxHistory[sandboxHistory.length - 1].from,
-              to: sandboxHistory[sandboxHistory.length - 1].to,
-            }
-          : boardArrows.lastMove
-          ? { from: boardArrows.lastMove.from, to: boardArrows.lastMove.to }
-          : null;
-
-      const res = await copyBoardImageToClipboard({
-        fen: activeBoardFen,
-        isFlipped,
-        boardTheme,
-        lastMove: activeLastMove,
-      });
-
-      if (res.success) {
-        setCopiedImage(res.method === 'clipboard' ? 'Image copiée !' : 'Image téléchargée !');
-        setTimeout(() => setCopiedImage(null), 2500);
-      } else {
-        setCopiedImage('Erreur');
-        setTimeout(() => setCopiedImage(null), 2500);
-      }
-    } catch {
-      setCopiedImage('Erreur');
-      setTimeout(() => setCopiedImage(null), 2500);
-    } finally {
-      setIsExportingImage(false);
-    }
-  }, [activeBoardFen, isFlipped, boardTheme, boardArrows.lastMove, isSandboxMode, sandboxHistory, isExportingImage]);
-
-  const handleOpenLichessFen = useCallback(() => {
-    // Lichess expects: https://lichess.org/analysis/<FEN_WITH_UNDERSCORES>?color=white|black
-    // DO NOT use encodeURIComponent because it turns '/' into '%2F', which breaks Lichess routing!
-    const fenUrl = activeBoardFen.trim().replace(/ /g, '_');
-    const colorParam = isFlipped ? '?color=black' : '?color=white';
-    try {
-      window.open(`https://lichess.org/analysis/${fenUrl}${colorParam}`, '_blank', 'noopener,noreferrer');
-    } catch (e) {
-      console.warn('Could not open Lichess window:', e);
-    }
-  }, [activeBoardFen, isFlipped]);
 
   const handleOpenLichessPgn = useCallback(async () => {
     if (!pgn || isImportingLichess) return;
@@ -897,34 +665,22 @@ export default function App() {
         e.preventDefault();
         setIsPlaying((p) => !p);
       } else if (e.key === 'Escape') {
-        if (isFullscreen) {
-          e.preventDefault();
-          handleToggleFullscreen();
-        } else if (isSandboxMode) {
+        if (isSandboxMode) {
           e.preventDefault();
           handleExitSandbox();
         }
-      } else if ((e.key.toLowerCase() === 'f' && e.shiftKey) || e.key === 'F11') {
-        e.preventDefault();
-        handleToggleFullscreen();
-      } else if (e.key.toLowerCase() === 'f' && !e.shiftKey) {
+      } else if (e.key.toLowerCase() === 'f') {
         e.preventDefault();
         setIsFlipped((f) => !f);
       } else if (e.key.toLowerCase() === 'e') {
         e.preventDefault();
-        setShowArrows((a) => !a);
-      } else if (e.key.toLowerCase() === 't') {
-        e.preventDefault();
-        setShowThreats((t) => !t);
+        setShowAnnotations((a) => !a);
       } else if (e.key.toLowerCase() === 'm') {
         e.preventDefault();
         handleToggleSound();
       } else if (e.key.toLowerCase() === 'a') {
         e.preventDefault();
         setIsPreviewingAlternative((prev) => !prev);
-      } else if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        handleCopyBoardImage();
       } else if (e.key.toLowerCase() === 'h') {
         e.preventDefault();
         setHeatmapMode((prev) => {
@@ -933,12 +689,6 @@ export default function App() {
           if (prev === 'white') return 'black';
           return 'none';
         });
-      } else if (e.key.toLowerCase() === 'r') {
-        e.preventDefault();
-        setIsEnemyThreatActive((prev) => !prev);
-      } else if (e.key.toLowerCase() === 'p') {
-        e.preventDefault();
-        setIsPawnStructureLabOpen((prev) => !prev);
       }
     };
 
@@ -949,10 +699,7 @@ export default function App() {
     prevErrorPly,
     nextErrorPly,
     isSandboxMode,
-    isFullscreen,
-    handleCopyBoardImage,
     handleToggleSound,
-    handleToggleFullscreen,
     handleExitSandbox,
   ]);
 
@@ -1138,12 +885,6 @@ export default function App() {
             userColor={userColor}
             onUpdateUserColor={handleUpdateUserColor}
             onUpdatePseudo={handleUpdatePseudo}
-            onSelectPly={(ply) => {
-              setCurrentPly(ply);
-              setActiveTab('board');
-              setIsPreviewingAlternative(false);
-            }}
-            onUpdateAiSummary={handleUpdateAiSummary}
           />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start w-full max-w-full">
@@ -1215,13 +956,6 @@ export default function App() {
 
                 <div className="flex items-center gap-1 shrink-0 ml-2">
                   <button
-                    onClick={handleToggleFullscreen}
-                    className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-indigo-300 border border-slate-800 transition-colors cursor-pointer"
-                    title="Plein écran immersif (Touche Maj + F)"
-                  >
-                    <Maximize2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
                     onClick={() => setIsFlipped((f) => !f)}
                     className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 transition-colors cursor-pointer"
                     title="Inverser l'échiquier (Touche F)"
@@ -1231,70 +965,23 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Dedicated Board Controls Toolbar (Flèches, Menaces, Thèmes, Clavier, FEN, Lichess) */}
+              {/* Dedicated Board Controls Toolbar (Annotations, Contrôle de l'espace, Thèmes, Clavier, Taille, Lichess) */}
               <div className="flex items-center justify-between gap-1.5 flex-wrap px-2 py-1.5 rounded-xl bg-slate-900/70 border border-slate-800/80 text-[11px]">
                 <div className="flex items-center gap-1 flex-wrap">
                   <button
-                    onClick={() => setShowArrows((a) => !a)}
-                    className={`px-2 py-1 rounded-md font-medium border transition-colors cursor-pointer ${
-                      showArrows
+                    onClick={() => setShowAnnotations((a) => !a)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-md font-medium border transition-colors cursor-pointer ${
+                      showAnnotations
                         ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30'
                         : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
                     }`}
-                    title="Afficher/masquer les flèches tactiques (Touche E)"
+                    title="Afficher/masquer les flèches et les menaces tactiques (Touche E)"
                   >
-                    Flèches
-                  </button>
-                  <button
-                    onClick={() => setShowThreats((t) => !t)}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-md font-medium border transition-colors cursor-pointer ${
-                      showThreats
-                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30'
-                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-                    }`}
-                    title="Afficher/masquer les menaces tactiques (Touche T)"
-                  >
-                    <Target className="w-3 h-3 text-rose-400" />
-                    <span>Menaces</span>
-                    {activeThreats.length > 0 && showThreats && (
+                    <Target className="w-3 h-3 text-indigo-400" />
+                    <span>Annotations</span>
+                    {activeThreats.length > 0 && showAnnotations && (
                       <span className="ml-0.5 px-1 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-bold">
                         {activeThreats.length}
-                      </span>
-                    )}
-                  </button>
-
-                  {/* Enemy Threat Radar Button */}
-                  <button
-                    onClick={() => setIsEnemyThreatActive((prev) => !prev)}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-md font-medium border transition-colors cursor-pointer ${
-                      isEnemyThreatActive
-                        ? 'bg-rose-600/25 text-rose-200 border-rose-500/50 font-bold shadow-sm'
-                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-                    }`}
-                    title="Radar de menace ennemie : que prépare l'adversaire s'il rejouait ? (Touche R)"
-                  >
-                    <Radar className={`w-3 h-3 ${isEnemyThreatActive ? 'text-rose-400 animate-spin' : 'text-slate-400'}`} />
-                    <span>Radar</span>
-                    {isEnemyThreatActive && enemyThreatData?.hasThreat && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-                    )}
-                  </button>
-
-                  {/* Pawn Structure Lab Button */}
-                  <button
-                    onClick={() => setIsPawnStructureLabOpen(true)}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-md font-medium border transition-colors cursor-pointer ${
-                      showPawnStructureOverlay
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
-                        : 'bg-slate-900 text-slate-300 border-slate-800 hover:text-white'
-                    }`}
-                    title="Analyseur de structure de pions & plans stratégiques (Touche P)"
-                  >
-                    <Layers className="w-3 h-3 text-amber-400" />
-                    <span className="hidden xs:inline">Structure</span>
-                    {pawnStructureAnalysis && (
-                      <span className="text-[10px] text-amber-300/80 font-mono hidden sm:inline">
-                        ({pawnStructureAnalysis.name.split(' ')[0]})
                       </span>
                     )}
                   </button>
@@ -1396,48 +1083,6 @@ export default function App() {
                     <span className="hidden sm:inline">Clavier</span>
                   </button>
 
-                  <button
-                    onClick={handleCopyFen}
-                    className="flex items-center gap-1 px-2 py-1 rounded-md font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:text-white transition-colors cursor-pointer"
-                    title="Copier la position FEN dans le presse-papier"
-                  >
-                    {copiedFen ? (
-                      <>
-                        <Check className="w-3 h-3 text-emerald-400" />
-                        <span className="text-emerald-400 font-bold">Copié</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3 text-slate-400" />
-                        <span>FEN</span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={handleCopyBoardImage}
-                    disabled={isExportingImage}
-                    className="flex items-center gap-1 px-2 py-1 rounded-md font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:text-white transition-colors cursor-pointer disabled:opacity-60"
-                    title="Copier l'échiquier en image PNG (1 clic)"
-                  >
-                    {copiedImage ? (
-                      <>
-                        <Check className="w-3 h-3 text-emerald-400" />
-                        <span className="text-emerald-400 font-bold">{copiedImage}</span>
-                      </>
-                    ) : isExportingImage ? (
-                      <>
-                        <span className="w-2.5 h-2.5 border-2 border-indigo-400/40 border-t-indigo-400 rounded-full animate-spin" />
-                        <span>Image...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Camera className="w-3 h-3 text-indigo-400" />
-                        <span>Image</span>
-                      </>
-                    )}
-                  </button>
-
                   {/* Board Size Selector (Agrandir l'échiquier) */}
                   <div className="flex items-center rounded-lg bg-slate-950 border border-slate-800 p-0.5" title="Ajuster la taille de l'échiquier (Normal 500px, Grand 640px, XL 760px)">
                     <button
@@ -1474,29 +1119,10 @@ export default function App() {
                       XL
                     </button>
                   </div>
-
-                  {/* Fullscreen Button */}
-                  <button
-                    onClick={handleToggleFullscreen}
-                    className="flex items-center gap-1 px-2 py-1 rounded-md font-medium bg-slate-900 hover:bg-slate-800 text-indigo-300 hover:text-white border border-slate-800 hover:border-indigo-500/40 transition-colors cursor-pointer"
-                    title="Mettre l'échiquier en plein écran immersif (Touche Maj + F)"
-                  >
-                    <Maximize2 className="w-3 h-3 text-indigo-400" />
-                    <span>Plein écran</span>
-                  </button>
                 </div>
 
                 {/* Lichess Options */}
                 <div className="flex items-center rounded-lg bg-slate-950 border border-slate-800 p-0.5 shrink-0 max-w-full">
-                  <button
-                    onClick={handleOpenLichessFen}
-                    className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                    title="Analyser la position courante (FEN) sur Lichess.org"
-                  >
-                    <ExternalLink className="w-3 h-3 text-indigo-400 shrink-0" />
-                    <span>FEN Lichess</span>
-                  </button>
-                  <div className="h-3 w-px bg-slate-800 mx-0.5" />
                   <button
                     onClick={handleOpenLichessPgn}
                     disabled={isImportingLichess}
@@ -1701,18 +1327,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* Enemy Threat Radar Banner */}
-              {isEnemyThreatActive && (
-                <EnemyThreatBanner
-                  threatData={enemyThreatData}
-                  isLoading={isLoadingEnemyThreat}
-                  isOpen={isEnemyThreatActive}
-                  onClose={() => setIsEnemyThreatActive(false)}
-                  isSimulatingThreat={isSimulatingEnemyThreat}
-                  onToggleSimulateThreat={handleToggleSimulateThreat}
-                />
-              )}
-
               {/* Chessboard + Evaluation Bar Container */}
               <div className="flex gap-2 sm:gap-3 justify-center items-stretch w-full max-w-full overflow-hidden">
                 {/* Vertical Evaluation Bar */}
@@ -1745,9 +1359,9 @@ export default function App() {
                         : boardArrows.lastMove
                     }
                     bestMove={isSandboxMode ? null : boardArrows.bestMove}
-                    showArrows={!isSandboxMode && showArrows && !isPreviewingAlternative}
+                    showArrows={!isSandboxMode && showAnnotations && !isPreviewingAlternative}
                     tacticalThreats={isSandboxMode ? [] : activeThreats}
-                    showThreats={!isSandboxMode && showThreats}
+                    showThreats={!isSandboxMode && showAnnotations}
                     heatmapMode={heatmapMode}
                     onSquareClick={handleSquareClick}
                     onPieceMove={handlePieceMove}
@@ -1759,15 +1373,6 @@ export default function App() {
                         ? 'max-w-[640px]'
                         : 'max-w-[500px]'
                     }
-                    enemyThreatMove={
-                      isEnemyThreatActive && enemyThreatData?.threatMove
-                        ? enemyThreatData.threatMove
-                        : null
-                    }
-                    enemyThreatenedSquares={
-                      isEnemyThreatActive && enemyThreatData ? enemyThreatData.threatenedSquares : []
-                    }
-                    pawnStructureHighlights={pawnStructureHighlights}
                   />
                 </div>
               </div>
@@ -2044,8 +1649,8 @@ export default function App() {
                 tacticalThreatsPlayed={playedThreats}
                 threatsMode={threatsMode}
                 onSelectThreatsMode={setThreatsMode}
-                showThreats={showThreats}
-                onToggleShowThreats={() => setShowThreats((t) => !t)}
+                showThreats={showAnnotations}
+                onToggleShowThreats={() => setShowAnnotations((a) => !a)}
               />
 
               {/* Notation and Critical Faults Table */}
@@ -2129,12 +1734,8 @@ export default function App() {
                 <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-indigo-300 font-bold">F</span>
               </div>
               <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Flèches d'évaluation</span>
+                <span className="text-slate-300">Annotations (flèches & menaces)</span>
                 <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-indigo-300 font-bold">E</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Menaces tactiques</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-rose-300 font-bold">T</span>
               </div>
               <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
                 <span className="text-slate-300">Activer / couper le son</span>
@@ -2145,27 +1746,11 @@ export default function App() {
                 <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-emerald-300 font-bold">A</span>
               </div>
               <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Copier l'échiquier en image</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-indigo-300 font-bold">C</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
                 <span className="text-slate-300">Contrôle de l'espace (Cycle)</span>
                 <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-blue-300 font-bold">H</span>
               </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Radar de menace adverse</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-rose-300 font-bold">R</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Structure de pions (Lab)</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-amber-300 font-bold">P</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Plein écran immersif</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-indigo-300 font-bold">Shift + F</span>
-              </div>
               <div className="flex justify-between items-center py-1">
-                <span className="text-slate-300">Quitter plein écran / Sandbox</span>
+                <span className="text-slate-300">Quitter le mode Sandbox</span>
                 <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-300 font-bold">Échap</span>
               </div>
             </div>
@@ -2175,127 +1760,6 @@ export default function App() {
             </p>
           </div>
         </div>
-      )}
-
-      {/* Fullscreen Immersive Chessboard View */}
-      <FullscreenBoard
-        isOpen={isFullscreen}
-        onClose={handleToggleFullscreen}
-        containerRef={fullscreenContainerRef}
-        fen={activeBoardFen}
-        isFlipped={isFlipped}
-        onToggleFlip={() => setIsFlipped((f) => !f)}
-        boardTheme={boardTheme}
-        onSelectBoardTheme={handleSelectBoardTheme}
-        lastMove={
-          isSandboxMode && sandboxHistory.length > 0
-            ? {
-                from: sandboxHistory[sandboxHistory.length - 1].from,
-                to: sandboxHistory[sandboxHistory.length - 1].to,
-              }
-            : boardArrows.lastMove
-        }
-        bestMove={isSandboxMode ? null : boardArrows.bestMove}
-        showArrows={!isSandboxMode && showArrows && !isPreviewingAlternative}
-        onToggleArrows={() => setShowArrows((a) => !a)}
-        tacticalThreats={isSandboxMode ? [] : activeThreats}
-        showThreats={!isSandboxMode && showThreats}
-        onToggleThreats={() => setShowThreats((t) => !t)}
-        heatmapMode={heatmapMode}
-        onSetHeatmapMode={setHeatmapMode}
-        boardHeatmapData={boardHeatmapData}
-        onSquareClick={handleSquareClick}
-        onPieceMove={handlePieceMove}
-        selectedSquare={selectedSquare}
-        evalCp={isSandboxMode ? sandboxEval.cp : activeMove ? activeMove.evalAfter : 0}
-        mate={isSandboxMode ? sandboxEval.mate : activeMove ? activeMove.mateAfter : null}
-        activeMove={activeMove}
-        currentPly={currentPly}
-        totalPlies={analysisResult?.moves.length || 0}
-        isPlaying={isPlaying}
-        onTogglePlay={() => setIsPlaying((p) => !p)}
-        playbackSpeed={playbackSpeed}
-        onSelectPlaybackSpeed={handleUpdatePlaybackSpeed}
-        onFirstMove={() => {
-          setIsPlaying(false);
-          setCurrentPly(0);
-          setIsPreviewingAlternative(false);
-        }}
-        onPrevMove={() => {
-          setIsPlaying(false);
-          setCurrentPly((p) => Math.max(0, p - 1));
-          setIsPreviewingAlternative(false);
-        }}
-        onNextMove={() => {
-          setIsPlaying(false);
-          setCurrentPly((p) => Math.min((analysisResult?.moves.length || 1) - 1, p + 1));
-          setIsPreviewingAlternative(false);
-        }}
-        onLastMove={() => {
-          setIsPlaying(false);
-          setCurrentPly((analysisResult?.moves.length || 1) - 1);
-          setIsPreviewingAlternative(false);
-        }}
-        onPrevError={() => {
-          if (prevErrorPly !== null) {
-            setIsPlaying(false);
-            setIsSandboxMode(false);
-            setSandboxHistory([]);
-            setSelectedSquare(null);
-            setCurrentPly(prevErrorPly);
-            setIsPreviewingAlternative(false);
-          }
-        }}
-        onNextError={() => {
-          if (nextErrorPly !== null) {
-            setIsPlaying(false);
-            setIsSandboxMode(false);
-            setSandboxHistory([]);
-            setSelectedSquare(null);
-            setCurrentPly(nextErrorPly);
-            setIsPreviewingAlternative(false);
-          }
-        }}
-        hasPrevError={prevErrorPly !== null}
-        hasNextError={nextErrorPly !== null}
-        currentErrorIndex={currentErrorIndex}
-        totalErrors={criticalPlies.length}
-        isMuted={isMuted}
-        onToggleSound={handleToggleSound}
-        metadata={analysisResult?.metadata}
-        userColor={userColor}
-        boardMaterial={boardMaterial}
-        isSandboxMode={isSandboxMode}
-        sandboxHistory={sandboxHistory}
-        onUndoSandboxMove={handleUndoSandboxMove}
-        onExitSandbox={handleExitSandbox}
-        onSelectPly={(ply) => {
-          setIsSandboxMode(false);
-          setSandboxHistory([]);
-          setSelectedSquare(null);
-          setCurrentPly(ply);
-          setIsPreviewingAlternative(false);
-        }}
-        enemyThreatMove={
-          isEnemyThreatActive && enemyThreatData?.threatMove
-            ? enemyThreatData.threatMove
-            : null
-        }
-        enemyThreatenedSquares={
-          isEnemyThreatActive && enemyThreatData ? enemyThreatData.threatenedSquares : []
-        }
-        pawnStructureHighlights={pawnStructureHighlights}
-      />
-
-      {/* Pawn Structure Lab Modal */}
-      {pawnStructureAnalysis && (
-        <PawnStructureLab
-          structure={pawnStructureAnalysis}
-          isOpen={isPawnStructureLabOpen}
-          onClose={() => setIsPawnStructureLabOpen(false)}
-          showBoardOverlay={showPawnStructureOverlay}
-          onToggleBoardOverlay={() => setShowPawnStructureOverlay((prev) => !prev)}
-        />
       )}
     </div>
   );
