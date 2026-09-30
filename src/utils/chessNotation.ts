@@ -46,12 +46,32 @@ export function toFrenchSan(san: string): string {
     const frenchPiece = ENGLISH_TO_FRENCH_PIECES[firstChar];
     const rest = result.slice(1);
     // If disambiguation has a piece letter (e.g. N/R disambiguation like Nbd7), check
-    result = frenchPiece + rest.replace(/^([a-h1-8]?)([KQRBN])/, (_, prefix, disambigPiece) => {
-      return prefix + (ENGLISH_TO_FRENCH_PIECES[disambigPiece] || disambigPiece);
-    });
+    result =
+      frenchPiece +
+      rest.replace(/^([a-h1-8]?)([KQRBN])/, (_, prefix, disambigPiece) => {
+        return prefix + (ENGLISH_TO_FRENCH_PIECES[disambigPiece] || disambigPiece);
+      });
   }
 
   return result;
+}
+
+const FRENCH_TO_ENGLISH_PIECES: Record<string, string> = Object.fromEntries(
+  Object.entries(ENGLISH_TO_FRENCH_PIECES).map(([english, french]) => [french, english])
+);
+
+/**
+ * Translates French SAN back to English SAN (inverse of toFrenchSan):
+ *  'Df3' -> 'Qf3', 'Cbd7' -> 'Nbd7', 'Txd1+' -> 'Rxd1+', 'Rg1' -> 'Kg1', 'e8=D#' -> 'e8=Q#'
+ * Pieces are translated in a single pass (Tour -> Rook must not then become King).
+ */
+export function toEnglishSan(san: string): string {
+  if (!san) return '';
+  if (san.startsWith('O-O')) return san;
+
+  const promoted = san.replace(/=([DTFC])/g, (_, p) => `=${FRENCH_TO_ENGLISH_PIECES[p] || p}`);
+  const first = promoted.charAt(0);
+  return FRENCH_TO_ENGLISH_PIECES[first] ? FRENCH_TO_ENGLISH_PIECES[first] + promoted.slice(1) : promoted;
 }
 
 /**
@@ -83,12 +103,7 @@ export function convertUciToFrenchSan(fen: string, uciMove: string): string {
  *   ['d1f3', 'c7c6', 'h2h3', 'f6d7']
  *   -> 'Df3 c6 h3 Cfd7' (or with move numbers: '10. Df3 c6  11. h3 Cfd7')
  */
-export function formatPvToFrench(
-  fen: string,
-  pvUci: string[],
-  maxMoves = 6,
-  includeMoveNumbers = true
-): string {
+export function formatPvToFrench(fen: string, pvUci: string[], maxMoves = 6, includeMoveNumbers = true): string {
   if (!pvUci || pvUci.length === 0) return '';
 
   const formattedMoves: string[] = [];
@@ -101,14 +116,19 @@ export function formatPvToFrench(
       if (!uci || uci.length < 4) break;
 
       const isWhiteTurn = chess.turn() === 'w';
-      const moveNumber = Math.floor(chess.history().length / 2) + 1;
+      // Fullmove number of the position itself (history() is empty when starting from a FEN)
+      const moveNumber = chess.moveNumber();
 
-      const move = chess.move({
-        from: uci.substring(0, 2),
-        to: uci.substring(2, 4),
-        promotion: uci.length > 4 ? uci[4] : undefined,
-      });
-
+      let move;
+      try {
+        move = chess.move({
+          from: uci.substring(0, 2),
+          to: uci.substring(2, 4),
+          promotion: uci.length > 4 ? uci[4] : undefined,
+        });
+      } catch {
+        break; // Illegal move: keep what was formatted so far
+      }
       if (!move) break;
 
       const sanFr = toFrenchSan(move.san);

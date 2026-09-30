@@ -1,15 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import {
-  Shield,
-  Swords,
-  BookOpen,
-  Crown,
-  Clock,
-  Sparkles,
-  TrendingUp,
-  AlertCircle,
-  Award,
-} from 'lucide-react';
+import { Shield, Swords, BookOpen, Crown, Clock, Sparkles, TrendingUp, AlertCircle } from 'lucide-react';
 import { MoveAnalysis, PlayerStats, GameMetadata } from '../../types/chess';
 import { PhaseStats } from '../../utils/phaseStats';
 
@@ -47,13 +37,37 @@ interface PlayerRadarChartProps {
   phaseStats: PhaseStats;
 }
 
+// Geometry configuration for 5-axis spider chart
+const cx = 150;
+const cy = 145;
+const R = 95;
+const numAxes = 5;
+
+// Compute (x, y) for an axis index and a normalized value (0 to 1)
+const getCoordinates = (index: number, valueRatio: number) => {
+  const angle = -Math.PI / 2 + (index * 2 * Math.PI) / numAxes;
+  return {
+    x: cx + R * valueRatio * Math.cos(angle),
+    y: cy + R * valueRatio * Math.sin(angle),
+  };
+};
+
+// Build SVG polygon points path string
+const buildPolygonPoints = (profile: PlayerProfileData) => {
+  return profile.dimensions
+    .map((d, i) => {
+      const { x, y } = getCoordinates(i, Math.max(0.15, d.score / 100));
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+};
+
 export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
   moves,
   statsWhite,
   statsBlack,
   metadata,
   userColor = 'w',
-  userPseudo = '',
   phaseStats,
 }) => {
   const [activeView, setActiveView] = useState<'user' | 'white' | 'black' | 'both'>('user');
@@ -69,20 +83,31 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
       const blunderPenalty = (stats.blunders + stats.missedWins) * 16;
       const mistakePenalty = stats.mistakes * 7;
       const inaccuracyPenalty = stats.inaccuracies * 2;
-      const soliditeScore = Math.max(15, Math.min(100, Math.round(100 - (blunderPenalty + mistakePenalty + inaccuracyPenalty) / (totalMoves / 15))));
+      const soliditeScore = Math.max(
+        15,
+        Math.min(100, Math.round(100 - (blunderPenalty + mistakePenalty + inaccuracyPenalty) / (totalMoves / 15)))
+      );
 
       // 2. ⚔️ Sens Tactique (Détection des meilleurs coups, brillants et conversion)
       const bestRatio = (stats.best + stats.brilliant) / totalMoves;
-      const tactiqueScore = Math.max(20, Math.min(100, Math.round(30 + bestRatio * 110 + (stats.brilliant > 0 ? 10 : 0))));
+      const tactiqueScore = Math.max(
+        20,
+        Math.min(100, Math.round(30 + bestRatio * 110 + (stats.brilliant > 0 ? 10 : 0)))
+      );
 
       // 3. 📚 Préparation d'Ouverture (Précision et régularité coups 1 à 12)
       const openingAcc = color === 'w' ? phaseStats.opening.whiteAccuracy : phaseStats.opening.blackAccuracy;
-      const openingFails = color === 'w'
-        ? phaseStats.opening.whiteBlunders * 25 + phaseStats.opening.whiteMistakes * 12
-        : phaseStats.opening.blackBlunders * 25 + phaseStats.opening.blackMistakes * 12;
-      const ouvertureScore = openingAcc !== null
-        ? Math.max(20, Math.min(100, Math.round(openingAcc - openingFails / Math.max(1, phaseStats.opening.totalMoves / 2))))
-        : Math.round(stats.accuracy);
+      const openingFails =
+        color === 'w'
+          ? phaseStats.opening.whiteBlunders * 25 + phaseStats.opening.whiteMistakes * 12
+          : phaseStats.opening.blackBlunders * 25 + phaseStats.opening.blackMistakes * 12;
+      const ouvertureScore =
+        openingAcc !== null
+          ? Math.max(
+              20,
+              Math.min(100, Math.round(openingAcc - openingFails / Math.max(1, phaseStats.opening.totalMoves / 2)))
+            )
+          : Math.round(stats.accuracy);
 
       // 4. 👑 Technique en Finale (Précision coups 31+ ou conversion de gain)
       const endgameAcc = color === 'w' ? phaseStats.endgame.whiteAccuracy : phaseStats.endgame.blackAccuracy;
@@ -91,13 +116,20 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
         finaleScore = Math.max(20, Math.min(100, Math.round(endgameAcc)));
       } else {
         // If game concluded before move 31, extrapolate from middlegame or overall accuracy
-        const midAcc = (color === 'w' ? phaseStats.middlegame.whiteAccuracy : phaseStats.middlegame.blackAccuracy) || stats.accuracy;
+        const midAcc =
+          (color === 'w' ? phaseStats.middlegame.whiteAccuracy : phaseStats.middlegame.blackAccuracy) || stats.accuracy;
         finaleScore = Math.max(25, Math.min(95, Math.round(midAcc * 0.95)));
       }
 
       // 5. ⏱️ Discipline Temporelle (Gestion du temps, absence de coups précipités < 3s qui gaffent)
       const rushedCount = stats.rushedMovesCount || 0;
-      const timeScore = Math.max(25, Math.min(100, Math.round(100 - rushedCount * 18 - (stats.avgThinkTimeSeconds && stats.avgThinkTimeSeconds < 2 ? 25 : 0))));
+      const timeScore = Math.max(
+        25,
+        Math.min(
+          100,
+          Math.round(100 - rushedCount * 18 - (stats.avgThinkTimeSeconds && stats.avgThinkTimeSeconds < 2 ? 25 : 0))
+        )
+      );
 
       const dimensions: SkillDimension[] = [
         {
@@ -196,14 +228,8 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
     };
   }, [moves, statsWhite, statsBlack, phaseStats]);
 
-  const whiteProfile = useMemo(
-    () => computeProfile('w', metadata.white || 'Blancs'),
-    [computeProfile, metadata.white]
-  );
-  const blackProfile = useMemo(
-    () => computeProfile('b', metadata.black || 'Noirs'),
-    [computeProfile, metadata.black]
-  );
+  const whiteProfile = useMemo(() => computeProfile('w', metadata.white || 'Blancs'), [computeProfile, metadata.white]);
+  const blackProfile = useMemo(() => computeProfile('b', metadata.black || 'Noirs'), [computeProfile, metadata.black]);
 
   const activeProfile =
     activeView === 'user'
@@ -211,33 +237,8 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
         ? whiteProfile
         : blackProfile
       : activeView === 'white'
-      ? whiteProfile
-      : blackProfile;
-
-  // Geometry configuration for 5-axis spider chart
-  const cx = 150;
-  const cy = 145;
-  const R = 95;
-  const numAxes = 5;
-
-  // Compute (x, y) for an axis index and a normalized value (0 to 1)
-  const getCoordinates = (index: number, valueRatio: number) => {
-    const angle = -Math.PI / 2 + (index * 2 * Math.PI) / numAxes;
-    return {
-      x: cx + R * valueRatio * Math.cos(angle),
-      y: cy + R * valueRatio * Math.sin(angle),
-    };
-  };
-
-  // Build SVG polygon points path string
-  const buildPolygonPoints = (profile: PlayerProfileData) => {
-    return profile.dimensions
-      .map((d, i) => {
-        const { x, y } = getCoordinates(i, Math.max(0.15, d.score / 100));
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(' ');
-  };
+        ? whiteProfile
+        : blackProfile;
 
   const whitePolygon = useMemo(() => buildPolygonPoints(whiteProfile), [whiteProfile]);
   const blackPolygon = useMemo(() => buildPolygonPoints(blackProfile), [blackProfile]);
@@ -255,9 +256,7 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
             <Sparkles className="w-4 h-4 text-indigo-400" />
             <span>Radar du Profil & Forces / Faiblesses</span>
           </h3>
-          <p className="text-xs text-slate-400">
-            Évaluation holistique sur 5 piliers fondamentaux du jeu d'échecs.
-          </p>
+          <p className="text-xs text-slate-400">Évaluation holistique sur 5 piliers fondamentaux du jeu d'échecs.</p>
         </div>
 
         {/* View Perspective Selector */}
@@ -470,13 +469,13 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
           <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 shadow-sm flex flex-col gap-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="text-xs text-slate-400 font-medium">Style de jeu identifié :</span>
-              <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${activeProfile.archetype.badgeColor}`}>
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${activeProfile.archetype.badgeColor}`}
+              >
                 {activeProfile.archetype.title}
               </span>
             </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              {activeProfile.archetype.description}
-            </p>
+            <p className="text-xs text-slate-300 leading-relaxed">{activeProfile.archetype.description}</p>
           </div>
 
           {/* Key Insights: Point Fort & Axe de Travail */}
@@ -491,9 +490,7 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
                 <span>{activeProfile.strongest.name}</span>
                 <span className="font-mono text-emerald-300 font-black">{activeProfile.strongest.score}/100</span>
               </div>
-              <p className="text-[11px] text-slate-300">
-                {activeProfile.strongest.detail}
-              </p>
+              <p className="text-[11px] text-slate-300">{activeProfile.strongest.detail}</p>
             </div>
 
             {/* Weakest Dimension */}
@@ -506,9 +503,7 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
                 <span>{activeProfile.weakest.name}</span>
                 <span className="font-mono text-amber-300 font-black">{activeProfile.weakest.score}/100</span>
               </div>
-              <p className="text-[11px] text-slate-300">
-                {activeProfile.weakest.detail}
-              </p>
+              <p className="text-[11px] text-slate-300">{activeProfile.weakest.detail}</p>
             </div>
           </div>
 
@@ -531,10 +526,10 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
                       dim.score >= 80
                         ? 'bg-emerald-400'
                         : dim.score >= 65
-                        ? 'bg-indigo-400'
-                        : dim.score >= 45
-                        ? 'bg-amber-400'
-                        : 'bg-rose-500'
+                          ? 'bg-indigo-400'
+                          : dim.score >= 45
+                            ? 'bg-amber-400'
+                            : 'bg-rose-500'
                     }`}
                     style={{ width: `${dim.score}%` }}
                   />

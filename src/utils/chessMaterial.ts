@@ -29,8 +29,16 @@ export function computeBoardMaterial(fen: string): BoardMaterialState {
 
   const positionPart = fen.trim().split(' ')[0] || '';
   const counts: Record<string, number> = {
-    P: 0, N: 0, B: 0, R: 0, Q: 0,
-    p: 0, n: 0, b: 0, r: 0, q: 0,
+    P: 0,
+    N: 0,
+    B: 0,
+    R: 0,
+    Q: 0,
+    p: 0,
+    n: 0,
+    b: 0,
+    r: 0,
+    q: 0,
   };
 
   for (const char of positionPart) {
@@ -40,7 +48,11 @@ export function computeBoardMaterial(fen: string): BoardMaterialState {
   }
 
   const PIECE_VALUES: Record<string, number> = {
-    p: 1, n: 3, b: 3, r: 5, q: 9,
+    p: 1,
+    n: 3,
+    b: 3,
+    r: 5,
+    q: 9,
   };
 
   const whiteMaterial =

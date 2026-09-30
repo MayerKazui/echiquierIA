@@ -11,8 +11,7 @@ const COLOR_SHIFT = '#f59e0b'; // Amber
 const COLOR_ALT = '#06b6d4'; // Cyan
 const COLOR_CTRL = '#ef4444'; // Red
 
-const toggleIn = <T,>(list: T[], item: T) =>
-  list.includes(item) ? list.filter((x) => x !== item) : [...list, item];
+const toggleIn = <T>(list: T[], item: T) => (list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
 
 /**
  * Lichess-style annotations: right-click drag draws an arrow (Shift / Alt / Ctrl pick the color),
@@ -26,10 +25,13 @@ export function useBoardDrawing(fen: string, hasPieceAt: (square: string) => boo
   const [rightClickCurrent, setRightClickCurrent] = useState<string | null>(null);
   const [rightClickColor, setRightClickColor] = useState<string>(DEFAULT_COLOR);
 
-  useEffect(() => {
+  // Clear the drawings when the position changes (state reset during render, not in an effect)
+  const [drawnOnFen, setDrawnOnFen] = useState(fen);
+  if (drawnOnFen !== fen) {
+    setDrawnOnFen(fen);
     setUserArrows([]);
     setUserHighlights([]);
-  }, [fen]);
+  }
 
   const finishDrawing = useCallback((start: string, end: string | null, color: string) => {
     if (end && start !== end) {

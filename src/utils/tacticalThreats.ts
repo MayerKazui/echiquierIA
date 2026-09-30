@@ -1,5 +1,4 @@
 import { Chess, Square } from 'chess.js';
-import { toFrenchSan } from './chessNotation';
 
 export type TacticalThreatType = 'attack' | 'check' | 'pin' | 'fork' | 'hanging' | 'skewer';
 
@@ -67,10 +66,7 @@ export function isSquareDefendedBy(chess: Chess, targetSquare: string, defenderC
  * Analyzes tactical threats, attacked squares, pins, checks, and forks created by a move
  * played from fenBefore (e.g. the engine's suggested best move or the played move).
  */
-export function analyzeTacticalThreatsForMove(
-  fenBefore: string,
-  moveUci: string
-): TacticalThreat[] {
+export function analyzeTacticalThreatsForMove(fenBefore: string, moveUci: string): TacticalThreat[] {
   if (!fenBefore || !moveUci || moveUci.length < 4) return [];
 
   const threats: TacticalThreat[] = [];
@@ -139,7 +135,11 @@ export function analyzeTacticalThreatsForMove(
     for (const atk of attacksOnPieces) {
       const targetSq = atk.to;
       const targetPieceType = atk.captured || 'p';
-      const targetMeta = PIECE_FRENCH_ARTICLE_NAMES[targetPieceType] || { article: 'le', name: 'Pièce', full: 'la pièce' };
+      const targetMeta = PIECE_FRENCH_ARTICLE_NAMES[targetPieceType] || {
+        article: 'le',
+        name: 'Pièce',
+        full: 'la pièce',
+      };
       const isDefended = isSquareDefendedBy(chess, targetSq, oppColor);
       const isTargetHighVal = targetPieceType === 'q' || targetPieceType === 'r';
       const isHanging = !isDefended;
@@ -167,9 +167,28 @@ export function analyzeTacticalThreatsForMove(
 
     // 3. Sliding piece pins (Bishops, Rooks, Queens)
     const SLIDING_DIRS: Record<string, number[][]> = {
-      b: [[1, 1], [1, -1], [-1, 1], [-1, -1]],
-      r: [[1, 0], [-1, 0], [0, 1], [0, -1]],
-      q: [[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]],
+      b: [
+        [1, 1],
+        [1, -1],
+        [-1, 1],
+        [-1, -1],
+      ],
+      r: [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ],
+      q: [
+        [1, 1],
+        [1, -1],
+        [-1, 1],
+        [-1, -1],
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ],
     };
 
     const dirs = SLIDING_DIRS[pieceType];
@@ -208,8 +227,16 @@ export function analyzeTacticalThreatsForMove(
           const isRelative = PIECE_VALUES[secondPiece.type] > PIECE_VALUES[firstPiece.type];
 
           if (isAbsolute || isRelative) {
-            const firstMeta = PIECE_FRENCH_ARTICLE_NAMES[firstPiece.type] || { article: 'le', name: 'Pièce', full: 'la pièce' };
-            const secondMeta = PIECE_FRENCH_ARTICLE_NAMES[secondPiece.type] || { article: 'le', name: 'Pièce', full: 'la pièce' };
+            const firstMeta = PIECE_FRENCH_ARTICLE_NAMES[firstPiece.type] || {
+              article: 'le',
+              name: 'Pièce',
+              full: 'la pièce',
+            };
+            const secondMeta = PIECE_FRENCH_ARTICLE_NAMES[secondPiece.type] || {
+              article: 'le',
+              name: 'Pièce',
+              full: 'la pièce',
+            };
 
             threats.push({
               id: `pin-${to}-${firstSq}-${secondSq}`,

@@ -29,7 +29,8 @@ export const SAMPLE_GAMES: SampleGame[] = [
   {
     id: 'club-blunder',
     name: 'Partie de Club : Gaffes en Milieu de Jeu',
-    description: "Une partie disputée en cadence 10+2 avec horloges, plusieurs longues réflexions et gaffes réciproques.",
+    description:
+      'Une partie disputée en cadence 10+2 avec horloges, plusieurs longues réflexions et gaffes réciproques.',
     white: 'Alexandre (1550)',
     black: 'Maxime (1520)',
     category: 'club',
@@ -46,7 +47,7 @@ export const SAMPLE_GAMES: SampleGame[] = [
   {
     id: 'rook-endgame',
     name: 'Revirement en Finale de Tours',
-    description: "Une finale théorique nulle qui bascule suite à un coup passif de tour.",
+    description: 'Une finale théorique nulle qui bascule suite à un coup passif de tour.',
     white: 'Joueur Blancs',
     black: 'Joueur Noirs',
     category: 'endgame',
@@ -62,7 +63,7 @@ export const SAMPLE_GAMES: SampleGame[] = [
   {
     id: 'fischer-byrne',
     name: 'La Partie du Siècle (Fischer vs Byrne 1956)',
-    description: "Bobby Fischer, à 13 ans, sacrifie sa Dame pour une attaque irrésistible.",
+    description: 'Bobby Fischer, à 13 ans, sacrifie sa Dame pour une attaque irrésistible.',
     white: 'Donald Byrne',
     black: 'Bobby Fischer',
     category: 'master',

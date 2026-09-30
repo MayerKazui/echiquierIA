@@ -23,7 +23,9 @@ export interface KeyboardShortcutHandlers {
  */
 export function useKeyboardShortcuts(enabled: boolean, handlers: KeyboardShortcutHandlers) {
   const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
+  useEffect(() => {
+    handlersRef.current = handlers;
+  });
 
   useEffect(() => {
     if (!enabled) return;

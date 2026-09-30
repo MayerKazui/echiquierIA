@@ -45,7 +45,10 @@ export const MoveBreakdown: React.FC<{ statsWhite: PlayerStats; statsBlack: Play
 
     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
       {TILES.map(({ label, icon: Icon, titleClass, whiteClass, blackClass, value }) => (
-        <div key={label} className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex flex-col justify-between">
+        <div
+          key={label}
+          className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex flex-col justify-between"
+        >
           <div className={`flex items-center gap-1.5 ${titleClass} font-semibold mb-2`}>
             <Icon className="w-3.5 h-3.5" />
             <span>{label}</span>

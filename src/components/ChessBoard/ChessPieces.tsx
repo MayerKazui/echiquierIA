@@ -31,16 +31,17 @@ export const BlackPawn: React.FC<PieceProps> = ({ className = 'w-full h-full' })
 export const WhiteKnight: React.FC<PieceProps> = ({ className = 'w-full h-full' }) => (
   <svg viewBox="0 0 45 45" className={className}>
     <g fill="none" fillRule="evenodd" stroke="#2c3e50" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path
-        d="M 22,10 C 32.5,11 38.5,18 38,39 L 15,39 C 15,30 25,32.5 23,18"
-        fill="#ffffff"
-      />
+      <path d="M 22,10 C 32.5,11 38.5,18 38,39 L 15,39 C 15,30 25,32.5 23,18" fill="#ffffff" />
       <path
         d="M 24,18 C 24.38,20.91 18.45,25.37 16,27 C 13,29 13.18,31.34 11,31 C 9.958,30.06 12.41,27.96 11,28 C 10,28 11.19,29.23 10,30 C 9,30 5.997,31 6,26 C 6,24 12,14 12,14 C 12,14 13.89,12.1 14,10.5 C 13.27,7.4 17.07,8.06 18,8.5 C 18.58,8.65 17.58,9.59 18,10 C 19.34,9.88 20.35,8.96 22,10 z"
         fill="#ffffff"
       />
       <path d="M 9.5 25.5 A 0.5 0.5 0 1 1 8.5,25.5 A 0.5 0.5 0 1 1 9.5 25.5 z" fill="#2c3e50" />
-      <path d="M 15 15.5 A 0.5 1.5 0 1 1 14,15.5 A 0.5 1.5 0 1 1 15 15.5 z" transform="matrix(0.866,0.5,-0.5,0.866,9.693,-5.173)" fill="#2c3e50" />
+      <path
+        d="M 15 15.5 A 0.5 1.5 0 1 1 14,15.5 A 0.5 1.5 0 1 1 15 15.5 z"
+        transform="matrix(0.866,0.5,-0.5,0.866,9.693,-5.173)"
+        fill="#2c3e50"
+      />
     </g>
   </svg>
 );
@@ -48,16 +49,17 @@ export const WhiteKnight: React.FC<PieceProps> = ({ className = 'w-full h-full' 
 export const BlackKnight: React.FC<PieceProps> = ({ className = 'w-full h-full' }) => (
   <svg viewBox="0 0 45 45" className={className}>
     <g fill="none" fillRule="evenodd" stroke="#171717" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path
-        d="M 22,10 C 32.5,11 38.5,18 38,39 L 15,39 C 15,30 25,32.5 23,18"
-        fill="#262626"
-      />
+      <path d="M 22,10 C 32.5,11 38.5,18 38,39 L 15,39 C 15,30 25,32.5 23,18" fill="#262626" />
       <path
         d="M 24,18 C 24.38,20.91 18.45,25.37 16,27 C 13,29 13.18,31.34 11,31 C 9.958,30.06 12.41,27.96 11,28 C 10,28 11.19,29.23 10,30 C 9,30 5.997,31 6,26 C 6,24 12,14 12,14 C 12,14 13.89,12.1 14,10.5 C 13.27,7.4 17.07,8.06 18,8.5 C 18.58,8.65 17.58,9.59 18,10 C 19.34,9.88 20.35,8.96 22,10 z"
         fill="#262626"
       />
       <path d="M 9.5 25.5 A 0.5 0.5 0 1 1 8.5,25.5 A 0.5 0.5 0 1 1 9.5 25.5 z" fill="#ffffff" />
-      <path d="M 15 15.5 A 0.5 1.5 0 1 1 14,15.5 A 0.5 1.5 0 1 1 15 15.5 z" transform="matrix(0.866,0.5,-0.5,0.866,9.693,-5.173)" fill="#ffffff" />
+      <path
+        d="M 15 15.5 A 0.5 1.5 0 1 1 14,15.5 A 0.5 1.5 0 1 1 15 15.5 z"
+        transform="matrix(0.866,0.5,-0.5,0.866,9.693,-5.173)"
+        fill="#ffffff"
+      />
     </g>
   </svg>
 );
@@ -90,7 +92,14 @@ export const BlackBishop: React.FC<PieceProps> = ({ className = 'w-full h-full' 
 
 export const WhiteRook: React.FC<PieceProps> = ({ className = 'w-full h-full' }) => (
   <svg viewBox="0 0 45 45" className={className}>
-    <g fill="#ffffff" fillRule="evenodd" stroke="#2c3e50" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <g
+      fill="#ffffff"
+      fillRule="evenodd"
+      stroke="#2c3e50"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M 9,39 L 36,39 L 36,36 L 9,36 z" />
       <path d="M 12,36 L 12,32 L 33,32 L 33,36 z" />
       <path d="M 11,14 L 11,9 L 15,9 L 15,11 L 20,11 L 20,9 L 25,9 L 25,11 L 30,11 L 30,9 L 34,9 L 34,14 z" />
@@ -104,7 +113,14 @@ export const WhiteRook: React.FC<PieceProps> = ({ className = 'w-full h-full' })
 
 export const BlackRook: React.FC<PieceProps> = ({ className = 'w-full h-full' }) => (
   <svg viewBox="0 0 45 45" className={className}>
-    <g fill="#262626" fillRule="evenodd" stroke="#171717" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <g
+      fill="#262626"
+      fillRule="evenodd"
+      stroke="#171717"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M 9,39 L 36,39 L 36,36 L 9,36 z" />
       <path d="M 12,36 L 12,32 L 33,32 L 33,36 z" />
       <path d="M 11,14 L 11,9 L 15,9 L 15,11 L 20,11 L 20,9 L 25,9 L 25,11 L 30,11 L 30,9 L 34,9 L 34,14 z" />
@@ -119,7 +135,14 @@ export const BlackRook: React.FC<PieceProps> = ({ className = 'w-full h-full' })
 
 export const WhiteQueen: React.FC<PieceProps> = ({ className = 'w-full h-full' }) => (
   <svg viewBox="0 0 45 45" className={className}>
-    <g fill="#ffffff" fillRule="evenodd" stroke="#2c3e50" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <g
+      fill="#ffffff"
+      fillRule="evenodd"
+      stroke="#2c3e50"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M 9 26 C 17.5 24.5 30 24.5 36 26 L 38 14 L 31 25 L 22.5 10 L 14 25 L 7 14 L 9 26 z" />
       <path d="M 9 26 C 9 28 10.5 28 11.5 30 C 12.5 31.5 12.5 31 12 33.5 C 10.5 34.5 10.5 36 10 39 L 35 39 C 34.5 36 34.5 34.5 33 33.5 C 32.5 31 32.5 31.5 33.5 30 C 34.5 28 36 28 36 26 C 27.5 24.5 17.5 24.5 9 26 z" />
       <circle cx="6" cy="12" r="2" />
@@ -135,7 +158,14 @@ export const WhiteQueen: React.FC<PieceProps> = ({ className = 'w-full h-full' }
 
 export const BlackQueen: React.FC<PieceProps> = ({ className = 'w-full h-full' }) => (
   <svg viewBox="0 0 45 45" className={className}>
-    <g fill="#262626" fillRule="evenodd" stroke="#171717" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <g
+      fill="#262626"
+      fillRule="evenodd"
+      stroke="#171717"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M 9 26 C 17.5 24.5 30 24.5 36 26 L 38 14 L 31 25 L 22.5 10 L 14 25 L 7 14 L 9 26 z" />
       <path d="M 9 26 C 9 28 10.5 28 11.5 30 C 12.5 31.5 12.5 31 12 33.5 C 10.5 34.5 10.5 36 10 39 L 35 39 C 34.5 36 34.5 34.5 33 33.5 C 32.5 31 32.5 31.5 33.5 30 C 34.5 28 36 28 36 26 C 27.5 24.5 17.5 24.5 9 26 z" />
       <circle cx="6" cy="12" r="2" fill="#ffffff" />
@@ -201,23 +231,37 @@ export const ChessPiece: React.FC<{ type: string; color: 'w' | 'b'; className?: 
   const p = type.toLowerCase();
   if (color === 'w') {
     switch (p) {
-      case 'p': return <WhitePawn className={className} />;
-      case 'n': return <WhiteKnight className={className} />;
-      case 'b': return <WhiteBishop className={className} />;
-      case 'r': return <WhiteRook className={className} />;
-      case 'q': return <WhiteQueen className={className} />;
-      case 'k': return <WhiteKing className={className} />;
-      default: return null;
+      case 'p':
+        return <WhitePawn className={className} />;
+      case 'n':
+        return <WhiteKnight className={className} />;
+      case 'b':
+        return <WhiteBishop className={className} />;
+      case 'r':
+        return <WhiteRook className={className} />;
+      case 'q':
+        return <WhiteQueen className={className} />;
+      case 'k':
+        return <WhiteKing className={className} />;
+      default:
+        return null;
     }
   } else {
     switch (p) {
-      case 'p': return <BlackPawn className={className} />;
-      case 'n': return <BlackKnight className={className} />;
-      case 'b': return <BlackBishop className={className} />;
-      case 'r': return <BlackRook className={className} />;
-      case 'q': return <BlackQueen className={className} />;
-      case 'k': return <BlackKing className={className} />;
-      default: return null;
+      case 'p':
+        return <BlackPawn className={className} />;
+      case 'n':
+        return <BlackKnight className={className} />;
+      case 'b':
+        return <BlackBishop className={className} />;
+      case 'r':
+        return <BlackRook className={className} />;
+      case 'q':
+        return <BlackQueen className={className} />;
+      case 'k':
+        return <BlackKing className={className} />;
+      default:
+        return null;
     }
   }
 };

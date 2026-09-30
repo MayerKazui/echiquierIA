@@ -46,10 +46,10 @@ export function validatePgn(pgn: string): { valid: boolean; error?: string; move
       return { valid: false, error: 'Aucun coup détecté dans le PGN.', moveCount: 0 };
     }
     return { valid: true, moveCount: moves.length };
-  } catch (err: any) {
+  } catch (err) {
     return {
       valid: false,
-      error: err.message || 'Format PGN invalide ou coup illégal détecté.',
+      error: (err instanceof Error && err.message) || 'Format PGN invalide ou coup illégal détecté.',
       moveCount: 0,
     };
   }

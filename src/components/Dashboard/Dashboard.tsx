@@ -50,7 +50,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ analysis, userPseudo = '',
             }`}
             title="Copier un résumé formaté prêt à coller sur Discord, WhatsApp ou X"
           >
-            {copiedSummary ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4 text-indigo-400" />}
+            {copiedSummary ? (
+              <Check className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <Share2 className="w-4 h-4 text-indigo-400" />
+            )}
             <span>{copiedSummary ? 'Bilan copié !' : 'Partager le Bilan'}</span>
           </button>
         </div>

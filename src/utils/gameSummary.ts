@@ -17,10 +17,14 @@ ${whiteName} (${statsWhite.accuracy}%) vs ${blackName} (${statsBlack.accuracy}%)
 ${resultStr}${openingStr}⏱️ Durée : ${Math.ceil(moves.length / 2)} coups
 ⚪ Blancs : ${statsWhite.best + statsWhite.brilliant} meilleurs coups · ${statsWhite.inaccuracies} imprécision(s) · ${statsWhite.mistakes} erreur(s) · ${statsWhite.blunders + statsWhite.missedWins} gaffe(s)
 ⚫ Noirs : ${statsBlack.best + statsBlack.brilliant} meilleurs coups · ${statsBlack.inaccuracies} imprécision(s) · ${statsBlack.mistakes} erreur(s) · ${statsBlack.blunders + statsBlack.missedWins} gaffe(s)
-${opening.whiteAccuracy !== null ? `\n📊 Précision par phase :
+${
+  opening.whiteAccuracy !== null
+    ? `\n📊 Précision par phase :
 • Ouverture (coups 1-12) : Blancs ${opening.whiteAccuracy ?? '-'}% | Noirs ${opening.blackAccuracy ?? '-'}%
 • Milieu de jeu (coups 13-30) : Blancs ${middlegame.whiteAccuracy ?? '-'}% | Noirs ${middlegame.blackAccuracy ?? '-'}%
-• Finale (coups 31+) : ${endgame.totalMoves > 0 ? `Blancs ${endgame.whiteAccuracy ?? '-'}% | Noirs ${endgame.blackAccuracy ?? '-'}%` : 'Non atteinte'}` : ''}
+• Finale (coups 31+) : ${endgame.totalMoves > 0 ? `Blancs ${endgame.whiteAccuracy ?? '-'}% | Noirs ${endgame.blackAccuracy ?? '-'}%` : 'Non atteinte'}`
+    : ''
+}
 
 Analysé avec Échiquier IA & Stockfish 19`;
 }

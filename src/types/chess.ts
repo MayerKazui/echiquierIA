@@ -1,14 +1,5 @@
 export type MoveClassification =
-  | 'brilliant'
-  | 'great'
-  | 'best'
-  | 'excellent'
-  | 'good'
-  | 'inaccuracy'
-  | 'mistake'
-  | 'blunder'
-  | 'missedWin'
-  | 'book';
+  'brilliant' | 'great' | 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder' | 'missedWin' | 'book';
 
 export interface MoveAnalysis {
   ply: number;
@@ -22,7 +13,7 @@ export interface MoveAnalysis {
   fenBefore: string;
   fenAfter: string;
   evalBefore: number; // Centipawns from White's perspective (+ = White advantage)
-  evalAfter: number;  // Centipawns from White's perspective
+  evalAfter: number; // Centipawns from White's perspective
   mateBefore: number | null;
   mateAfter: number | null;
   bestMoveUci: string;

@@ -1,10 +1,20 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
-import { Chess } from 'chess.js';
-import { z } from 'zod';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
+import type { ZodType } from 'zod';
+import {
+  explainSchema,
+  explanationSchema,
+  isGoodClassification,
+  lichessImportSchema,
+  type Explanation,
+  type LichessImportRequest,
+  type ExplainRequest,
+  type MoveRef,
+  type MoveClassification,
+} from './server/schemas';
 
 dotenv.config();
 
@@ -75,71 +85,7 @@ const lichessImportLimiter = rateLimit({
   message: rateLimitResponse,
 });
 
-// Request validation. Every string that ends up in the Gemini prompt is restricted to a
-// character set with no quotes, braces or line breaks, so it cannot carry instructions.
-const MOVE_CLASSIFICATIONS = [
-  'brilliant',
-  'great',
-  'best',
-  'excellent',
-  'good',
-  'inaccuracy',
-  'mistake',
-  'blunder',
-  'missedWin',
-  'book',
-] as const;
-type MoveClassification = (typeof MOVE_CLASSIFICATIONS)[number];
-
-// Moves that deserve praise rather than a critique (mirrors the client-side list).
-const GOOD_CLASSIFICATIONS: readonly MoveClassification[] = ['brilliant', 'great', 'best', 'excellent', 'good', 'book'];
-const isGoodClassification = (key: MoveClassification) => GOOD_CLASSIFICATIONS.includes(key);
-
-const moveToken = z
-  .string()
-  .max(12)
-  .regex(/^[\p{L}\p{N}+#=\-@()]*$/u);
-const moveRef = z.object({ san: moveToken.optional(), uci: moveToken.optional() });
-const evalLabel = z.string().regex(/^(M\d{1,3}|[+-]?\d{1,5}(\.\d)?)$/);
-
-const isValidFen = (fen: string) => {
-  try {
-    new Chess(fen);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const explainSchema = z.object({
-  fen: z.string().max(100).refine(isValidFen, 'FEN invalide'),
-  movePlayed: moveRef,
-  moveBest: moveRef,
-  evalPlayed: evalLabel,
-  evalBest: evalLabel,
-  // Raw MoveClassification from the client: drives the good/bad logic (no French substring tests).
-  classificationKey: z.enum(MOVE_CLASSIFICATIONS),
-  // Display label for the prompt. Usually "Gaffe critique", but it can also be an opening name.
-  classification: z
-    .string()
-    .min(1)
-    .max(120)
-    .regex(/^[\p{L}\p{N} '’:,.()\-/&]+$/u),
-  pv: z
-    .string()
-    .max(120)
-    .regex(/^[\p{L}\p{N}+#=\-@() ]*$/u)
-    .optional(),
-  playerColor: z.enum(['white', 'black']),
-  moveNumber: z.number().int().min(1).max(1000),
-  sanHistory: z.array(moveToken).max(1000).optional(),
-});
-
-const lichessImportSchema = z.object({
-  pgn: z.string().min(1).max(60_000),
-});
-
-function validateBody(schema: z.ZodType) {
+function validateBody(schema: ZodType) {
   return (req: Request, res: Response, next: NextFunction) => {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -167,10 +113,12 @@ const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
 const GEMINI_ATTEMPT_TIMEOUT_MS = 5000;
 const GEMINI_TOTAL_TIMEOUT_MS = 9000;
 
+const errorMessage = (err: unknown) => (err instanceof Error ? err.message : 'Error');
+
 // Helper: cascading Gemini caller. Each attempt is truly cancelled (AbortSignal) when it times out.
-async function callGeminiWithFallback(prompt: string, systemInstruction: string): Promise<any> {
+async function callGeminiWithFallback(prompt: string, systemInstruction: string): Promise<Explanation> {
   const deadline = Date.now() + GEMINI_TOTAL_TIMEOUT_MS;
-  let lastError: any = null;
+  let lastError: unknown = null;
 
   for (const model of GEMINI_MODELS) {
     const remaining = deadline - Date.now();
@@ -200,10 +148,11 @@ async function callGeminiWithFallback(prompt: string, systemInstruction: string)
           .replace(/^```\s*/i, '')
           .replace(/\s*```$/i, '')
           .trim();
-        return JSON.parse(cleaned);
+        // A reply that is not valid JSON or has the wrong shape counts as a failure of this model
+        return explanationSchema.parse(JSON.parse(cleaned));
       }
-    } catch (err: any) {
-      console.warn(`Model ${model} failed (${err.message || 'Error'}), trying next candidate...`);
+    } catch (err) {
+      console.warn(`Model ${model} failed (${errorMessage(err)}), trying next candidate...`);
       lastError = err;
     } finally {
       clearTimeout(timeoutId);
@@ -218,8 +167,8 @@ async function callGeminiWithFallback(prompt: string, systemInstruction: string)
 // one Gemini call.
 const EXPLANATION_CACHE_MAX = 500;
 const EXPLANATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const explanationCache = new Map<string, { data: any; expires: number }>();
-const explanationInFlight = new Map<string, Promise<any>>();
+const explanationCache = new Map<string, { data: Explanation; expires: number }>();
+const explanationInFlight = new Map<string, Promise<Explanation>>();
 
 function getCachedExplanation(key: string) {
   const entry = explanationCache.get(key);
@@ -234,7 +183,7 @@ function getCachedExplanation(key: string) {
   return entry.data;
 }
 
-function setCachedExplanation(key: string, data: any) {
+function setCachedExplanation(key: string, data: Explanation) {
   explanationCache.set(key, { data, expires: Date.now() + EXPLANATION_CACHE_TTL_MS });
   if (explanationCache.size > EXPLANATION_CACHE_MAX) {
     const oldest = explanationCache.keys().next().value;
@@ -244,13 +193,13 @@ function setCachedExplanation(key: string, data: any) {
 
 // Helper: Dynamic, 100% situational heuristic chess coach (never generic boilerplate)
 function generateSituationalExplanation(
-  movePlayed: { san?: string; uci?: string },
-  moveBest: { san?: string; uci?: string },
+  movePlayed: MoveRef | undefined,
+  moveBest: MoveRef | undefined,
   pv: string | undefined,
   playerColor: string,
   moveNumber: number,
   classificationKey: MoveClassification
-) {
+): Explanation {
   const playedSan = movePlayed?.san || movePlayed?.uci || '';
   const bestSan = moveBest?.san || moveBest?.uci || playedSan;
   const isWhite = playerColor === 'white';
@@ -283,8 +232,8 @@ function generateSituationalExplanation(
   else if (targetMove.startsWith('Q')) concept = 'Centralisation de Dame';
   else if (moveNumber <= 10) concept = 'Développement & contrôle du centre';
 
-  let whyPlayedIsBad = '';
-  let whyBestIsBetter = '';
+  let whyPlayedIsBad: string;
+  let whyBestIsBetter: string;
 
   if (isGoodMove) {
     whyPlayedIsBad = ''; // Le coup joué n'est PAS mauvais !
@@ -292,10 +241,10 @@ function generateSituationalExplanation(
       isCapture
         ? 'élimine une pièce adverse clé tout en maintenant une coordination optimale'
         : isCheck
-        ? 'attaque directement le Roi adverse et force une réponse défensive immédiate'
-        : targetMove.includes('O-O')
-        ? 'met le Roi en totale sécurité et connecte les Tours'
-        : `active efficacement ${pieceName} vers la case ${targetSquare || 'clé'}, renforçant la pression sur le camp adverse`
+          ? 'attaque directement le Roi adverse et force une réponse défensive immédiate'
+          : targetMove.includes('O-O')
+            ? 'met le Roi en totale sécurité et connecte les Tours'
+            : `active efficacement ${pieceName} vers la case ${targetSquare || 'clé'}, renforçant la pression sur le camp adverse`
     }.`;
   } else {
     whyPlayedIsBad = isBlunder
@@ -315,9 +264,13 @@ function generateSituationalExplanation(
     }.`,
   ];
   if (pvList.length > 1) {
-    steps.push(`2. Enchaîner avec la suite tactique ${pvList.slice(1).join(' ➔ ')} afin de déstabiliser les pièces ${oppColor}.`);
+    steps.push(
+      `2. Enchaîner avec la suite tactique ${pvList.slice(1).join(' ➔ ')} afin de déstabiliser les pièces ${oppColor}.`
+    );
   }
-  steps.push(`3. Poursuivre en augmentant la pression sur les cases sensibles du camp adverse tout en consolidant l'initiative.`);
+  steps.push(
+    `3. Poursuivre en augmentant la pression sur les cases sensibles du camp adverse tout en consolidant l'initiative.`
+  );
   const plan = steps.join('\n');
 
   return {
@@ -343,7 +296,7 @@ app.post('/api/coach/explain', explainLimiter, validateBody(explainSchema), asyn
       moveNumber,
       sanHistory,
       classificationKey,
-    } = req.body;
+    } = req.body as ExplainRequest;
 
     const isGoodMove =
       isGoodClassification(classificationKey) ||
@@ -396,7 +349,7 @@ Format JSON strict requis :
     const cached = getCachedExplanation(cacheKey);
     if (cached) return res.json({ success: true, data: cached });
 
-    let parsed;
+    let parsed: Explanation;
     try {
       let pending = explanationInFlight.get(cacheKey);
       if (!pending) {
@@ -407,32 +360,26 @@ Format JSON strict requis :
         explanationInFlight.set(cacheKey, pending);
       }
       parsed = await pending;
-      if (isGoodMove && parsed) {
+      if (isGoodMove) {
         parsed.whyPlayedIsBad = '';
       }
-      if (parsed) setCachedExplanation(cacheKey, parsed);
+      setCachedExplanation(cacheKey, parsed);
     } catch (genErr) {
       console.warn('Gemini calls failed, falling back to situational dynamic chess analysis:', genErr);
-      parsed = generateSituationalExplanation(
-        movePlayed,
-        moveBest,
-        pv,
-        playerColor,
-        moveNumber,
-        classificationKey
-      );
+      parsed = generateSituationalExplanation(movePlayed, moveBest, pv, playerColor, moveNumber, classificationKey);
     }
 
     res.json({ success: true, data: parsed });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in /api/coach/explain:', error);
+    const body: Partial<ExplainRequest> = req.body ?? {};
     const fallback = generateSituationalExplanation(
-      req.body?.movePlayed,
-      req.body?.moveBest,
-      req.body?.pv,
-      req.body?.playerColor || 'white',
-      req.body?.moveNumber || 1,
-      req.body?.classificationKey || 'mistake'
+      body.movePlayed,
+      body.moveBest,
+      body.pv,
+      body.playerColor || 'white',
+      body.moveNumber || 1,
+      body.classificationKey || 'mistake'
     );
     res.json({ success: true, data: fallback });
   }
@@ -441,7 +388,7 @@ Format JSON strict requis :
 // Proxy endpoint to import PGN directly to Lichess via official API without CORS or CSRF restrictions
 app.post('/api/lichess/import', lichessImportLimiter, validateBody(lichessImportSchema), async (req, res) => {
   try {
-    const { pgn } = req.body;
+    const { pgn } = req.body as LichessImportRequest;
 
     const lichessResponse = await fetch('https://lichess.org/api/import', {
       method: 'POST',
@@ -481,12 +428,13 @@ app.post('/api/lichess/import', lichessImportLimiter, validateBody(lichessImport
 });
 
 // Body-parser errors (oversized or malformed JSON) and anything unexpected: never leak details.
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   if (res.headersSent) return next(err);
-  if (err?.type === 'entity.too.large') {
+  const type = (err as { type?: string } | null)?.type;
+  if (type === 'entity.too.large') {
     return res.status(413).json({ success: false, error: 'Requête trop volumineuse' });
   }
-  if (err?.type === 'entity.parse.failed') {
+  if (type === 'entity.parse.failed') {
     return res.status(400).json({ success: false, error: 'Requête invalide' });
   }
   console.error('Unhandled server error:', err);

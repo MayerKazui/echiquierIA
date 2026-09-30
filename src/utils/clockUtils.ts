@@ -13,7 +13,10 @@ export interface ParsedClockInfo {
  */
 export function parseDurationToSeconds(str: string): number | null {
   if (!str) return null;
-  const clean = str.trim().replace(/^\[%clk\s*|^\[%emt\s*|^\[|\]$/gi, '').trim();
+  const clean = str
+    .trim()
+    .replace(/^\[%clk\s*|^\[%emt\s*|^\[|\]$/gi, '')
+    .trim();
   const parts = clean.split(':');
 
   if (parts.length === 3) {
@@ -193,9 +196,6 @@ export function extractGameClocks(
   }
 
   // 3. Calculate thinking time (elapsed duration) for each move
-  let prevClockWhite: number | null = null;
-  let prevClockBlack: number | null = null;
-
   // Determine starting base times
   const firstWhiteClock = rawClocks.find((_, idx) => history[idx].color === 'w')?.clockSeconds;
   const firstBlackClock = rawClocks.find((_, idx) => history[idx].color === 'b')?.clockSeconds;
@@ -203,8 +203,8 @@ export function extractGameClocks(
   const baseWhite = timeControl ? timeControl.baseTime : firstWhiteClock ? inferBaseTime(firstWhiteClock) : 600;
   const baseBlack = timeControl ? timeControl.baseTime : firstBlackClock ? inferBaseTime(firstBlackClock) : 600;
 
-  prevClockWhite = baseWhite;
-  prevClockBlack = baseBlack;
+  let prevClockWhite: number | null = baseWhite;
+  let prevClockBlack: number | null = baseBlack;
 
   const moveThinks: Array<{
     clock?: string;
@@ -261,7 +261,7 @@ export function extractGameClocks(
     // - >= 2.2x the player's average think time AND >= 15 seconds
     // - OR absolute duration >= 60 seconds
     // - OR >= 30 seconds if average is fast (<= 10s)
-    const isLong = (m.thinkSec >= Math.max(15, avg * 2.2)) || (m.thinkSec >= 60) || (avg <= 10 && m.thinkSec >= 30);
+    const isLong = m.thinkSec >= Math.max(15, avg * 2.2) || m.thinkSec >= 60 || (avg <= 10 && m.thinkSec >= 30);
 
     return {
       clock: m.clock,

@@ -1,4 +1,5 @@
 import { MoveAnalysis } from '../types/chess';
+import { accuracyFromCpLoss } from './moveAnalysis';
 
 export interface PhaseStat {
   totalMoves: number;
@@ -24,7 +25,7 @@ export interface PhaseStats {
 function accuracyOf(moves: MoveAnalysis[]): number | null {
   if (moves.length === 0) return null;
   const avgLoss = moves.reduce((acc, m) => acc + m.centipawnLoss, 0) / moves.length;
-  return Math.min(99.4, Math.max(25.0, Math.round(100 * Math.exp(-0.0038 * avgLoss) * 10) / 10));
+  return accuracyFromCpLoss(avgLoss);
 }
 
 const countBlunders = (moves: MoveAnalysis[]) =>

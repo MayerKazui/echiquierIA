@@ -8,12 +8,7 @@ interface CapturedPiecesProps {
   className?: string;
 }
 
-export const CapturedPieces: React.FC<CapturedPiecesProps> = ({
-  captured,
-  pieceColor,
-  advantage,
-  className = '',
-}) => {
+export const CapturedPieces: React.FC<CapturedPiecesProps> = ({ captured, pieceColor, advantage, className = '' }) => {
   const hasPieces = captured.length > 0;
   const hasAdvantage = advantage > 0;
 

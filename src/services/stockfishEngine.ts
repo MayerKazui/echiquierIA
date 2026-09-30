@@ -1,5 +1,6 @@
 import { Chess } from 'chess.js';
-import { MoveAnalysis, MoveClassification, PlayerStats } from '../types/chess';
+import { MoveAnalysis, PlayerStats } from '../types/chess';
+import { calculateWinPercentage, classifyMove, computePlayerStats } from '../utils/moveAnalysis';
 import { extractGameClocks } from '../utils/clockUtils';
 import {
   getOpeningBookEvaluation,
@@ -29,7 +30,17 @@ interface QueuedTask {
   fen: string;
   depth: number;
   resolve: (evaluation: EngineEvaluation) => void;
-  reject: (err: any) => void;
+  reject: (err: unknown) => void;
+}
+
+/** Keeps a worker error from reaching the console/window: the service recovers with its own fallbacks. */
+function swallowEvent(e: Event) {
+  try {
+    e.preventDefault();
+    e.stopPropagation();
+  } catch {
+    // Not cancelable
+  }
 }
 
 export class StockfishService {
@@ -78,14 +89,7 @@ export class StockfishService {
       };
 
       worker.onerror = (e: ErrorEvent | Event) => {
-        try {
-          if (typeof (e as any)?.preventDefault === 'function') {
-            (e as any).preventDefault();
-          }
-          if (typeof (e as any)?.stopPropagation === 'function') {
-            (e as any).stopPropagation();
-          }
-        } catch {}
+        swallowEvent(e);
         console.warn(`Stockfish Worker #${id} (${targetScript}) error intercepted:`, e);
 
         // If a task was running on this worker slot, resolve immediately with heuristic
@@ -101,7 +105,9 @@ export class StockfishService {
           console.info(`Attempting fallback to Stockfish classic for Worker #${id}...`);
           try {
             worker.terminate();
-          } catch {}
+          } catch {
+            // Already terminated
+          }
           this.createWorkerSlot(id, '/stockfish.js');
           return;
         }
@@ -162,7 +168,7 @@ export class StockfishService {
     const chess = new Chess(fen);
     const isBlackTurn = chess.turn() === 'b';
 
-    let currentEval: EngineEvaluation = {
+    const currentEval: EngineEvaluation = {
       cp: 0,
       mate: null,
       bestMoveUci: '',
@@ -253,14 +259,7 @@ export class StockfishService {
     };
 
     const onTaskError = (errEv: ErrorEvent | Event) => {
-      try {
-        if (typeof (errEv as any)?.preventDefault === 'function') {
-          (errEv as any).preventDefault();
-        }
-        if (typeof (errEv as any)?.stopPropagation === 'function') {
-          (errEv as any).stopPropagation();
-        }
-      } catch {}
+      swallowEvent(errEv);
       if (completed) return;
       completed = true;
       cleanup();
@@ -276,7 +275,9 @@ export class StockfishService {
       try {
         slot.worker.removeEventListener('message', onMessage);
         slot.worker.removeEventListener('error', onTaskError);
-      } catch {}
+      } catch {
+        // Worker already gone
+      }
       slot.currentTask = undefined;
     };
 
@@ -399,9 +400,9 @@ export class StockfishService {
         // Central control bonus for pawns and knights
         if (piece.type === 'p') {
           if ((r === 3 || r === 4) && (c === 3 || c === 4)) posBonus += 25;
-          else if ((r >= 2 && r <= 5) && (c >= 2 && c <= 5)) posBonus += 10;
+          else if (r >= 2 && r <= 5 && c >= 2 && c <= 5) posBonus += 10;
         } else if (piece.type === 'n') {
-          if ((r >= 2 && r <= 5) && (c >= 2 && c <= 5)) posBonus += 20;
+          if (r >= 2 && r <= 5 && c >= 2 && c <= 5) posBonus += 20;
         }
 
         if (piece.color === 'w') {
@@ -443,63 +444,6 @@ export class StockfishService {
       bestMoveSan: bestSan,
       pv: bestUci ? [bestUci] : [],
     };
-  }
-
-  /**
-   * Helper: Win Probability from Centipawn score (from White's perspective)
-   * Formula: 50 + 50 * (2 / (1 + exp(-0.00368208 * cp)) - 1)
-   */
-  public static calculateWinPercentage(cp: number): number {
-    const clampedCp = Math.max(-1000, Math.min(1000, cp));
-    return 100 / (1 + Math.pow(10, -clampedCp / 400));
-  }
-
-  /**
-   * Classify move based on Win% drop and Centipawn Loss
-   */
-  public static classifyMove(
-    isWhite: boolean,
-    playedSan: string,
-    bestSan: string,
-    cpLoss: number,
-    winPctDrop: number,
-    evalBefore: number,
-    evalAfter: number,
-    isSacrifice = false
-  ): MoveClassification {
-    // Book / Identical to best move
-    if (playedSan === bestSan || cpLoss <= 10) {
-      if (isSacrifice && cpLoss <= 15) {
-        return 'brilliant';
-      }
-      return 'best';
-    }
-
-    // Missed win: Was heavily winning (>+3.0 or mate) and dropped to near equal or worse
-    if (isWhite && evalBefore >= 250 && evalAfter <= 50) return 'missedWin';
-    if (!isWhite && evalBefore <= -250 && evalAfter >= -50) return 'missedWin';
-
-    // Blunder (Gaffe): Huge drop
-    if (winPctDrop >= 18 || cpLoss >= 200) {
-      return 'blunder';
-    }
-
-    // Mistake (Erreur)
-    if (winPctDrop >= 9 || cpLoss >= 90) {
-      return 'mistake';
-    }
-
-    // Inaccuracy (Imprécision)
-    if (winPctDrop >= 4 || cpLoss >= 45) {
-      return 'inaccuracy';
-    }
-
-    // Excellent / Good
-    if (cpLoss <= 25) {
-      return 'excellent';
-    }
-
-    return 'good';
   }
 
   /**
@@ -563,6 +507,8 @@ export class StockfishService {
 
     // Build MoveAnalysis records with pre-evaluated positions
     let inBook = true;
+    // Last opening named so far: book moves on an unnamed position keep showing it
+    let currentOpening: { eco?: string; name?: string } = {};
     for (let ply = 0; ply < totalPlies; ply++) {
       const move = history[ply];
       const isWhite = move.color === 'w';
@@ -575,8 +521,8 @@ export class StockfishService {
       const evalBefore = evalBeforeRes.cp;
       const evalAfter = evalAfterRes.cp;
 
-      const winPctBefore = StockfishService.calculateWinPercentage(evalBefore);
-      const winPctAfter = StockfishService.calculateWinPercentage(evalAfter);
+      const winPctBefore = calculateWinPercentage(evalBefore);
+      const winPctAfter = calculateWinPercentage(evalAfter);
 
       // Check if played move is recognized in the official theoretical opening book (7,800+ lines)
       let bookCheck: { isBook: boolean; eco?: string; name?: string } = { isBook: false };
@@ -593,6 +539,10 @@ export class StockfishService {
           inBook = true;
         }
       }
+      if (bookCheck.isBook) {
+        if (bookCheck.name) currentOpening = { eco: bookCheck.eco, name: bookCheck.name };
+        else bookCheck = { ...bookCheck, ...currentOpening };
+      }
 
       // Centipawn loss and win% drop from moving player's point of view
       let cpLoss = isWhite ? evalBefore - evalAfter : evalAfter - evalBefore;
@@ -603,7 +553,8 @@ export class StockfishService {
 
       // Check if played move was a piece sacrifice
       const pieceType = move.piece;
-      const isSacrifice = (pieceType === 'q' || pieceType === 'r' || pieceType === 'b' || pieceType === 'n') &&
+      const isSacrifice =
+        (pieceType === 'q' || pieceType === 'r' || pieceType === 'b' || pieceType === 'n') &&
         move.captured === undefined &&
         evalAfterRes.cp * (isWhite ? 1 : -1) > 100;
 
@@ -611,7 +562,7 @@ export class StockfishService {
       // even if it also happens to be the engine's #1 move!
       const classification = bookCheck.isBook
         ? 'book'
-        : StockfishService.classifyMove(
+        : classifyMove(
             isWhite,
             move.san,
             evalBeforeRes.bestMoveSan,
@@ -671,115 +622,14 @@ export class StockfishService {
     const detectedOpening = identifyGameOpening(fensAfter);
 
     // Compute stats for White and Black
-    const statsWhite = this.computePlayerStats(movesAnalysis.filter((m) => m.color === 'w'), totalPlies);
-    const statsBlack = this.computePlayerStats(movesAnalysis.filter((m) => m.color === 'b'), totalPlies);
+    const statsWhite = computePlayerStats(movesAnalysis.filter((m) => m.color === 'w'));
+    const statsBlack = computePlayerStats(movesAnalysis.filter((m) => m.color === 'b'));
 
     return {
       moves: movesAnalysis,
       statsWhite,
       statsBlack,
       detectedOpening,
-    };
-  }
-
-  private computePlayerStats(playerMoves: MoveAnalysis[], totalGamePlies: number): PlayerStats {
-    let book = 0;
-    let brilliant = 0;
-    let great = 0;
-    let best = 0;
-    let excellent = 0;
-    let good = 0;
-    let inaccuracies = 0;
-    let mistakes = 0;
-    let blunders = 0;
-    let missedWins = 0;
-    let totalCpLoss = 0;
-    let openingBlunders = 0;
-    let middlegameBlunders = 0;
-    let endgameBlunders = 0;
-
-    for (const m of playerMoves) {
-      totalCpLoss += m.centipawnLoss;
-
-      // Classify game phase (approximate: ply < 20 Opening, 20-50 Middlegame, > 50 Endgame)
-      const isOpening = m.ply < 20;
-      const isMiddlegame = m.ply >= 20 && m.ply < 50;
-      const isEndgame = m.ply >= 50;
-
-      switch (m.classification) {
-        case 'book':
-          book++;
-          break;
-        case 'best':
-          best++;
-          break;
-        case 'brilliant':
-          brilliant++;
-          break;
-        case 'great':
-          great++;
-          break;
-        case 'excellent':
-          excellent++;
-          break;
-        case 'good':
-          good++;
-          break;
-        case 'inaccuracy':
-          inaccuracies++;
-          break;
-        case 'mistake':
-          mistakes++;
-          if (isOpening) openingBlunders++;
-          else if (isMiddlegame) middlegameBlunders++;
-          else endgameBlunders++;
-          break;
-        case 'blunder':
-        case 'missedWin':
-          blunders++;
-          if (isOpening) openingBlunders++;
-          else if (isMiddlegame) middlegameBlunders++;
-          else endgameBlunders++;
-          break;
-      }
-    }
-
-    const totalMoves = playerMoves.length || 1;
-    const avgCentipawnLoss = Math.round(totalCpLoss / totalMoves);
-
-    // Calculate think time metrics if available
-    const movesWithThink = playerMoves.filter((m) => m.thinkTimeSeconds !== undefined);
-    const avgThinkTimeSeconds = movesWithThink.length > 0
-      ? Math.round(movesWithThink.reduce((a, b) => a + (b.thinkTimeSeconds || 0), 0) / movesWithThink.length)
-      : undefined;
-    const longThinksCount = playerMoves.filter((m) => m.isLongThink).length;
-    const rushedMovesCount = playerMoves.filter((m) => m.isRushed).length;
-
-    // Accuracy formula: Chess.com / Lichess CAPS-like precision curve
-    // accuracy = 100 * exp(-0.0035 * avgCpLoss), clamped between 20 and 99.4
-    const rawAccuracy = 100 * Math.exp(-0.0038 * avgCentipawnLoss);
-    const accuracy = Math.min(99.4, Math.max(25.0, Math.round(rawAccuracy * 10) / 10));
-
-    return {
-      accuracy,
-      totalMoves,
-      book,
-      brilliant,
-      great,
-      best,
-      excellent,
-      good,
-      inaccuracies,
-      mistakes,
-      blunders,
-      missedWins,
-      avgCentipawnLoss,
-      openingBlunders,
-      middlegameBlunders,
-      endgameBlunders,
-      avgThinkTimeSeconds,
-      longThinksCount,
-      rushedMovesCount,
     };
   }
 

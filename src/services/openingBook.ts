@@ -1,5 +1,6 @@
 import { Chess } from 'chess.js';
 import { EngineEvaluation } from './stockfishEngine';
+import { toEnglishSan } from '../utils/chessNotation';
 
 /**
  * Standard grandmaster opening repertoires to evaluate opening positions in 0 ms.
@@ -7,7 +8,27 @@ import { EngineEvaluation } from './stockfishEngine';
  */
 const OPENING_LINES: string[][] = [
   // Ruy Lopez (Espagnole)
-  ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'Ba4', 'Nf6', 'O-O', 'Be7', 'Re1', 'b5', 'Bb3', 'd6', 'c3', 'O-O', 'h3', 'Nb8', 'd4'],
+  [
+    'e4',
+    'e5',
+    'Nf3',
+    'Nc6',
+    'Bb5',
+    'a6',
+    'Ba4',
+    'Nf6',
+    'O-O',
+    'Be7',
+    'Re1',
+    'b5',
+    'Bb3',
+    'd6',
+    'c3',
+    'O-O',
+    'h3',
+    'Nb8',
+    'd4',
+  ],
   ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'Ba4', 'Nf6', 'O-O', 'Be7', 'Re1', 'b5', 'Bb3', 'O-O', 'c3', 'd5'],
   ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'Nf6', 'O-O', 'Nxe4', 'd4', 'Nd6', 'Bxc6', 'dxc6', 'dxe5', 'Nf5', 'Qxd8+', 'Kxd8'],
   ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'Bc5', 'c3', 'Nf6', 'd4', 'exd4', 'e5', 'Nd5', 'O-O'],
@@ -16,18 +37,140 @@ const OPENING_LINES: string[][] = [
   ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Bc5', 'c3', 'Nf6', 'd3', 'd6', 'O-O', 'O-O', 'h3', 'a6', 'Bb3', 'Ba7'],
   ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Bc5', 'O-O', 'Nf6', 'd3', 'd6', 'c3', 'a6', 'a4', 'Ba7'],
   ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Nf6', 'd3', 'Be7', 'O-O', 'O-O', 'Re1', 'd6', 'c3', 'Na5'],
-  ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Nf6', 'Ng5', 'd5', 'exd5', 'Na5', 'Bb5+', 'c6', 'dxc6', 'bxc6', 'Be2', 'h6', 'Nf3', 'e4'],
+  [
+    'e4',
+    'e5',
+    'Nf3',
+    'Nc6',
+    'Bc4',
+    'Nf6',
+    'Ng5',
+    'd5',
+    'exd5',
+    'Na5',
+    'Bb5+',
+    'c6',
+    'dxc6',
+    'bxc6',
+    'Be2',
+    'h6',
+    'Nf3',
+    'e4',
+  ],
 
   // Sicilian Defense (Sicilienne)
   // Najdorf
-  ['e4', 'c5', 'Nf3', 'd6', 'd4', 'cxd4', 'Nxd4', 'Nf6', 'Nc3', 'a6', 'Be3', 'e5', 'Nb3', 'Be6', 'f3', 'Be7', 'Qd2', 'O-O', 'O-O-O', 'Nbd7'],
-  ['e4', 'c5', 'Nf3', 'd6', 'd4', 'cxd4', 'Nxd4', 'Nf6', 'Nc3', 'a6', 'Bg5', 'e6', 'f4', 'Be7', 'Qf3', 'Qc7', 'O-O-O', 'Nbd7'],
-  ['e4', 'c5', 'Nf3', 'd6', 'd4', 'cxd4', 'Nxd4', 'Nf6', 'Nc3', 'a6', 'Bc4', 'e6', 'Bb3', 'b5', 'Bg5', 'Be7', 'Qf3', 'Qc7', 'O-O-O', 'Bb7'],
+  [
+    'e4',
+    'c5',
+    'Nf3',
+    'd6',
+    'd4',
+    'cxd4',
+    'Nxd4',
+    'Nf6',
+    'Nc3',
+    'a6',
+    'Be3',
+    'e5',
+    'Nb3',
+    'Be6',
+    'f3',
+    'Be7',
+    'Qd2',
+    'O-O',
+    'O-O-O',
+    'Nbd7',
+  ],
+  [
+    'e4',
+    'c5',
+    'Nf3',
+    'd6',
+    'd4',
+    'cxd4',
+    'Nxd4',
+    'Nf6',
+    'Nc3',
+    'a6',
+    'Bg5',
+    'e6',
+    'f4',
+    'Be7',
+    'Qf3',
+    'Qc7',
+    'O-O-O',
+    'Nbd7',
+  ],
+  [
+    'e4',
+    'c5',
+    'Nf3',
+    'd6',
+    'd4',
+    'cxd4',
+    'Nxd4',
+    'Nf6',
+    'Nc3',
+    'a6',
+    'Bc4',
+    'e6',
+    'Bb3',
+    'b5',
+    'Bg5',
+    'Be7',
+    'Qf3',
+    'Qc7',
+    'O-O-O',
+    'Bb7',
+  ],
   // Classical / Dragon / Richter-Rauzer
   ['e4', 'c5', 'Nf3', 'd6', 'd4', 'cxd4', 'Nxd4', 'Nf6', 'Nc3', 'Nc6', 'Bg5', 'e6', 'Qd2', 'a6', 'O-O-O', 'Bd7'],
-  ['e4', 'c5', 'Nf3', 'd6', 'd4', 'cxd4', 'Nxd4', 'Nf6', 'Nc3', 'g6', 'Be3', 'Bg7', 'f3', 'O-O', 'Qd2', 'Nc6', 'Bc4', 'Bd7', 'O-O-O'],
+  [
+    'e4',
+    'c5',
+    'Nf3',
+    'd6',
+    'd4',
+    'cxd4',
+    'Nxd4',
+    'Nf6',
+    'Nc3',
+    'g6',
+    'Be3',
+    'Bg7',
+    'f3',
+    'O-O',
+    'Qd2',
+    'Nc6',
+    'Bc4',
+    'Bd7',
+    'O-O-O',
+  ],
   // Sveshnikov
-  ['e4', 'c5', 'Nf3', 'Nc6', 'd4', 'cxd4', 'Nxd4', 'Nf6', 'Nc3', 'e5', 'Ndb5', 'd6', 'Bg5', 'a6', 'Na3', 'b5', 'Nd5', 'Be7', 'Bxf6', 'Bxf6', 'c3'],
+  [
+    'e4',
+    'c5',
+    'Nf3',
+    'Nc6',
+    'd4',
+    'cxd4',
+    'Nxd4',
+    'Nf6',
+    'Nc3',
+    'e5',
+    'Ndb5',
+    'd6',
+    'Bg5',
+    'a6',
+    'Na3',
+    'b5',
+    'Nd5',
+    'Be7',
+    'Bxf6',
+    'Bxf6',
+    'c3',
+  ],
   // Paulsen / Kan / Taimanov
   ['e4', 'c5', 'Nf3', 'e6', 'd4', 'cxd4', 'Nxd4', 'a6', 'Bd3', 'Nf6', 'O-O', 'Qc7', 'Qe2', 'd6', 'c4', 'g6'],
   ['e4', 'c5', 'Nf3', 'e6', 'd4', 'cxd4', 'Nxd4', 'Nc6', 'Nc3', 'Qc7', 'Be3', 'a6', 'Qd2', 'Nf6', 'O-O-O'],
@@ -41,26 +184,127 @@ const OPENING_LINES: string[][] = [
   ['e4', 'e6', 'd4', 'd5', 'e5', 'c5', 'c3', 'Nc6', 'Nf3', 'Qb6', 'a3', 'c4', 'Nbd2', 'Na5'],
 
   // Caro-Kann Defense
-  ['e4', 'c6', 'd4', 'd5', 'Nc3', 'dxe4', 'Nxe4', 'Bf5', 'Ng3', 'Bg6', 'h4', 'h6', 'Nf3', 'Nd7', 'h5', 'Bh7', 'Bd3', 'Bxd3', 'Qxd3'],
+  [
+    'e4',
+    'c6',
+    'd4',
+    'd5',
+    'Nc3',
+    'dxe4',
+    'Nxe4',
+    'Bf5',
+    'Ng3',
+    'Bg6',
+    'h4',
+    'h6',
+    'Nf3',
+    'Nd7',
+    'h5',
+    'Bh7',
+    'Bd3',
+    'Bxd3',
+    'Qxd3',
+  ],
   ['e4', 'c6', 'd4', 'd5', 'e5', 'Bf5', 'Nf3', 'e6', 'Be2', 'c5', 'Be3', 'Qb6', 'Nc3', 'Nc6', 'O-O'],
   ['e4', 'c6', 'd4', 'd5', 'exd5', 'cxd5', 'Bd3', 'Nc6', 'c3', 'Nf6', 'Bf4', 'Bg4', 'Qb3', 'Qc8'],
 
   // Queen's Gambit Declined (Gambit Dame)
-  ['d4', 'd5', 'c4', 'e6', 'Nc3', 'Nf6', 'Bg5', 'Be7', 'e3', 'O-O', 'Nf3', 'h6', 'Bh4', 'b6', 'cxd5', 'Nxd5', 'Bxe7', 'Qxe7', 'Nxd5', 'exd5'],
+  [
+    'd4',
+    'd5',
+    'c4',
+    'e6',
+    'Nc3',
+    'Nf6',
+    'Bg5',
+    'Be7',
+    'e3',
+    'O-O',
+    'Nf3',
+    'h6',
+    'Bh4',
+    'b6',
+    'cxd5',
+    'Nxd5',
+    'Bxe7',
+    'Qxe7',
+    'Nxd5',
+    'exd5',
+  ],
   ['d4', 'd5', 'c4', 'e6', 'Nc3', 'Nf6', 'cxd5', 'exd5', 'Bg5', 'c6', 'e3', 'Be7', 'Bd3', 'O-O', 'Qc2', 'Nbd7'],
   // Slav Defense (Slave)
-  ['d4', 'd5', 'c4', 'c6', 'Nf3', 'Nf6', 'Nc3', 'dxc4', 'a4', 'Bf5', 'e3', 'e6', 'Bxc4', 'Bb4', 'O-O', 'O-O', 'Qe2', 'Nbd7'],
+  [
+    'd4',
+    'd5',
+    'c4',
+    'c6',
+    'Nf3',
+    'Nf6',
+    'Nc3',
+    'dxc4',
+    'a4',
+    'Bf5',
+    'e3',
+    'e6',
+    'Bxc4',
+    'Bb4',
+    'O-O',
+    'O-O',
+    'Qe2',
+    'Nbd7',
+  ],
   ['d4', 'd5', 'c4', 'c6', 'Nc3', 'Nf6', 'e3', 'e6', 'Nf3', 'Nbd7', 'Bd3', 'dxc4', 'Bxc4', 'b5', 'Bd3', 'Bb7'],
 
   // King's Indian Defense (Est-Indienne)
-  ['d4', 'Nf6', 'c4', 'g6', 'Nc3', 'Bg7', 'e4', 'd6', 'Nf3', 'O-O', 'Be2', 'e5', 'O-O', 'Nc6', 'd5', 'Ne7', 'Ne1', 'Nd7', 'Be3', 'f5'],
+  [
+    'd4',
+    'Nf6',
+    'c4',
+    'g6',
+    'Nc3',
+    'Bg7',
+    'e4',
+    'd6',
+    'Nf3',
+    'O-O',
+    'Be2',
+    'e5',
+    'O-O',
+    'Nc6',
+    'd5',
+    'Ne7',
+    'Ne1',
+    'Nd7',
+    'Be3',
+    'f5',
+  ],
   ['d4', 'Nf6', 'c4', 'g6', 'Nc3', 'Bg7', 'e4', 'd6', 'f3', 'O-O', 'Be3', 'e5', 'd5', 'c6', 'Qd2', 'cxd5', 'cxd5'],
 
   // Grünfeld Defense
   ['d4', 'Nf6', 'c4', 'g6', 'Nc3', 'd5', 'cxd5', 'Nxd5', 'e4', 'Nxc3', 'bxc3', 'Bg7', 'Nf3', 'c5', 'Rb1', 'O-O', 'Be2'],
 
   // Nimzo-Indian Defense
-  ['d4', 'Nf6', 'c4', 'e6', 'Nc3', 'Bb4', 'e3', 'O-O', 'Bd3', 'd5', 'Nf3', 'c5', 'O-O', 'Nc6', 'a3', 'Bxc3', 'bxc3', 'dxc4', 'Bxc4'],
+  [
+    'd4',
+    'Nf6',
+    'c4',
+    'e6',
+    'Nc3',
+    'Bb4',
+    'e3',
+    'O-O',
+    'Bd3',
+    'd5',
+    'Nf3',
+    'c5',
+    'O-O',
+    'Nc6',
+    'a3',
+    'Bxc3',
+    'bxc3',
+    'dxc4',
+    'Bxc4',
+  ],
   ['d4', 'Nf6', 'c4', 'e6', 'Nc3', 'Bb4', 'Qc2', 'O-O', 'a3', 'Bxc3+', 'Qxc3', 'b6', 'Bg5', 'Bb7'],
 
   // English Opening (Anglaise)
@@ -86,6 +330,16 @@ export function normalizeFen(fen: string): string {
   const parts = fen.trim().split(/\s+/);
   return parts.slice(0, 4).join(' ');
 }
+
+/** Shape of an entry of public/openings.json (see scripts/openingsDataset.ts). */
+type DatasetEntry = [
+  bestMoveSan: string,
+  bestMoveUci: string,
+  eco: string,
+  name: string,
+  pv: string[],
+  nextSans?: string[],
+];
 
 // Map of normalized FEN -> Book move evaluation & Opening details
 export interface BookEntry {
@@ -283,7 +537,7 @@ export async function ensureOpeningBookLoaded(): Promise<void> {
   if (!datasetLoadPromise) {
     datasetLoadPromise = (async () => {
       try {
-        let data: Record<string, [string, string, string, string, string[]]>;
+        let data: Record<string, DatasetEntry>;
         if (typeof window !== 'undefined') {
           const res = await fetch('/openings.json');
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -296,7 +550,7 @@ export async function ensureOpeningBookLoaded(): Promise<void> {
           data = JSON.parse(fileContent);
         }
 
-        for (const [normFen, [bestMoveSan, bestMoveUci, eco, name, pv]] of Object.entries(data)) {
+        for (const [normFen, [bestMoveSan, bestMoveUci, eco, name, pv, nextSans]] of Object.entries(data)) {
           let entry = bookCache.get(normFen);
           if (!entry) {
             const isWhiteTurn = normFen.includes(' w ');
@@ -325,6 +579,10 @@ export async function ensureOpeningBookLoaded(): Promise<void> {
           if (pv && Array.isArray(pv) && pv[0]) {
             entry.validMoves.add(pv[0]);
           }
+          // Every known continuation of this position counts as theory
+          for (const san of nextSans ?? []) {
+            entry.validMoves.add(san);
+          }
         }
         isFullDatasetLoaded = true;
       } catch (err) {
@@ -351,8 +609,27 @@ export function getOpeningBookEvaluation(fen: string): EngineEvaluation | null {
 }
 
 /**
- * Checks if a played move is a recognized theoretical book move from the position.
- * Tests both the move origin/target, SAN equivalence (FR/EN), and destination FEN in the master database.
+ * Returns the move as English SAN (what the book stores). A move that is legal as written is kept;
+ * otherwise it is read as French SAN (Cf3, Fc4, Te1, Dd1, Rg1). A leading R is a rook in English and
+ * a king in French: when both readings are legal, the English one wins.
+ */
+function toBookSan(fen: string, san: string): string {
+  try {
+    return new Chess(fen).move(san).san;
+  } catch {
+    // Not legal as English SAN
+  }
+  try {
+    return new Chess(fen).move(toEnglishSan(san)).san;
+  } catch {
+    return san;
+  }
+}
+
+/**
+ * Checks if a played move is a recognized theoretical book move from the position: either it is a known
+ * continuation of the position, or it leads to a position found in the openings database.
+ * `eco` / `name` describe the position reached by the move, and only when an opening ends exactly there.
  */
 export function checkIsTheoreticalMove(
   fenBefore: string,
@@ -363,35 +640,20 @@ export function checkIsTheoreticalMove(
     initOpeningBook();
   }
 
-  // Convert French SAN (Cf3, Fc4, etc.) to English SAN (Nf3, Bc4, etc.) if needed
-  const englishSan = moveSan
-    .replace(/^C/, 'N')
-    .replace(/^F/, 'B')
-    .replace(/^T/, 'R')
-    .replace(/^D/, 'Q')
-    .replace(/^R(?=[a-h1-8])/, 'K');
+  const entryAfter = fenAfter ? bookCache.get(normalizeFen(fenAfter)) : undefined;
+  const reached = entryAfter?.name ? { eco: entryAfter.eco, name: entryAfter.name } : {};
 
-  const normBefore = normalizeFen(fenBefore);
-  const entryBefore = bookCache.get(normBefore);
-
+  const entryBefore = bookCache.get(normalizeFen(fenBefore));
   if (entryBefore) {
-    if (
-      entryBefore.validMoves.has(moveSan) ||
-      entryBefore.validMoves.has(englishSan) ||
-      entryBefore.eval.bestMoveSan === moveSan ||
-      entryBefore.eval.bestMoveSan === englishSan
-    ) {
-      return { isBook: true, eco: entryBefore.eco, name: entryBefore.name };
+    const san = toBookSan(fenBefore, moveSan);
+    if (entryBefore.validMoves.has(san) || entryBefore.eval.bestMoveSan === san) {
+      return { isBook: true, ...reached };
     }
   }
 
-  // Check destination FEN: if playing this move arrives at an established opening theoretical position
-  if (fenAfter) {
-    const normAfter = normalizeFen(fenAfter);
-    const entryAfter = bookCache.get(normAfter);
-    if (entryAfter && (entryAfter.name || entryAfter.eco)) {
-      return { isBook: true, eco: entryAfter.eco, name: entryAfter.name };
-    }
+  // Playing this move arrives at an established opening position (e.g. by transposition)
+  if (entryAfter) {
+    return { isBook: true, ...reached };
   }
 
   return { isBook: false };

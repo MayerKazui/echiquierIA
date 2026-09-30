@@ -7,7 +7,8 @@ export const LichessNotice: React.FC<{ onDismiss: () => void }> = ({ onDismiss }
     <div className="flex items-center gap-2">
       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
       <span>
-        <strong>Partie ouverte sur Lichess !</strong> Votre partie a été importée automatiquement dans l'autre onglet avec l'analyse, le replay et les statistiques. Le texte PGN complet est également dans votre presse-papier.
+        <strong>Partie ouverte sur Lichess !</strong> Votre partie a été importée automatiquement dans l'autre onglet
+        avec l'analyse, le replay et les statistiques. Le texte PGN complet est également dans votre presse-papier.
       </span>
     </div>
     <button onClick={onDismiss} className="p-1 hover:text-white text-indigo-400 text-xs ml-2 cursor-pointer">
@@ -32,7 +33,9 @@ export const SandboxBanner: React.FC<SandboxBannerProps> = ({ moves, onUndo, onE
       <div className="min-w-0">
         <div className="font-bold text-amber-300 flex items-center gap-1.5">
           <span>Exploration libre</span>
-          <span className="text-[10px] font-normal text-amber-200/80 hidden sm:inline">(« Et si j'avais joué... ? »)</span>
+          <span className="text-[10px] font-normal text-amber-200/80 hidden sm:inline">
+            (« Et si j'avais joué... ? »)
+          </span>
         </div>
         <div className="font-mono text-slate-200 text-[11px] truncate">
           {moves.map((m, idx) => `${idx + 1}. ${m.san}`).join(' ')}

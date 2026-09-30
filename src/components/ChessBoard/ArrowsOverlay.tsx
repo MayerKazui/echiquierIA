@@ -50,7 +50,15 @@ const USER_MARKER_BY_COLOR: Record<string, string> = {
 const userMarker = (color: string) => USER_MARKER_BY_COLOR[color] ?? 'url(#userArrowGreen)';
 
 const Marker: React.FC<MarkerSpec> = ({ id, refX, size, path, fill }) => (
-  <marker id={id} viewBox="0 0 10 10" refX={refX} refY="5" markerWidth={size} markerHeight={size} orient="auto-start-reverse">
+  <marker
+    id={id}
+    viewBox="0 0 10 10"
+    refX={refX}
+    refY="5"
+    markerWidth={size}
+    markerHeight={size}
+    orient="auto-start-reverse"
+  >
     <path d={path} fill={fill} />
   </marker>
 );
@@ -68,12 +76,7 @@ export const ArrowsOverlay: React.FC<ArrowsOverlayProps> = ({
   userArrows,
   draftArrow,
 }) => {
-  const line = (
-    key: string | undefined,
-    from: string,
-    to: string,
-    props: React.SVGProps<SVGLineElement>
-  ) => {
+  const line = (key: string | undefined, from: string, to: string, props: React.SVGProps<SVGLineElement>) => {
     const start = toPoint(from);
     const end = toPoint(to);
     return <line key={key} x1={start.x} y1={start.y} x2={end.x} y2={end.y} strokeLinecap="round" {...props} />;

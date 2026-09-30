@@ -6,13 +6,9 @@ interface EvaluationBarProps {
   isFlipped?: boolean; // if true, Black is at the bottom (Black's perspective)
 }
 
-export const EvaluationBar: React.FC<EvaluationBarProps> = ({
-  evalCp,
-  mate,
-  isFlipped = false,
-}) => {
+export const EvaluationBar: React.FC<EvaluationBarProps> = ({ evalCp, mate, isFlipped = false }) => {
   // Convert evaluation into percentage height for White (0% = Black winning, 100% = White winning, 50% = Equal)
-  let whitePercent = 50;
+  let whitePercent: number;
 
   if (mate !== null) {
     whitePercent = mate > 0 ? 100 : 0;
@@ -23,7 +19,7 @@ export const EvaluationBar: React.FC<EvaluationBarProps> = ({
   }
 
   // Display label
-  let label = '0.0';
+  let label: string;
   if (mate !== null) {
     label = `M${Math.abs(mate)}`;
   } else {
@@ -56,12 +52,9 @@ export const EvaluationBar: React.FC<EvaluationBarProps> = ({
 
   // Decide where the score label goes:
   // Show in whichever player's side is winning (or bottom if equal)
-  const showLabelInTop =
-    (topIsWhite && isWhiteWinning) || (!topIsWhite && isBlackWinning);
+  const showLabelInTop = (topIsWhite && isWhiteWinning) || (!topIsWhite && isBlackWinning);
   const showLabelInBottom =
-    (!topIsWhite && isWhiteWinning) ||
-    (topIsWhite && isBlackWinning) ||
-    (!isWhiteWinning && !isBlackWinning);
+    (!topIsWhite && isWhiteWinning) || (topIsWhite && isBlackWinning) || (!isWhiteWinning && !isBlackWinning);
 
   return (
     <div
@@ -104,8 +97,8 @@ export const EvaluationBar: React.FC<EvaluationBarProps> = ({
                   ? 'text-slate-200'
                   : 'text-slate-400'
                 : isWhiteWinning
-                ? 'text-slate-900'
-                : 'text-slate-600'
+                  ? 'text-slate-900'
+                  : 'text-slate-600'
             }`}
           >
             {label}

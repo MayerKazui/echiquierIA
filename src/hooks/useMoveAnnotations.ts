@@ -26,9 +26,7 @@ export function useMoveAnnotations(
     const suggestionThreats = activeMove.bestMoveUci
       ? analyzeTacticalThreatsForMove(activeMove.fenBefore, activeMove.bestMoveUci)
       : [];
-    const playedThreats = activeMove.uci
-      ? analyzeTacticalThreatsForMove(activeMove.fenBefore, activeMove.uci)
-      : [];
+    const playedThreats = activeMove.uci ? analyzeTacticalThreatsForMove(activeMove.fenBefore, activeMove.uci) : [];
 
     const effectiveMode = isPreviewingAlternative ? 'suggestion' : threatsMode;
     return {

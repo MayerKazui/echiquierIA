@@ -32,9 +32,7 @@ export const HeatmapSummary: React.FC<HeatmapSummaryProps> = ({ mode, data, onMo
             ⚫ {data.blackPercent}% ({data.blackControlledCount} cases)
           </span>
           {data.contestedCount > 0 && (
-            <span className="text-amber-300/90 text-[11px] hidden sm:inline">
-              · {data.contestedCount} contestée(s)
-            </span>
+            <span className="text-amber-300/90 text-[11px] hidden sm:inline">· {data.contestedCount} contestée(s)</span>
           )}
         </>
       )}

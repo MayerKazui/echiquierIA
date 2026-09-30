@@ -5,16 +5,12 @@ import {
   BookOpen,
   BrainCircuit,
   CheckCircle2,
-  ChevronRight,
   Clock,
   Eye,
-  HelpCircle,
   Lightbulb,
-  ShieldAlert,
   Sparkles,
   Target,
   TrendingDown,
-  TrendingUp,
   XCircle,
 } from 'lucide-react';
 import { MoveAnalysis } from '../../types/chess';
@@ -29,13 +25,16 @@ import { TacticalThreat } from '../../utils/tacticalThreats';
 function formatPlanSteps(planText: string): string[] {
   if (!planText) return [];
   const normalized = planText
-    .replace(/([^a-hA-H\d\s]|\b[a-zA-ZÀ-ÿ]+(?<![a-hA-H]))\s*([1-9])[\.)]\s+/g, '$1\n$2. ')
-    .replace(/([a-zA-ZÀ-ÿ]+(?<![a-hA-H]))([1-9])[\.)]\s*/g, '$1\n$2. ');
+    .replace(/([^a-hA-H\d\s]|\b[a-zA-ZÀ-ÿ]+(?<![a-hA-H]))\s*([1-9])[.)]\s+/g, '$1\n$2. ')
+    .replace(/([a-zA-ZÀ-ÿ]+(?<![a-hA-H]))([1-9])[.)]\s*/g, '$1\n$2. ');
 
-  const lines = normalized.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const lines = normalized
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
   const steps: string[] = [];
   for (const line of lines) {
-    const cleaned = line.replace(/^[1-9][\.)]\s*/, '').trim();
+    const cleaned = line.replace(/^[1-9][.)]\s*/, '').trim();
     if (cleaned) steps.push(cleaned);
   }
   return steps.length > 0 ? steps : [planText];
@@ -67,7 +66,6 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
   sanHistory,
   userColor,
   openingName,
-  eco,
   tacticalThreatsSuggestion = [],
   tacticalThreatsPlayed = [],
   threatsMode = 'suggestion',
@@ -127,9 +125,10 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
         };
       case 'book':
         return {
-          label: currentMove.openingName || openingName
-            ? `Coup théorique (${currentMove.openingName || openingName})`
-            : 'Coup théorique (Livre)',
+          label:
+            currentMove.openingName || openingName
+              ? `Coup théorique (${currentMove.openingName || openingName})`
+              : 'Coup théorique (Livre)',
           icon: <BookOpen className="w-4 h-4 text-violet-300" />,
           color: 'text-violet-300 bg-violet-500/10 border-violet-500/30',
         };
@@ -157,14 +156,8 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
   };
 
   // Client-side fallback explanation generator if backend or network fails
-  const generateLocalMoveExplanation = (
-    move: MoveAnalysis,
-    badgeLabel: string,
-    isWhiteMove: boolean
-  ) => {
-    const isGood = ['best', 'brilliant', 'great', 'excellent', 'good', 'book'].includes(
-      move.classification
-    );
+  const generateLocalMoveExplanation = (move: MoveAnalysis, badgeLabel: string, isWhiteMove: boolean) => {
+    const isGood = ['best', 'brilliant', 'great', 'excellent', 'good', 'book'].includes(move.classification);
     const targetMove = isGood ? move.san : move.bestMoveSan || move.san;
     const isCapture = targetMove.includes('x');
     const isCheck = targetMove.includes('+');
@@ -180,8 +173,8 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
     const concept = isCapture
       ? 'Prise & Simplification active'
       : isCheck
-      ? 'Attaque directe & Initiative'
-      : 'Harmonie & Développement';
+        ? 'Attaque directe & Initiative'
+        : 'Harmonie & Développement';
 
     const whyPlayedIsBad = isGood
       ? ''
@@ -249,9 +242,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
   };
 
   const isAlternativeAvailable = Boolean(
-    currentMove.bestMoveSan &&
-      currentMove.bestMoveSan !== currentMove.san &&
-      currentMove.centipawnLoss > 20
+    currentMove.bestMoveSan && currentMove.bestMoveSan !== currentMove.san && currentMove.centipawnLoss > 20
   );
 
   const isPositiveMove =
@@ -322,10 +313,10 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
             currentMove.classification === 'book'
               ? 'bg-slate-950/70 border-violet-500/40 ring-1 ring-violet-500/20'
               : isPositiveMove
-              ? 'bg-slate-950/70 border-emerald-500/40 ring-1 ring-emerald-500/20'
-              : !isPreviewingAlternative
-              ? 'bg-slate-950/70 border-slate-700/80 ring-1 ring-slate-700/50'
-              : 'bg-slate-950/30 border-slate-800/50 opacity-70'
+                ? 'bg-slate-950/70 border-emerald-500/40 ring-1 ring-emerald-500/20'
+                : !isPreviewingAlternative
+                  ? 'bg-slate-950/70 border-slate-700/80 ring-1 ring-slate-700/50'
+                  : 'bg-slate-950/30 border-slate-800/50 opacity-70'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
@@ -343,8 +334,8 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
                 currentMove.classification === 'book'
                   ? 'text-violet-300'
                   : isPositiveMove
-                  ? 'text-emerald-300'
-                  : 'text-slate-100'
+                    ? 'text-emerald-300'
+                    : 'text-slate-100'
               }`}
             >
               {toFrenchSan(currentMove.san)}
@@ -373,9 +364,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
                 )}
               </span>
               {currentMove.clock && (
-                <span className="text-[11px] text-slate-500 font-mono">
-                  Horloge : {currentMove.clock}
-                </span>
+                <span className="text-[11px] text-slate-500 font-mono">Horloge : {currentMove.clock}</span>
               )}
             </div>
           )}
@@ -408,8 +397,8 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
                 ? 'bg-emerald-950/20 border-emerald-500/60 ring-1 ring-emerald-500/40'
                 : 'bg-slate-950/70 border-slate-700/80'
               : currentMove.classification === 'book'
-              ? 'bg-slate-950/70 border-violet-500/30'
-              : 'bg-slate-950/70 border-slate-800'
+                ? 'bg-slate-950/70 border-violet-500/30'
+                : 'bg-slate-950/70 border-slate-800'
           }`}
         >
           <div className="flex items-center justify-between mb-2">
@@ -449,11 +438,11 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
               {isAlternativeAvailable
                 ? currentMove.bestMoveFrom && `(${currentMove.bestMoveFrom} ➔ ${currentMove.bestMoveTo})`
                 : currentMove.classification === 'book'
-                ? '(Ligne théorique validée)'
-                : currentMove.bestMoveFrom &&
-                  (currentMove.bestMoveFrom !== currentMove.from || currentMove.bestMoveTo !== currentMove.to)
-                ? `(Choix optimal validé · variante ${toFrenchSan(currentMove.bestMoveSan || currentMove.bestMoveUci)})`
-                : '(Choix optimal validé)'}
+                  ? '(Ligne théorique validée)'
+                  : currentMove.bestMoveFrom &&
+                      (currentMove.bestMoveFrom !== currentMove.from || currentMove.bestMoveTo !== currentMove.to)
+                    ? `(Choix optimal validé · variante ${toFrenchSan(currentMove.bestMoveSan || currentMove.bestMoveUci)})`
+                    : '(Choix optimal validé)'}
             </span>
           </div>
 
@@ -468,7 +457,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
             ) : (
               <span className="text-emerald-400/90 font-medium">
                 {isAlternativeAvailable
-                  ? 'Variante principale évaluée par l\'ordinateur'
+                  ? "Variante principale évaluée par l'ordinateur"
                   : 'Vous avez trouvé le meilleur coup de la position !'}
               </span>
             )}
@@ -503,7 +492,9 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
                 title="Menaces tactiques créées par la suggestion du moteur"
               >
                 <span>Stockfish</span>
-                <span className="hidden xs:inline">({toFrenchSan(currentMove.bestMoveSan || currentMove.bestMoveUci)})</span>
+                <span className="hidden xs:inline">
+                  ({toFrenchSan(currentMove.bestMoveSan || currentMove.bestMoveUci)})
+                </span>
                 {tacticalThreatsSuggestion.length > 0 && (
                   <span
                     className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
@@ -518,9 +509,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
               <button
                 onClick={() => onSelectThreatsMode?.('played')}
                 className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer ${
-                  threatsMode === 'played'
-                    ? 'bg-rose-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                  threatsMode === 'played' ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
                 }`}
                 title="Menaces tactiques créées par votre coup joué"
               >
@@ -584,16 +573,14 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
                         {threat.type === 'check'
                           ? '⚡'
                           : threat.type === 'hanging'
-                          ? '🛡️'
-                          : threat.type === 'pin'
-                          ? '🧷'
-                          : threat.type === 'fork'
-                          ? '🔱'
-                          : '⚔️'}
+                            ? '🛡️'
+                            : threat.type === 'pin'
+                              ? '🧷'
+                              : threat.type === 'fork'
+                                ? '🔱'
+                                : '⚔️'}
                       </span>
-                      <span className="font-semibold text-xs text-slate-200">
-                        {threat.label}
-                      </span>
+                      <span className="font-semibold text-xs text-slate-200">{threat.label}</span>
                     </div>
                     <span
                       className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider ${
@@ -606,9 +593,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
                     </span>
                   </div>
 
-                  <p className="text-[11px] text-slate-400 leading-snug">
-                    {threat.description}
-                  </p>
+                  <p className="text-[11px] text-slate-400 leading-snug">{threat.description}</p>
                 </div>
               ))}
             </div>
@@ -683,7 +668,9 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
                   </>
                 )}
               </span>
-              <p className="break-words">{currentMove.aiExplanation.whyBestIsBetter || currentMove.aiExplanation.whyPlayedIsBad}</p>
+              <p className="break-words">
+                {currentMove.aiExplanation.whyBestIsBetter || currentMove.aiExplanation.whyPlayedIsBad}
+              </p>
             </div>
 
             {/* Strategic Plan */}
@@ -691,9 +678,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
               <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-lg text-slate-300 break-words">
                 <span className="font-semibold text-slate-200 block mb-2 flex items-center gap-1.5">
                   <ArrowRight className="w-3.5 h-3.5 text-indigo-400" />
-                  {isPositiveMove
-                    ? 'Plan suggéré pour exploiter la position :'
-                    : 'Plan de redressement recommandé :'}
+                  {isPositiveMove ? 'Plan suggéré pour exploiter la position :' : 'Plan de redressement recommandé :'}
                 </span>
                 <div className="flex flex-col gap-2">
                   {formatPlanSteps(currentMove.aiExplanation.plan).map((step, idx) => (
@@ -714,7 +699,8 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
         ) : (
           !loadingAi && (
             <div className="text-xs text-slate-400 bg-slate-900/40 p-3 rounded-lg border border-slate-800/60">
-              Cliquez sur <strong className="text-slate-200">« Expliquer le plan tactique »</strong> pour comprendre en français les motifs tactiques, les faiblesses créées et le plan stratégique suggéré par l'IA.
+              Cliquez sur <strong className="text-slate-200">« Expliquer le plan tactique »</strong> pour comprendre en
+              français les motifs tactiques, les faiblesses créées et le plan stratégique suggéré par l'IA.
             </div>
           )
         )}

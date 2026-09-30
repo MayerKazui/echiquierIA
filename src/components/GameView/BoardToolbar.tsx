@@ -20,7 +20,12 @@ interface BoardToolbarProps {
 const GROUP_CLASS = 'flex items-center rounded-lg bg-slate-950 border border-slate-800 p-0.5';
 const INACTIVE = 'text-slate-400 hover:text-slate-200';
 
-const HEATMAP_OPTIONS: Array<{ mode: Exclude<HeatmapMode, 'none'>; label: React.ReactNode; title: string; active: string }> = [
+const HEATMAP_OPTIONS: Array<{
+  mode: Exclude<HeatmapMode, 'none'>;
+  label: React.ReactNode;
+  title: string;
+  active: string;
+}> = [
   {
     mode: 'both',
     label: (
@@ -154,18 +159,13 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
       </div>
 
       {/* Board Size Selector */}
-      <div
-        className={GROUP_CLASS}
-        title="Ajuster la taille de l'échiquier (Normal 500px, Grand 640px, XL 760px)"
-      >
+      <div className={GROUP_CLASS} title="Ajuster la taille de l'échiquier (Normal 500px, Grand 640px, XL 760px)">
         {SIZE_OPTIONS.map(({ size, label, title }) => (
           <button
             key={size}
             onClick={() => onBoardSizeChange(size)}
             className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-all cursor-pointer ${
-              boardSize === size
-                ? 'bg-indigo-600/30 text-indigo-300 font-bold border border-indigo-500/40'
-                : INACTIVE
+              boardSize === size ? 'bg-indigo-600/30 text-indigo-300 font-bold border border-indigo-500/40' : INACTIVE
             }`}
             title={title}
           >
