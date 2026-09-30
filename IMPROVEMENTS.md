@@ -59,10 +59,10 @@ Commandes : `bun run test` (Vitest), `bun run lint` (ESLint), `bun run typecheck
 - [x] **CI** GitHub Actions (`.github/workflows/ci.yml`) : lint, typecheck, format, tests, build, avec Bun.
 - [x] **`any` réduits à zéro** (la règle `no-explicit-any` est en erreur) : corps de requête du serveur typés par `zod`, réponse de Gemini validée par `explanationSchema` (une réponse mal formée bascule sur le modèle suivant puis sur le repli heuristique), erreurs en `unknown`.
 - Bugs trouvés par les tests et corrigés : `formatPvToFrench` numérotait toujours la variante à partir de 1 (il lisait `history()`, vide quand on charge une FEN) et retombait sur de l'UCI brut au premier coup illégal.
-- À traiter plus tard :
-  - Le nom d'ouverture associé à une position dans `public/openings.json` décrit souvent la ligne obtenue après le coup suggéré (après `1.e4 e5 2.Nf3 Nc6 3.Bb5 a6`, l'appli affiche « Ruy Lopez: Exchange Variation », qui suppose 4.Bxc6). Les noms détectés peuvent donc avoir un coup d'avance.
-  - `checkIsTheoreticalMove` convertit mal les coups de Tour en notation française (`Te1` devient `Ke1`) ; sans effet aujourd'hui car seule la SAN anglaise lui est passée.
-  - `strict` n'est pas activé dans `tsconfig.json`.
+- Trois points relevés pendant ce travail, corrigés ensuite :
+  - **Noms d'ouverture décalés** : `public/openings.json` attachait à une position le nom d'une ligne qui la prolonge (après `1.e4 e6`, « King's Indian Attack »). Il est maintenant régénéré depuis les `.tsv` par `scripts/build-openings.ts` (`bun run build:openings`) : le nom n'est renseigné que sur la position où une ligne nommée se termine, et toutes les suites connues sont conservées (un coup théorique n'est plus rejeté parce qu'il n'était pas la suite retenue). `checkIsTheoreticalMove` renvoie le nom de la position atteinte, et `analyzeFullGame` garde le dernier nom rencontré pour les coups théoriques sans nom exact (au lieu du nom final de la partie). Un test vérifie que le JSON est à jour par rapport aux `.tsv`.
+  - **Coups de Tour en notation française** : `Te1` devenait `Ke1` dans `checkIsTheoreticalMove`. Ajout de `toEnglishSan` (inverse de `toFrenchSan`, en une seule passe) ; un coup légal tel quel en anglais est gardé, sinon il est lu en français.
+  - **`strict` activé** dans `tsconfig.json` (le code passait déjà). `tsconfig.json` a maintenant un `include` explicite : sans lui, `tsc` analysait `dist/` et `public/*.js`, ce qui le ralentissait de 4 s à près de 100 s.
 
 ### 5. Dépôt et dépendances
 

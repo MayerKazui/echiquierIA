@@ -56,6 +56,24 @@ export function toFrenchSan(san: string): string {
   return result;
 }
 
+const FRENCH_TO_ENGLISH_PIECES: Record<string, string> = Object.fromEntries(
+  Object.entries(ENGLISH_TO_FRENCH_PIECES).map(([english, french]) => [french, english])
+);
+
+/**
+ * Translates French SAN back to English SAN (inverse of toFrenchSan):
+ *  'Df3' -> 'Qf3', 'Cbd7' -> 'Nbd7', 'Txd1+' -> 'Rxd1+', 'Rg1' -> 'Kg1', 'e8=D#' -> 'e8=Q#'
+ * Pieces are translated in a single pass (Tour -> Rook must not then become King).
+ */
+export function toEnglishSan(san: string): string {
+  if (!san) return '';
+  if (san.startsWith('O-O')) return san;
+
+  const promoted = san.replace(/=([DTFC])/g, (_, p) => `=${FRENCH_TO_ENGLISH_PIECES[p] || p}`);
+  const first = promoted.charAt(0);
+  return FRENCH_TO_ENGLISH_PIECES[first] ? FRENCH_TO_ENGLISH_PIECES[first] + promoted.slice(1) : promoted;
+}
+
 /**
  * Converts a single UCI move (e.g. 'd1f3') played from a given FEN into French SAN (e.g. 'Df3').
  */

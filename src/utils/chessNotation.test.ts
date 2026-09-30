@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { convertUciToFrenchSan, formatPvToFrench, toFrenchSan } from './chessNotation';
+import { Chess } from 'chess.js';
+import { SAMPLE_GAMES } from './sampleGames';
+import { convertUciToFrenchSan, formatPvToFrench, toEnglishSan, toFrenchSan } from './chessNotation';
 
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -21,6 +23,35 @@ describe('toFrenchSan', () => {
     ['', ''],
   ])('%s -> %s', (san, expected) => {
     expect(toFrenchSan(san)).toBe(expected);
+  });
+});
+
+describe('toEnglishSan', () => {
+  it.each<[string, string]>([
+    ['Df3', 'Qf3'],
+    ['Cf6', 'Nf6'],
+    ['Fg5', 'Bg5'],
+    ['Tad1', 'Rad1'],
+    ['Txd1+', 'Rxd1+'],
+    ['Rg1', 'Kg1'],
+    ['Cbd7', 'Nbd7'],
+    ['e8=D#', 'e8=Q#'],
+    ['exd8=C+', 'exd8=N+'],
+    ['e4', 'e4'],
+    ['O-O-O', 'O-O-O'],
+    ['', ''],
+  ])('%s -> %s', (san, expected) => {
+    expect(toEnglishSan(san)).toBe(expected);
+  });
+
+  it('is the inverse of toFrenchSan for every move of the sample games', () => {
+    for (const game of SAMPLE_GAMES) {
+      const chess = new Chess();
+      chess.loadPgn(game.pgn);
+      for (const san of chess.history()) {
+        expect(toEnglishSan(toFrenchSan(san)), `${game.name}: ${san}`).toBe(san);
+      }
+    }
   });
 });
 

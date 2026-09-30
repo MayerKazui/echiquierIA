@@ -1,5 +1,6 @@
 import { Chess } from 'chess.js';
 import { EngineEvaluation } from './stockfishEngine';
+import { toEnglishSan } from '../utils/chessNotation';
 
 /**
  * Standard grandmaster opening repertoires to evaluate opening positions in 0 ms.
@@ -330,6 +331,16 @@ export function normalizeFen(fen: string): string {
   return parts.slice(0, 4).join(' ');
 }
 
+/** Shape of an entry of public/openings.json (see scripts/openingsDataset.ts). */
+type DatasetEntry = [
+  bestMoveSan: string,
+  bestMoveUci: string,
+  eco: string,
+  name: string,
+  pv: string[],
+  nextSans?: string[],
+];
+
 // Map of normalized FEN -> Book move evaluation & Opening details
 export interface BookEntry {
   eval: EngineEvaluation;
@@ -526,7 +537,7 @@ export async function ensureOpeningBookLoaded(): Promise<void> {
   if (!datasetLoadPromise) {
     datasetLoadPromise = (async () => {
       try {
-        let data: Record<string, [string, string, string, string, string[]]>;
+        let data: Record<string, DatasetEntry>;
         if (typeof window !== 'undefined') {
           const res = await fetch('/openings.json');
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -539,7 +550,7 @@ export async function ensureOpeningBookLoaded(): Promise<void> {
           data = JSON.parse(fileContent);
         }
 
-        for (const [normFen, [bestMoveSan, bestMoveUci, eco, name, pv]] of Object.entries(data)) {
+        for (const [normFen, [bestMoveSan, bestMoveUci, eco, name, pv, nextSans]] of Object.entries(data)) {
           let entry = bookCache.get(normFen);
           if (!entry) {
             const isWhiteTurn = normFen.includes(' w ');
@@ -568,6 +579,10 @@ export async function ensureOpeningBookLoaded(): Promise<void> {
           if (pv && Array.isArray(pv) && pv[0]) {
             entry.validMoves.add(pv[0]);
           }
+          // Every known continuation of this position counts as theory
+          for (const san of nextSans ?? []) {
+            entry.validMoves.add(san);
+          }
         }
         isFullDatasetLoaded = true;
       } catch (err) {
@@ -594,8 +609,27 @@ export function getOpeningBookEvaluation(fen: string): EngineEvaluation | null {
 }
 
 /**
- * Checks if a played move is a recognized theoretical book move from the position.
- * Tests both the move origin/target, SAN equivalence (FR/EN), and destination FEN in the master database.
+ * Returns the move as English SAN (what the book stores). A move that is legal as written is kept;
+ * otherwise it is read as French SAN (Cf3, Fc4, Te1, Dd1, Rg1). A leading R is a rook in English and
+ * a king in French: when both readings are legal, the English one wins.
+ */
+function toBookSan(fen: string, san: string): string {
+  try {
+    return new Chess(fen).move(san).san;
+  } catch {
+    // Not legal as English SAN
+  }
+  try {
+    return new Chess(fen).move(toEnglishSan(san)).san;
+  } catch {
+    return san;
+  }
+}
+
+/**
+ * Checks if a played move is a recognized theoretical book move from the position: either it is a known
+ * continuation of the position, or it leads to a position found in the openings database.
+ * `eco` / `name` describe the position reached by the move, and only when an opening ends exactly there.
  */
 export function checkIsTheoreticalMove(
   fenBefore: string,
@@ -606,35 +640,20 @@ export function checkIsTheoreticalMove(
     initOpeningBook();
   }
 
-  // Convert French SAN (Cf3, Fc4, etc.) to English SAN (Nf3, Bc4, etc.) if needed
-  const englishSan = moveSan
-    .replace(/^C/, 'N')
-    .replace(/^F/, 'B')
-    .replace(/^T/, 'R')
-    .replace(/^D/, 'Q')
-    .replace(/^R(?=[a-h1-8])/, 'K');
+  const entryAfter = fenAfter ? bookCache.get(normalizeFen(fenAfter)) : undefined;
+  const reached = entryAfter?.name ? { eco: entryAfter.eco, name: entryAfter.name } : {};
 
-  const normBefore = normalizeFen(fenBefore);
-  const entryBefore = bookCache.get(normBefore);
-
+  const entryBefore = bookCache.get(normalizeFen(fenBefore));
   if (entryBefore) {
-    if (
-      entryBefore.validMoves.has(moveSan) ||
-      entryBefore.validMoves.has(englishSan) ||
-      entryBefore.eval.bestMoveSan === moveSan ||
-      entryBefore.eval.bestMoveSan === englishSan
-    ) {
-      return { isBook: true, eco: entryBefore.eco, name: entryBefore.name };
+    const san = toBookSan(fenBefore, moveSan);
+    if (entryBefore.validMoves.has(san) || entryBefore.eval.bestMoveSan === san) {
+      return { isBook: true, ...reached };
     }
   }
 
-  // Check destination FEN: if playing this move arrives at an established opening theoretical position
-  if (fenAfter) {
-    const normAfter = normalizeFen(fenAfter);
-    const entryAfter = bookCache.get(normAfter);
-    if (entryAfter && (entryAfter.name || entryAfter.eco)) {
-      return { isBook: true, eco: entryAfter.eco, name: entryAfter.name };
-    }
+  // Playing this move arrives at an established opening position (e.g. by transposition)
+  if (entryAfter) {
+    return { isBook: true, ...reached };
   }
 
   return { isBook: false };

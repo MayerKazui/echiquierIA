@@ -507,6 +507,8 @@ export class StockfishService {
 
     // Build MoveAnalysis records with pre-evaluated positions
     let inBook = true;
+    // Last opening named so far: book moves on an unnamed position keep showing it
+    let currentOpening: { eco?: string; name?: string } = {};
     for (let ply = 0; ply < totalPlies; ply++) {
       const move = history[ply];
       const isWhite = move.color === 'w';
@@ -536,6 +538,10 @@ export class StockfishService {
           bookCheck = transposeCheck;
           inBook = true;
         }
+      }
+      if (bookCheck.isBook) {
+        if (bookCheck.name) currentOpening = { eco: bookCheck.eco, name: bookCheck.name };
+        else bookCheck = { ...bookCheck, ...currentOpening };
       }
 
       // Centipawn loss and win% drop from moving player's point of view
