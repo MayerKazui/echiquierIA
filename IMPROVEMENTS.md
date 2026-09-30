@@ -50,12 +50,19 @@ Vérifié avec `tsc --noEmit`, `vite build`, une comparaison du DOM avant/après
 
 ## Priorité moyenne
 
-### 4. Qualité et outillage
+### 4. Qualité et outillage — fait
 
-- [ ] Ajouter des tests (Vitest) sur la logique pure : classification des coups, calcul de précision, `pgnParser`, `openingBook`, `clockUtils`.
-- [ ] Ajouter ESLint et Prettier (`lint` ne fait aujourd'hui que `tsc --noEmit`).
-- [ ] Ajouter une CI (lint + typecheck + tests + build).
-- [ ] Réduire les `any` (29 dans `src/`, 8 dans `server.ts`), surtout les corps de requête du serveur.
+Commandes : `bun run test` (Vitest), `bun run lint` (ESLint), `bun run typecheck` (`tsc --noEmit`), `bun run format` / `format:check` (Prettier), `bun run check` (tout sauf le build).
+
+- [x] **Tests Vitest** (138 tests, 9 fichiers, ~1 s) sur la logique pure : classification des coups, pourcentage de victoire, précision et statistiques (`utils/moveAnalysis.ts`, extrait de `stockfishEngine.ts` pour être testable sans moteur), `pgnParser`, `clockUtils`, `openingBook` (livre intégré et base complète), `chessNotation`, `chessMaterial`, `phaseStats`, `gameSummary`, et les schémas de validation du serveur (`server/schemas.ts`, extraits de `server.ts`), dont le garde-fou contre l'injection de prompt.
+- [x] **ESLint** (config plate, `typescript-eslint`, `react-hooks` v7) et **Prettier** (`singleQuote`, 120 colonnes), dépôt entièrement reformaté dans un commit à part. `typescript-eslint` ne supporte pas encore TypeScript 7 : `eslint.config.js` redirige son `require('typescript')` vers `@typescript/typescript6` (le compilateur `tsc` reste en TS 7). À retirer quand `typescript-eslint` supportera TS ≥ 7.1.
+- [x] **CI** GitHub Actions (`.github/workflows/ci.yml`) : lint, typecheck, format, tests, build, avec Bun.
+- [x] **`any` réduits à zéro** (la règle `no-explicit-any` est en erreur) : corps de requête du serveur typés par `zod`, réponse de Gemini validée par `explanationSchema` (une réponse mal formée bascule sur le modèle suivant puis sur le repli heuristique), erreurs en `unknown`.
+- Bugs trouvés par les tests et corrigés : `formatPvToFrench` numérotait toujours la variante à partir de 1 (il lisait `history()`, vide quand on charge une FEN) et retombait sur de l'UCI brut au premier coup illégal.
+- À traiter plus tard :
+  - Le nom d'ouverture associé à une position dans `public/openings.json` décrit souvent la ligne obtenue après le coup suggéré (après `1.e4 e5 2.Nf3 Nc6 3.Bb5 a6`, l'appli affiche « Ruy Lopez: Exchange Variation », qui suppose 4.Bxc6). Les noms détectés peuvent donc avoir un coup d'avance.
+  - `checkIsTheoreticalMove` convertit mal les coups de Tour en notation française (`Te1` devient `Ke1`) ; sans effet aujourd'hui car seule la SAN anglaise lui est passée.
+  - `strict` n'est pas activé dans `tsconfig.json`.
 
 ### 5. Dépôt et dépendances
 
