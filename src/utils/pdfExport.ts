@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { GameAnalysisResult, MoveAnalysis } from '../types/chess';
+import { formatPvToFrench, toFrenchSan } from './chessNotation';
 
 export function generateChessAnalysisPdf(analysis: GameAnalysisResult) {
   const doc = new jsPDF({
@@ -38,7 +39,7 @@ export function generateChessAnalysisPdf(analysis: GameAnalysisResult) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(224, 231, 255);
-  doc.text('Moteur Stockfish & Intelligence Artificielle Pédagogique', margin, 18);
+  doc.text('Moteur Stockfish 19 (WASM & NNUE) & Intelligence Artificielle Pédagogique', margin, 18);
 
   const printDate = new Date().toLocaleDateString('fr-FR', {
     day: 'numeric',
@@ -268,12 +269,12 @@ export function generateChessAnalysisPdf(analysis: GameAnalysisResult) {
       doc.setTextColor(...slateText);
       doc.text(`Coup joué :`, margin + 6, y + 11.5);
       doc.setTextColor(...roseAccent);
-      doc.text(`${cm.san} (${cm.from} ➔ ${cm.to})`, margin + 27, y + 11.5);
+      doc.text(`${toFrenchSan(cm.san)} (${cm.from} ➔ ${cm.to})`, margin + 27, y + 11.5);
 
       doc.setTextColor(...slateText);
       doc.text(`Alternative Stockfish :`, margin + 65, y + 11.5);
       doc.setTextColor(...emeraldAccent);
-      doc.text(`${cm.bestMoveSan || cm.bestMoveUci} (${cm.bestMoveFrom} ➔ ${cm.bestMoveTo})`, margin + 104, y + 11.5);
+      doc.text(`${toFrenchSan(cm.bestMoveSan || cm.bestMoveUci)} (${cm.bestMoveFrom} ➔ ${cm.bestMoveTo})`, margin + 104, y + 11.5);
 
       // AI pedagogical concept / explanation
       doc.setFont('helvetica', 'normal');
@@ -283,8 +284,8 @@ export function generateChessAnalysisPdf(analysis: GameAnalysisResult) {
       const explanation = cm.aiExplanation
         ? `Idée : ${cm.aiExplanation.concept} — ${cm.aiExplanation.whyBestIsBetter || cm.aiExplanation.whyPlayedIsBad}`
         : cm.pv.length > 0
-        ? `Variante recommandée : ${cm.pv.slice(0, 5).join(' ')}`
-        : `Le coup joué concède l'avantage alors que ${cm.bestMoveSan} stabilisait la position.`;
+        ? `Variante recommandée : ${formatPvToFrench(cm.fenBefore, cm.pv, 5, true)}`
+        : `Le coup joué concède l'avantage alors que ${toFrenchSan(cm.bestMoveSan)} stabilisait la position.`;
 
       const truncatedExp = doc.splitTextToSize(explanation, contentWidth - 10);
       doc.text(truncatedExp[0] || '', margin + 6, y + 17.5);

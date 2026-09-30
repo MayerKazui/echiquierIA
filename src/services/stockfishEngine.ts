@@ -1,7 +1,13 @@
 import { Chess } from 'chess.js';
 import { MoveAnalysis, MoveClassification, PlayerStats } from '../types/chess';
 import { extractGameClocks } from '../utils/clockUtils';
-import { getOpeningBookEvaluation, checkIsTheoreticalMove, identifyGameOpening } from './openingBook';
+import {
+  getOpeningBookEvaluation,
+  checkIsTheoreticalMove,
+  identifyGameOpening,
+  ensureOpeningBookLoaded,
+} from './openingBook';
+import { toFrenchSan } from '../utils/chessNotation';
 
 export interface EngineEvaluation {
   cp: number; // centipawns from White's perspective (+ White, - Black)
@@ -16,6 +22,7 @@ interface WorkerSlot {
   worker: Worker;
   busy: boolean;
   failed: boolean;
+  currentTask?: QueuedTask;
 }
 
 interface QueuedTask {
@@ -29,7 +36,7 @@ export class StockfishService {
   private workers: WorkerSlot[] = [];
   private taskQueue: QueuedTask[] = [];
   private transpositionTable = new Map<string, EngineEvaluation>();
-  private workerScript = '/stockfish.wasm.js';
+  private workerScript = '/stockfish-19.js#stockfish-19.wasm';
   private allWorkersFailed = false;
 
   constructor() {
@@ -45,16 +52,13 @@ export class StockfishService {
         typeof WebAssembly === 'object' &&
         WebAssembly.validate(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]));
 
-      this.workerScript = wasmSupported ? '/stockfish.wasm.js' : '/stockfish.js';
+      this.workerScript = wasmSupported ? '/stockfish-19.js#stockfish-19.wasm' : '/stockfish.js';
 
-      // Detect optimal concurrency: 3 to 4 workers on multi-core machines, 2 on low-core
-      const numWorkers =
-        typeof navigator !== 'undefined' && navigator.hardwareConcurrency
-          ? Math.min(4, Math.max(2, navigator.hardwareConcurrency >= 4 ? 3 : 2))
-          : 2;
+      // Keep worker pool lightweight (2 workers) for optimal responsiveness and stability in iframe
+      const numWorkers = 2;
 
       for (let i = 0; i < numWorkers; i++) {
-        this.createWorkerSlot(i);
+        this.createWorkerSlot(i, this.workerScript);
       }
     } catch (err) {
       console.warn('Could not instantiate Stockfish Web Workers:', err);
@@ -62,9 +66,10 @@ export class StockfishService {
     }
   }
 
-  private createWorkerSlot(id: number) {
+  private createWorkerSlot(id: number, script?: string) {
+    const targetScript = script || this.workerScript;
     try {
-      const worker = new Worker(this.workerScript);
+      const worker = new Worker(targetScript);
       const slot: WorkerSlot = {
         id,
         worker,
@@ -72,8 +77,35 @@ export class StockfishService {
         failed: false,
       };
 
-      worker.onerror = (e) => {
-        console.warn(`Stockfish Worker #${id} error:`, e);
+      worker.onerror = (e: ErrorEvent | Event) => {
+        try {
+          if (typeof (e as any)?.preventDefault === 'function') {
+            (e as any).preventDefault();
+          }
+          if (typeof (e as any)?.stopPropagation === 'function') {
+            (e as any).stopPropagation();
+          }
+        } catch {}
+        console.warn(`Stockfish Worker #${id} (${targetScript}) error intercepted:`, e);
+
+        // If a task was running on this worker slot, resolve immediately with heuristic
+        if (slot.currentTask) {
+          const task = slot.currentTask;
+          slot.currentTask = undefined;
+          slot.busy = false;
+          task.resolve(this.evaluateHeuristic(task.fen));
+        }
+
+        // Cascading resilient fallbacks: Stockfish 19 -> Stockfish classic JS -> Heuristic
+        if (targetScript.includes('stockfish-19')) {
+          console.info(`Attempting fallback to Stockfish classic for Worker #${id}...`);
+          try {
+            worker.terminate();
+          } catch {}
+          this.createWorkerSlot(id, '/stockfish.js');
+          return;
+        }
+
         slot.failed = true;
         slot.busy = false;
         this.processQueue();
@@ -81,12 +113,17 @@ export class StockfishService {
 
       worker.postMessage('uci');
       worker.postMessage('setoption name Threads value 1');
-      worker.postMessage('setoption name Hash value 32');
+      worker.postMessage('setoption name Hash value 16');
       worker.postMessage('isready');
 
-      this.workers.push(slot);
+      const existingIdx = this.workers.findIndex((w) => w.id === id);
+      if (existingIdx !== -1) {
+        this.workers[existingIdx] = slot;
+      } else {
+        this.workers.push(slot);
+      }
     } catch (e) {
-      console.warn(`Failed creating worker #${id}`, e);
+      console.warn(`Failed creating worker #${id} with script ${targetScript}`, e);
     }
   }
 
@@ -202,7 +239,7 @@ export class StockfishService {
               promotion: bestMove.length > 4 ? bestMove[4] : undefined,
             });
             if (moveObj) {
-              currentEval.bestMoveSan = moveObj.san;
+              currentEval.bestMoveSan = toFrenchSan(moveObj.san);
             }
           } catch {
             currentEval.bestMoveSan = bestMove;
@@ -215,14 +252,46 @@ export class StockfishService {
       }
     };
 
+    const onTaskError = (errEv: ErrorEvent | Event) => {
+      try {
+        if (typeof (errEv as any)?.preventDefault === 'function') {
+          (errEv as any).preventDefault();
+        }
+        if (typeof (errEv as any)?.stopPropagation === 'function') {
+          (errEv as any).stopPropagation();
+        }
+      } catch {}
+      if (completed) return;
+      completed = true;
+      cleanup();
+      slot.busy = false;
+      const fallbackEval = currentEval.bestMoveUci ? currentEval : this.evaluateHeuristic(fen);
+      this.transpositionTable.set(fen, fallbackEval);
+      resolve(fallbackEval);
+      this.processQueue();
+    };
+
     const cleanup = () => {
       clearTimeout(timeoutId);
-      slot.worker.removeEventListener('message', onMessage);
+      try {
+        slot.worker.removeEventListener('message', onMessage);
+        slot.worker.removeEventListener('error', onTaskError);
+      } catch {}
+      slot.currentTask = undefined;
     };
 
     slot.worker.addEventListener('message', onMessage);
-    slot.worker.postMessage(`position fen ${fen}`);
-    slot.worker.postMessage(`go depth ${depth}`);
+    slot.worker.addEventListener('error', onTaskError);
+
+    try {
+      slot.worker.postMessage(`position fen ${fen}`);
+      slot.worker.postMessage(`go depth ${depth}`);
+    } catch {
+      cleanup();
+      slot.busy = false;
+      resolve(this.evaluateHeuristic(fen));
+      this.processQueue();
+    }
   }
 
   /**
@@ -266,13 +335,16 @@ export class StockfishService {
       const legalMoves = chess.moves({ verbose: true });
       const effectiveDepth = legalMoves.length === 1 ? Math.min(4, depth) : depth;
 
-      // 6. Queue to parallel worker pool
-      return new Promise<EngineEvaluation>((resolve, reject) => {
+      // 6. Queue to parallel worker pool (never rejects, always resolves with heuristic on failure)
+      return new Promise<EngineEvaluation>((resolve) => {
         this.taskQueue.push({
           fen,
           depth: effectiveDepth,
           resolve,
-          reject,
+          reject: (err) => {
+            console.warn('Worker task error, resolving with heuristic:', err);
+            resolve(this.evaluateHeuristic(fen));
+          },
         });
         this.processQueue();
       });
@@ -451,6 +523,9 @@ export class StockfishService {
     const totalPlies = history.length;
     const movesAnalysis: MoveAnalysis[] = [];
 
+    // Ensure full theoretical openings dataset (7,800+ lines) is loaded into cache
+    await ensureOpeningBookLoaded();
+
     // Extract clocks and thinking times from PGN comments if present
     const { moveClocks } = extractGameClocks(pgn, history);
 
@@ -487,6 +562,7 @@ export class StockfishService {
     }
 
     // Build MoveAnalysis records with pre-evaluated positions
+    let inBook = true;
     for (let ply = 0; ply < totalPlies; ply++) {
       const move = history[ply];
       const isWhite = move.color === 'w';
@@ -502,8 +578,21 @@ export class StockfishService {
       const winPctBefore = StockfishService.calculateWinPercentage(evalBefore);
       const winPctAfter = StockfishService.calculateWinPercentage(evalAfter);
 
-      // Check if played move is recognized in the official Lichess theoretical opening book
-      const bookCheck = ply < 25 ? checkIsTheoreticalMove(fenBefore, move.san) : { isBook: false };
+      // Check if played move is recognized in the official theoretical opening book (7,800+ lines)
+      let bookCheck: { isBook: boolean; eco?: string; name?: string } = { isBook: false };
+      if (inBook && ply < 35) {
+        bookCheck = checkIsTheoreticalMove(fenBefore, move.san, fenAfter);
+        if (!bookCheck.isBook) {
+          inBook = false; // Player moved away from recognized theoretical lines
+        }
+      } else if (ply < 35) {
+        // Transposition check: if game transposes back into an established named opening variation
+        const transposeCheck = checkIsTheoreticalMove(fenBefore, move.san, fenAfter);
+        if (transposeCheck.isBook && transposeCheck.name) {
+          bookCheck = transposeCheck;
+          inBook = true;
+        }
+      }
 
       // Centipawn loss and win% drop from moving player's point of view
       let cpLoss = isWhite ? evalBefore - evalAfter : evalAfter - evalBefore;
@@ -518,6 +607,8 @@ export class StockfishService {
         move.captured === undefined &&
         evalAfterRes.cp * (isWhite ? 1 : -1) > 100;
 
+      // When a move is theoretical, it is ALWAYS designated as 'book' in the notation and badge,
+      // even if it also happens to be the engine's #1 move!
       const classification = bookCheck.isBook
         ? 'book'
         : StockfishService.classifyMove(
@@ -533,6 +624,12 @@ export class StockfishService {
 
       const moveNumber = Math.floor(ply / 2) + 1;
       const clockInfo = moveClocks[ply];
+      const isRushed = Boolean(
+        clockInfo?.thinkTimeSeconds !== undefined &&
+        clockInfo.thinkTimeSeconds <= 3 &&
+        ['inaccuracy', 'mistake', 'blunder', 'missedWin'].includes(classification) &&
+        classification !== 'book'
+      );
 
       movesAnalysis.push({
         ply,
@@ -559,10 +656,13 @@ export class StockfishService {
         winPercentAfter: Math.round(winPctAfter),
         winPercentLoss: Math.round(winPctDrop),
         classification,
+        openingName: bookCheck.name,
+        eco: bookCheck.eco,
         clock: clockInfo?.clock,
         thinkTimeSeconds: clockInfo?.thinkTimeSeconds,
         thinkTimeFormatted: clockInfo?.thinkTimeFormatted,
         isLongThink: clockInfo?.isLongThink,
+        isRushed,
         thinkRatioToAverage: clockInfo?.thinkRatioToAverage,
       });
     }
@@ -583,6 +683,7 @@ export class StockfishService {
   }
 
   private computePlayerStats(playerMoves: MoveAnalysis[], totalGamePlies: number): PlayerStats {
+    let book = 0;
     let brilliant = 0;
     let great = 0;
     let best = 0;
@@ -607,6 +708,8 @@ export class StockfishService {
 
       switch (m.classification) {
         case 'book':
+          book++;
+          break;
         case 'best':
           best++;
           break;
@@ -615,9 +718,6 @@ export class StockfishService {
           break;
         case 'great':
           great++;
-          break;
-        case 'best':
-          best++;
           break;
         case 'excellent':
           excellent++;
@@ -653,6 +753,7 @@ export class StockfishService {
       ? Math.round(movesWithThink.reduce((a, b) => a + (b.thinkTimeSeconds || 0), 0) / movesWithThink.length)
       : undefined;
     const longThinksCount = playerMoves.filter((m) => m.isLongThink).length;
+    const rushedMovesCount = playerMoves.filter((m) => m.isRushed).length;
 
     // Accuracy formula: Chess.com / Lichess CAPS-like precision curve
     // accuracy = 100 * exp(-0.0035 * avgCpLoss), clamped between 20 and 99.4
@@ -662,6 +763,7 @@ export class StockfishService {
     return {
       accuracy,
       totalMoves,
+      book,
       brilliant,
       great,
       best,
@@ -677,6 +779,7 @@ export class StockfishService {
       endgameBlunders,
       avgThinkTimeSeconds,
       longThinksCount,
+      rushedMovesCount,
     };
   }
 

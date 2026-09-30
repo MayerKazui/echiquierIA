@@ -39,6 +39,7 @@ export interface MoveAnalysis {
   thinkTimeSeconds?: number;
   thinkTimeFormatted?: string;
   isLongThink?: boolean;
+  isRushed?: boolean;
   thinkRatioToAverage?: number;
   openingName?: string;
   eco?: string;
@@ -53,6 +54,7 @@ export interface MoveAnalysis {
 export interface PlayerStats {
   accuracy: number;
   totalMoves: number;
+  book?: number;
   brilliant: number;
   great: number;
   best: number;
@@ -68,6 +70,7 @@ export interface PlayerStats {
   endgameBlunders: number;
   avgThinkTimeSeconds?: number;
   longThinksCount?: number;
+  rushedMovesCount?: number;
 }
 
 export interface GameMetadata {

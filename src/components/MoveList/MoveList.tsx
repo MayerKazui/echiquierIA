@@ -13,8 +13,10 @@ import {
   Sparkles,
   Timer,
   XCircle,
+  Zap,
 } from 'lucide-react';
 import { MoveAnalysis, MoveClassification } from '../../types/chess';
+import { toFrenchSan } from '../../utils/chessNotation';
 
 interface MoveListProps {
   moves: MoveAnalysis[];
@@ -34,6 +36,7 @@ export const MoveList: React.FC<MoveListProps> = ({
   const activeRowRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [filterLongThinks, setFilterLongThinks] = useState(false);
+  const [filterRushed, setFilterRushed] = useState(false);
 
   // Check if clock info exists in this game
   const hasClockData = useMemo(() => {
@@ -42,6 +45,10 @@ export const MoveList: React.FC<MoveListProps> = ({
 
   const totalLongThinks = useMemo(() => {
     return moves.filter((m) => m.isLongThink).length;
+  }, [moves]);
+
+  const totalRushed = useMemo(() => {
+    return moves.filter((m) => m.isRushed).length;
   }, [moves]);
 
   // Group into pairs: { moveNumber, white: MoveAnalysis, black?: MoveAnalysis }
@@ -76,8 +83,14 @@ export const MoveList: React.FC<MoveListProps> = ({
       );
     }
 
+    if (filterRushed) {
+      filtered = filtered.filter(
+        (p) => (p.white && p.white.isRushed) || (p.black && p.black.isRushed)
+      );
+    }
+
     return filtered;
-  }, [moves, filterOnlyErrors, filterLongThinks]);
+  }, [moves, filterOnlyErrors, filterLongThinks, filterRushed]);
 
   // Auto-scroll strictly inside the move list container (prevents the page/window from scrolling down)
   useEffect(() => {
@@ -103,7 +116,7 @@ export const MoveList: React.FC<MoveListProps> = ({
     }
   }, [currentPly]);
 
-  const getMoveIcon = (classification: MoveClassification) => {
+  const getMoveIcon = (classification: MoveClassification, move?: MoveAnalysis) => {
     switch (classification) {
       case 'blunder':
       case 'missedWin':
@@ -132,13 +145,20 @@ export const MoveList: React.FC<MoveListProps> = ({
         );
       case 'book':
         return (
-          <span title="Coup théorique (Livre)">
+          <span
+            title={
+              move?.openingName
+                ? `Coup théorique (Livre) : ${move.openingName}${move.eco ? ` [${move.eco}]` : ''}`
+                : 'Coup théorique (Livre)'
+            }
+            className="flex items-center gap-0.5"
+          >
             <BookOpen className="w-3.5 h-3.5 text-violet-400 shrink-0" />
           </span>
         );
       case 'best':
         return (
-          <span title="Meilleur">
+          <span title="Meilleur coup">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           </span>
         );
@@ -170,6 +190,21 @@ export const MoveList: React.FC<MoveListProps> = ({
 
         {/* Filter buttons */}
         <div className="flex items-center gap-1.5">
+          {hasClockData && totalRushed > 0 && (
+            <button
+              onClick={() => setFilterRushed((prev) => !prev)}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
+                filterRushed
+                  ? 'bg-rose-500/25 text-rose-300 border border-rose-500/50'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700'
+              }`}
+              title="Afficher uniquement les erreurs commises en moins de 3 secondes (précipitation)"
+            >
+              <Zap className="w-3 h-3 text-rose-400" />
+              <span>Précipités ({totalRushed})</span>
+            </button>
+          )}
+
           {hasClockData && totalLongThinks > 0 && (
             <button
               onClick={() => setFilterLongThinks((prev) => !prev)}
@@ -213,9 +248,9 @@ export const MoveList: React.FC<MoveListProps> = ({
             <div
               key={pair.moveNumber}
               ref={isWhiteActive || isBlackActive ? activeRowRef : null}
-              className="grid grid-cols-[36px_1fr_1fr] items-center py-1 px-1 hover:bg-slate-800/40 rounded transition-colors"
+              className="grid grid-cols-[28px_1fr_1fr] sm:grid-cols-[36px_1fr_1fr] items-center py-1 px-0.5 sm:px-1 hover:bg-slate-800/40 rounded transition-colors"
             >
-              <span className="text-slate-500 font-semibold select-none text-center">
+              <span className="text-slate-500 font-semibold select-none text-center text-[11px] sm:text-xs">
                 {pair.moveNumber}.
               </span>
 
@@ -223,43 +258,53 @@ export const MoveList: React.FC<MoveListProps> = ({
               {pair.white ? (
                 <button
                   onClick={() => onSelectPly(pair.white!.ply)}
-                  className={`flex items-center justify-between px-2 py-1.5 rounded text-left transition-all ${
+                  className={`flex items-center justify-between px-1.5 sm:px-2 py-1.5 rounded text-left transition-all min-w-0 ${
                     isWhiteActive
                       ? 'bg-indigo-600 text-white font-bold shadow'
                       : pair.white.isLongThink
                       ? 'bg-amber-950/20 hover:bg-amber-950/40 text-slate-200 border border-amber-500/30'
+                      : pair.white.classification === 'book'
+                      ? 'text-violet-200 hover:bg-violet-950/25 border border-violet-500/20'
                       : 'text-slate-200 hover:bg-slate-800'
                   }`}
                 >
-                  <span className="truncate">{pair.white.san}</span>
-                  <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                  <span className="truncate min-w-0">{toFrenchSan(pair.white.san)}</span>
+                  <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-1">
                     {/* Think time badge */}
                     {pair.white.thinkTimeFormatted && (
                       <span
-                        className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-mono tracking-tight ${
-                          pair.white.isLongThink
+                        className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] sm:text-[10px] font-mono tracking-tight ${
+                          pair.white.isRushed
+                            ? 'bg-rose-500/25 text-rose-300 border border-rose-500/50 font-bold shadow-sm'
+                            : pair.white.isLongThink
                             ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50 font-bold shadow-sm'
                             : isWhiteActive
                             ? 'text-indigo-200 bg-indigo-700/50'
                             : 'text-slate-400 bg-slate-800/80'
                         }`}
                         title={
-                          pair.white.isLongThink
+                          pair.white.isRushed
+                            ? `⚡ Coup précipité (${pair.white.thinkTimeFormatted}) ayant conduit à une faute ! Prenez plus de temps pour calculer.`
+                            : pair.white.isLongThink
                             ? `⚠️ Réflexion anormalement longue : ${pair.white.thinkTimeFormatted} (${pair.white.thinkRatioToAverage}x la moyenne)${pair.white.clock ? ` · Horloge: ${pair.white.clock}` : ''}`
                             : `Temps de réflexion : ${pair.white.thinkTimeFormatted}${pair.white.clock ? ` · Horloge: ${pair.white.clock}` : ''}`
                         }
                       >
-                        <Clock className={`w-2.5 h-2.5 ${pair.white.isLongThink ? 'text-amber-300' : 'opacity-70'}`} />
-                        <span>{pair.white.thinkTimeFormatted}</span>
+                        {pair.white.isRushed ? (
+                          <span className="text-[10px] leading-none text-rose-300">⚡</span>
+                        ) : (
+                          <Clock className={`w-2.5 h-2.5 ${pair.white.isLongThink ? 'text-amber-300' : 'opacity-70'}`} />
+                        )}
+                        <span className="hidden xs:inline">{pair.white.thinkTimeFormatted}</span>
                       </span>
                     )}
 
                     {formatLoss(pair.white.centipawnLoss) && (
-                      <span className="text-[10px] text-slate-400 opacity-80">
+                      <span className="text-[10px] text-slate-400 opacity-80 hidden xs:inline">
                         {formatLoss(pair.white.centipawnLoss)}
                       </span>
                     )}
-                    {getMoveIcon(pair.white.classification)}
+                    {getMoveIcon(pair.white.classification, pair.white)}
                   </div>
                 </button>
               ) : (
@@ -270,43 +315,53 @@ export const MoveList: React.FC<MoveListProps> = ({
               {pair.black ? (
                 <button
                   onClick={() => onSelectPly(pair.black!.ply)}
-                  className={`flex items-center justify-between px-2 py-1.5 rounded text-left transition-all ml-1 ${
+                  className={`flex items-center justify-between px-1.5 sm:px-2 py-1.5 rounded text-left transition-all ml-0.5 sm:ml-1 min-w-0 ${
                     isBlackActive
                       ? 'bg-indigo-600 text-white font-bold shadow'
                       : pair.black.isLongThink
                       ? 'bg-amber-950/20 hover:bg-amber-950/40 text-slate-300 border border-amber-500/30'
+                      : pair.black.classification === 'book'
+                      ? 'text-violet-200 hover:bg-violet-950/25 border border-violet-500/20'
                       : 'text-slate-300 hover:bg-slate-800'
                   }`}
                 >
-                  <span className="truncate">{pair.black.san}</span>
-                  <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                  <span className="truncate min-w-0">{toFrenchSan(pair.black.san)}</span>
+                  <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-1">
                     {/* Think time badge */}
                     {pair.black.thinkTimeFormatted && (
                       <span
-                        className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[10px] font-mono tracking-tight ${
-                          pair.black.isLongThink
+                        className={`inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] sm:text-[10px] font-mono tracking-tight ${
+                          pair.black.isRushed
+                            ? 'bg-rose-500/25 text-rose-300 border border-rose-500/50 font-bold shadow-sm'
+                            : pair.black.isLongThink
                             ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50 font-bold shadow-sm'
                             : isBlackActive
                             ? 'text-indigo-200 bg-indigo-700/50'
                             : 'text-slate-400 bg-slate-800/80'
                         }`}
                         title={
-                          pair.black.isLongThink
+                          pair.black.isRushed
+                            ? `⚡ Coup précipité (${pair.black.thinkTimeFormatted}) ayant conduit à une faute ! Prenez plus de temps pour calculer.`
+                            : pair.black.isLongThink
                             ? `⚠️ Réflexion anormalement longue : ${pair.black.thinkTimeFormatted} (${pair.black.thinkRatioToAverage}x la moyenne)${pair.black.clock ? ` · Horloge: ${pair.black.clock}` : ''}`
                             : `Temps de réflexion : ${pair.black.thinkTimeFormatted}${pair.black.clock ? ` · Horloge: ${pair.black.clock}` : ''}`
                         }
                       >
-                        <Clock className={`w-2.5 h-2.5 ${pair.black.isLongThink ? 'text-amber-300' : 'opacity-70'}`} />
-                        <span>{pair.black.thinkTimeFormatted}</span>
+                        {pair.black.isRushed ? (
+                          <span className="text-[10px] leading-none text-rose-300">⚡</span>
+                        ) : (
+                          <Clock className={`w-2.5 h-2.5 ${pair.black.isLongThink ? 'text-amber-300' : 'opacity-70'}`} />
+                        )}
+                        <span className="hidden xs:inline">{pair.black.thinkTimeFormatted}</span>
                       </span>
                     )}
 
                     {formatLoss(pair.black.centipawnLoss) && (
-                      <span className="text-[10px] text-slate-400 opacity-80">
+                      <span className="text-[10px] text-slate-400 opacity-80 hidden xs:inline">
                         {formatLoss(pair.black.centipawnLoss)}
                       </span>
                     )}
-                    {getMoveIcon(pair.black.classification)}
+                    {getMoveIcon(pair.black.classification, pair.black)}
                   </div>
                 </button>
               ) : (

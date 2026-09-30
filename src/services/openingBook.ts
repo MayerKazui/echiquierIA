@@ -90,6 +90,7 @@ export function normalizeFen(fen: string): string {
 // Map of normalized FEN -> Book move evaluation & Opening details
 export interface BookEntry {
   eval: EngineEvaluation;
+  validMoves: Set<string>;
   eco?: string;
   name?: string;
 }
@@ -104,67 +105,235 @@ function initOpeningBook() {
   try {
     for (const line of OPENING_LINES) {
       const chess = new Chess();
-      for (let i = 0; i < line.length - 1; i++) {
+      for (let i = 0; i < line.length; i++) {
         const normFen = normalizeFen(chess.fen());
         const moveSan = line[i];
-        const nextMoves = line.slice(i, i + 4);
 
-        if (!bookCache.has(normFen)) {
-          // Verify legal move
-          const moveRes = chess.move(moveSan);
-          if (moveRes) {
-            const uci = moveRes.from + moveRes.to + (moveRes.promotion || '');
-            const isWhiteTurn = chess.turn() === 'b';
-            bookCache.set(normFen, {
-              eval: {
-                cp: isWhiteTurn ? 20 : 15,
-                mate: null,
-                bestMoveSan: moveSan,
-                bestMoveUci: uci,
-                pv: nextMoves,
-              },
-            });
-            continue;
-          }
-        } else {
-          chess.move(moveSan);
+        let entry = bookCache.get(normFen);
+        if (!entry) {
+          const isWhiteTurn = chess.turn() === 'w';
+          entry = {
+            eval: {
+              cp: isWhiteTurn ? 20 : 15,
+              mate: null,
+              bestMoveSan: moveSan,
+              bestMoveUci: '',
+              pv: line.slice(i, i + 5),
+            },
+            validMoves: new Set<string>(),
+          };
+          bookCache.set(normFen, entry);
         }
+        entry.validMoves.add(moveSan);
+
+        const moveRes = chess.move(moveSan);
+        if (!moveRes) break;
       }
     }
+
+    // Well-established primary branches for opening theory
+    const registerBranch = (fen: string, moves: string[], eco?: string, name?: string) => {
+      const norm = normalizeFen(fen);
+      let entry = bookCache.get(norm);
+      if (!entry) {
+        entry = {
+          eval: {
+            cp: norm.includes(' w ') ? 20 : 15,
+            mate: null,
+            bestMoveSan: moves[0] || '',
+            bestMoveUci: '',
+            pv: moves.slice(0, 5),
+          },
+          validMoves: new Set<string>(),
+          eco,
+          name,
+        };
+        bookCache.set(norm, entry);
+      } else {
+        if (eco && !entry.eco) entry.eco = eco;
+        if (name && !entry.name) entry.name = name;
+      }
+      moves.forEach((m) => entry!.validMoves.add(m));
+    };
+
+    // 1. Initial Position (White move 1)
+    registerBranch(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      ['e4', 'd4', 'Nf3', 'c4', 'g3', 'b3', 'f4', 'Nc3', 'b4', 'd3', 'e3'],
+      'A00',
+      'Position initiale'
+    );
+
+    // 2. Main replies to 1. e4
+    registerBranch(
+      'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1',
+      ['e5', 'c5', 'e6', 'c6', 'd6', 'd5', 'g6', 'Nf6', 'Nc6', 'b6'],
+      'B00',
+      'Ouverture du pion Roi'
+    );
+
+    // 3. Main replies to 1. d4
+    registerBranch(
+      'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1',
+      ['Nf6', 'd5', 'e6', 'g6', 'c5', 'f5', 'd6', 'c6', 'e5'],
+      'A40',
+      'Ouverture du pion Dame'
+    );
+
+    // 4. Main replies to 1. c4 (English)
+    registerBranch(
+      'rnbqkbnr/pppppppp/8/8/2P5/8/PP1PPPPP/RNBQKBNR b KQkq - 0 1',
+      ['e5', 'c5', 'Nf6', 'e6', 'c6', 'g6', 'd5'],
+      'A10',
+      'Ouverture anglaise'
+    );
+
+    // 5. Main replies to 1. Nf3 (Reti)
+    registerBranch(
+      'rnbqkbnr/pppppppp/8/8/8/5N2/PPPPPPPP/RNBQKB1R b KQkq - 0 1',
+      ['d5', 'Nf6', 'c5', 'g6', 'e6', 'd6', 'f5'],
+      'A04',
+      'Ouverture Réti'
+    );
+
+    // 6. After 1. e4 c5 (Sicilian)
+    registerBranch(
+      'rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2',
+      ['Nf3', 'Nc3', 'c3', 'd4', 'f4', 'g3', 'Bc4', 'b3', 'Ne2'],
+      'B20',
+      'Défense sicilienne'
+    );
+
+    // 7. After 1. e4 c5 2. Nf3
+    registerBranch(
+      'rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2',
+      ['d6', 'Nc6', 'e6', 'g6', 'a6', 'Nf6'],
+      'B27',
+      'Défense sicilienne (2. Cf3)'
+    );
+
+    // 8. After 1. e4 e5 (Open Game)
+    registerBranch(
+      'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2',
+      ['Nf3', 'Nc3', 'Bc4', 'f4', 'd4', 'c3', 'Qh5'],
+      'C20',
+      'Partie ouverte (1. e4 e5)'
+    );
+
+    // 9. After 1. e4 e5 2. Nf3
+    registerBranch(
+      'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2',
+      ['Nc6', 'Nf6', 'd6', 'f5', 'Qe7', 'd5'],
+      'C40',
+      'Début du pion Roi'
+    );
+
+    // 10. After 1. d4 d5 (Closed Game)
+    registerBranch(
+      'rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2',
+      ['c4', 'Nf3', 'Bf4', 'Nc3', 'e3', 'Bg5'],
+      'D00',
+      'Partie fermée'
+    );
+
+    // 11. After 1. d4 d5 2. c4 (Queen\'s Gambit)
+    registerBranch(
+      'rnbqkbnr/ppp1pppp/8/3p4/2PP4/8/PP2PPPP/RNBQKBNR b KQkq - 0 2',
+      ['e6', 'c6', 'dxc4', 'Nc6', 'Nf6', 'e5', 'c5'],
+      'D06',
+      'Gambit Dame'
+    );
+
+    // 12. After 1. d4 Nf6 (Indian Defenses)
+    registerBranch(
+      'rnbqkbnr/pppppppp/5n2/8/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 1 2',
+      ['c4', 'Nf3', 'Bg5', 'Nc3', 'Bf4', 'g3', 'e3'],
+      'A45',
+      'Défenses indiennes'
+    );
+
+    // 13. After 1. d4 Nf6 2. c4
+    registerBranch(
+      'rnbqkbnr/pppppppp/5n2/8/2PP4/8/PP2PPPP/RNBQKBNR b KQkq - 0 2',
+      ['g6', 'e6', 'c5', 'e5', 'b6', 'd6'],
+      'A50',
+      'Système indien (2. c4)'
+    );
   } catch (err) {
     console.warn('Error populating base opening book:', err);
   } finally {
     isBookInitialized = true;
   }
+}
 
-  // Asynchronously load complete Lichess dataset from /openings.json
-  if (typeof window !== 'undefined' && !isFullDatasetLoaded) {
-    fetch('/openings.json')
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((data: Record<string, [string, string, string, string, string[]]>) => {
+let datasetLoadPromise: Promise<void> | null = null;
+
+/**
+ * Ensures the full 7,800+ theoretical openings database is loaded into memory.
+ */
+export async function ensureOpeningBookLoaded(): Promise<void> {
+  if (!isBookInitialized) {
+    initOpeningBook();
+  }
+
+  if (isFullDatasetLoaded) {
+    return;
+  }
+
+  if (!datasetLoadPromise) {
+    datasetLoadPromise = (async () => {
+      try {
+        let data: Record<string, [string, string, string, string, string[]]>;
+        if (typeof window !== 'undefined') {
+          const res = await fetch('/openings.json');
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          data = await res.json();
+        } else {
+          const fs = await import('fs');
+          const path = await import('path');
+          const filePath = path.resolve(process.cwd(), 'public/openings.json');
+          const fileContent = await fs.promises.readFile(filePath, 'utf-8');
+          data = JSON.parse(fileContent);
+        }
+
         for (const [normFen, [bestMoveSan, bestMoveUci, eco, name, pv]] of Object.entries(data)) {
-          const isWhiteTurn = normFen.includes(' w ');
-          bookCache.set(normFen, {
-            eval: {
-              cp: isWhiteTurn ? 20 : 15,
-              mate: null,
-              bestMoveSan: bestMoveSan || '',
-              bestMoveUci: bestMoveUci || '',
-              pv: pv || [],
-            },
-            eco,
-            name,
-          });
+          let entry = bookCache.get(normFen);
+          if (!entry) {
+            const isWhiteTurn = normFen.includes(' w ');
+            entry = {
+              eval: {
+                cp: isWhiteTurn ? 20 : 15,
+                mate: null,
+                bestMoveSan: bestMoveSan || '',
+                bestMoveUci: bestMoveUci || '',
+                pv: pv || [],
+              },
+              validMoves: new Set<string>(),
+              eco,
+              name,
+            };
+            bookCache.set(normFen, entry);
+          } else {
+            // Keep existing canonical French names from registerBranch if available
+            if (eco && !entry.eco) entry.eco = eco;
+            if (name && !entry.name) entry.name = name;
+          }
+
+          if (bestMoveSan) {
+            entry.validMoves.add(bestMoveSan);
+          }
+          if (pv && Array.isArray(pv) && pv[0]) {
+            entry.validMoves.add(pv[0]);
+          }
         }
         isFullDatasetLoaded = true;
-      })
-      .catch((err) => {
-        console.info('Loaded base opening book (full Lichess openings.json fallback ready):', err);
-      });
+      } catch (err) {
+        console.warn('Could not load complete openings dataset:', err);
+      }
+    })();
   }
+
+  await datasetLoadPromise;
 }
 
 /**
@@ -183,22 +352,46 @@ export function getOpeningBookEvaluation(fen: string): EngineEvaluation | null {
 
 /**
  * Checks if a played move is a recognized theoretical book move from the position.
+ * Tests both the move origin/target, SAN equivalence (FR/EN), and destination FEN in the master database.
  */
 export function checkIsTheoreticalMove(
   fenBefore: string,
-  moveSan: string
+  moveSan: string,
+  fenAfter?: string
 ): { isBook: boolean; eco?: string; name?: string } {
   if (!isBookInitialized) {
     initOpeningBook();
   }
 
-  const normFen = normalizeFen(fenBefore);
-  const entry = bookCache.get(normFen);
-  if (!entry) return { isBook: false };
+  // Convert French SAN (Cf3, Fc4, etc.) to English SAN (Nf3, Bc4, etc.) if needed
+  const englishSan = moveSan
+    .replace(/^C/, 'N')
+    .replace(/^F/, 'B')
+    .replace(/^T/, 'R')
+    .replace(/^D/, 'Q')
+    .replace(/^R(?=[a-h1-8])/, 'K');
 
-  // If the move matches the primary theoretical recommendation or is known in theory
-  if (entry.eval.bestMoveSan === moveSan) {
-    return { isBook: true, eco: entry.eco, name: entry.name };
+  const normBefore = normalizeFen(fenBefore);
+  const entryBefore = bookCache.get(normBefore);
+
+  if (entryBefore) {
+    if (
+      entryBefore.validMoves.has(moveSan) ||
+      entryBefore.validMoves.has(englishSan) ||
+      entryBefore.eval.bestMoveSan === moveSan ||
+      entryBefore.eval.bestMoveSan === englishSan
+    ) {
+      return { isBook: true, eco: entryBefore.eco, name: entryBefore.name };
+    }
+  }
+
+  // Check destination FEN: if playing this move arrives at an established opening theoretical position
+  if (fenAfter) {
+    const normAfter = normalizeFen(fenAfter);
+    const entryAfter = bookCache.get(normAfter);
+    if (entryAfter && (entryAfter.name || entryAfter.eco)) {
+      return { isBook: true, eco: entryAfter.eco, name: entryAfter.name };
+    }
   }
 
   return { isBook: false };
@@ -213,8 +406,8 @@ export function identifyGameOpening(fensAfter: string[]): { eco: string; name: s
     initOpeningBook();
   }
 
-  // Scan backwards from ply 30 down to find the deepest recognized named theoretical variation
-  const maxScan = Math.min(fensAfter.length - 1, 30);
+  // Scan backwards from ply 35 down to find the deepest recognized named theoretical variation
+  const maxScan = Math.min(fensAfter.length - 1, 35);
   for (let i = maxScan; i >= 0; i--) {
     const norm = normalizeFen(fensAfter[i]);
     const entry = bookCache.get(norm);

@@ -1,15 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   AlertTriangle,
   Award,
   BookOpen,
+  Check,
   CheckCircle2,
   ChevronRight,
   Clock,
+  Copy,
   FileDown,
   Flame,
   GraduationCap,
   Lightbulb,
+  Share2,
   Sparkles,
   Target,
   TrendingDown,
@@ -20,6 +23,7 @@ import {
 } from 'lucide-react';
 import { GameAnalysisResult, MoveAnalysis } from '../../types/chess';
 import { generateChessAnalysisPdf } from '../../utils/pdfExport';
+import { PlayerRadarChart } from './PlayerRadarChart';
 
 interface DashboardProps {
   analysis: GameAnalysisResult;
@@ -49,72 +53,279 @@ export const Dashboard: React.FC<DashboardProps> = ({
     (m) => m.classification === 'blunder' || m.classification === 'mistake' || m.classification === 'missedWin'
   );
 
-  // Generate full game report from Gemini
+  const [copiedSummary, setCopiedSummary] = useState(false);
+
+  // Phase breakdown calculation (Opening: 1-12, Middlegame: 13-30, Endgame: 31+)
+  const phaseStats = useMemo(() => {
+    const calcPhase = (startMove: number, endMove: number) => {
+      const phaseMoves = moves.filter((m) => m.moveNumber >= startMove && m.moveNumber <= endMove);
+      const whiteMoves = phaseMoves.filter((m) => m.color === 'w');
+      const blackMoves = phaseMoves.filter((m) => m.color === 'b');
+
+      const calcAccuracy = (mList: MoveAnalysis[]) => {
+        if (mList.length === 0) return null;
+        const totalCp = mList.reduce((acc, curr) => acc + curr.centipawnLoss, 0);
+        const avgLoss = totalCp / mList.length;
+        return Math.min(99.4, Math.max(25.0, Math.round(100 * Math.exp(-0.0038 * avgLoss) * 10) / 10));
+      };
+
+      const countBlunders = (mList: MoveAnalysis[]) =>
+        mList.filter((m) => ['blunder', 'missedWin'].includes(m.classification)).length;
+
+      const countMistakes = (mList: MoveAnalysis[]) =>
+        mList.filter((m) => m.classification === 'mistake').length;
+
+      const countInaccuracies = (mList: MoveAnalysis[]) =>
+        mList.filter((m) => m.classification === 'inaccuracy').length;
+
+      return {
+        totalMoves: phaseMoves.length,
+        whiteCount: whiteMoves.length,
+        blackCount: blackMoves.length,
+        whiteAccuracy: calcAccuracy(whiteMoves),
+        blackAccuracy: calcAccuracy(blackMoves),
+        whiteBlunders: countBlunders(whiteMoves),
+        blackBlunders: countBlunders(blackMoves),
+        whiteMistakes: countMistakes(whiteMoves),
+        blackMistakes: countMistakes(blackMoves),
+        whiteInaccuracies: countInaccuracies(whiteMoves),
+        blackInaccuracies: countInaccuracies(blackMoves),
+      };
+    };
+
+    return {
+      opening: calcPhase(1, 12),
+      middlegame: calcPhase(13, 30),
+      endgame: calcPhase(31, 999),
+    };
+  }, [moves]);
+
+  // Quick summary share generator
+  const handleCopySummary = () => {
+    const whiteName = metadata.white || 'Blancs';
+    const blackName = metadata.black || 'Noirs';
+    const resultStr = metadata.result && metadata.result !== '*' ? `🏆 Résultat : ${metadata.result}\n` : '';
+    const openingStr = metadata.opening ? `📖 Ouverture : ${metadata.opening}${metadata.eco ? ` [${metadata.eco}]` : ''}\n` : '';
+
+    const text = `♟️ Échiquier IA — Bilan de la partie
+${whiteName} (${statsWhite.accuracy}%) vs ${blackName} (${statsBlack.accuracy}%)
+${resultStr}${openingStr}⏱️ Durée : ${Math.ceil(moves.length / 2)} coups
+⚪ Blancs : ${statsWhite.best + statsWhite.brilliant} meilleurs coups · ${statsWhite.inaccuracies} imprécision(s) · ${statsWhite.mistakes} erreur(s) · ${statsWhite.blunders + statsWhite.missedWins} gaffe(s)
+⚫ Noirs : ${statsBlack.best + statsBlack.brilliant} meilleurs coups · ${statsBlack.inaccuracies} imprécision(s) · ${statsBlack.mistakes} erreur(s) · ${statsBlack.blunders + statsBlack.missedWins} gaffe(s)
+${phaseStats.opening.whiteAccuracy !== null ? `\n📊 Précision par phase :
+• Ouverture (coups 1-12) : Blancs ${phaseStats.opening.whiteAccuracy ?? '-'}% | Noirs ${phaseStats.opening.blackAccuracy ?? '-'}%
+• Milieu de jeu (coups 13-30) : Blancs ${phaseStats.middlegame.whiteAccuracy ?? '-'}% | Noirs ${phaseStats.middlegame.blackAccuracy ?? '-'}%
+• Finale (coups 31+) : ${phaseStats.endgame.totalMoves > 0 ? `Blancs ${phaseStats.endgame.whiteAccuracy ?? '-'}% | Noirs ${phaseStats.endgame.blackAccuracy ?? '-'}%` : 'Non atteinte'}` : ''}
+
+Analysé avec Échiquier IA & Stockfish 19`;
+
+    navigator.clipboard.writeText(text);
+    setCopiedSummary(true);
+    setTimeout(() => setCopiedSummary(false), 2500);
+  };
+
+  // Client-side fallback generator if network or backend fails
+  const generateSituationalSummaryClient = (params: {
+    userName: string;
+    userColor: 'w' | 'b';
+    isUserWhite: boolean;
+    opponentName: string;
+    result?: string;
+    opening?: string;
+    eco?: string;
+    userAccuracy: number;
+    oppAccuracy: number;
+    userStats: any;
+    userBlunders: Array<{ moveNumber: number; color: string; san: string; best?: string; loss: number }>;
+    userBestMoves: Array<{ moveNumber: number; color: string; san: string }>;
+    criticalMoments: any[];
+  }) => {
+    const {
+      userName,
+      userColor,
+      isUserWhite,
+      opponentName,
+      result = '*',
+      opening = '',
+      eco = '',
+      userAccuracy,
+      userStats,
+      userBlunders,
+      userBestMoves,
+      criticalMoments,
+    } = params;
+
+    const biggestBlunder = userBlunders[0];
+    const secondFault = userBlunders[1] || criticalMoments[0];
+    const openingLabel = opening ? `${opening} (${eco || 'Standard'})` : "l'ouverture";
+
+    const strengths: string[] = [];
+    if (userBestMoves.length > 0) {
+      const bm = userBestMoves[0];
+      strengths.push(
+        `Excellente inspiration au coup ${bm.moveNumber} (${bm.san}), démontrant une juste appréciation tactique de la position.`
+      );
+    }
+    strengths.push(
+      `Comportement solide dans ${openingLabel} avec une entrée en matière cohérente et un respect des principes fondamentaux.`
+    );
+    if (userAccuracy >= 70) {
+      strengths.push(
+        `Précision globale appréciable (${userAccuracy}%) témoignant d'une bonne vigilance sur les phases régulières.`
+      );
+    }
+
+    const weaknesses: string[] = [];
+    if (biggestBlunder) {
+      weaknesses.push(
+        `Coup critique au tour ${biggestBlunder.moveNumber} (${biggestBlunder.san}) : concède un avantage de ${((biggestBlunder.loss || 0) / 100).toFixed(1)} pions. Le coup recommandé était ${biggestBlunder.best || 'une alternative plus solide'}.`
+      );
+    }
+    if (secondFault) {
+      weaknesses.push(
+        `Tournant tactique au coup ${secondFault.moveNumber} (${secondFault.san}) : manque l'option la plus percutante ${secondFault.best || 'de consolidation'}.`
+      );
+    }
+    if (userStats?.middlegameBlunders > 0) {
+      weaknesses.push(
+        `Flottement en milieu de jeu (${userStats.middlegameBlunders} moment(s) de pression mal négociés).`
+      );
+    }
+
+    const advice: string[] = [];
+    if (biggestBlunder) {
+      advice.push(
+        `Rejouer la position du coup ${biggestBlunder.moveNumber} en recherchant en priorité le coup candidat ${biggestBlunder.best || 'le plus actif'}.`
+      );
+    }
+    if (opening) {
+      advice.push(
+        `Approfondir les 3 premiers coups théoriques de ${opening} pour accélérer la prise d'initiative et sécuriser le Roi.`
+      );
+    } else {
+      advice.push('Résoudre quotidiennement des exercices tactiques sur les pièces non protégées.');
+    }
+    advice.push(
+      'Prendre 15 à 30 secondes supplémentaires sur les coups candidats avant de valider un échange de pièces complexe.'
+    );
+
+    return {
+      title: `${userName} dans ${opening || 'Partie Tactique'} (${result || '*'})`,
+      narrative: `Dans cette confrontation sur ${openingLabel}, ${userName} (${isUserWhite ? 'Blancs' : 'Noirs'}) a développé des idées actives avec ${userAccuracy}% de précision face à ${opponentName}. Le sort de la partie a basculé lors des choix tactiques cruciaux du milieu de jeu.`,
+      targetPlayer: {
+        name: userName,
+        color: userColor,
+        accuracy: userAccuracy,
+      },
+      strengthsUser: strengths,
+      weaknessesUser: weaknesses,
+      strengthsWhite: isUserWhite ? strengths : ['Initiative au centre'],
+      weaknessesWhite: isUserWhite ? weaknesses : ['Surveillance des diagonales'],
+      strengthsBlack: !isUserWhite ? strengths : ['Résilience défensive'],
+      weaknessesBlack: !isUserWhite ? weaknesses : ['Sécurité du roi'],
+      trainingAdvice: advice,
+    };
+  };
+
+  // Generate full game report from Gemini (with fail-safe fallback)
   const handleGenerateSummary = async () => {
     setLoadingSummary(true);
+    const isUserWhite = userColor === 'w';
+
+    const userBlunders = moves
+      .filter(
+        (m) =>
+          m.color === userColor &&
+          (m.classification === 'blunder' ||
+            m.classification === 'missedWin' ||
+            m.classification === 'mistake')
+      )
+      .map((m) => ({
+        moveNumber: m.moveNumber,
+        color: m.color,
+        san: m.san,
+        best: m.bestMoveSan,
+        loss: m.centipawnLoss,
+      }));
+
+    const userBestMoves = moves
+      .filter(
+        (m) =>
+          m.color === userColor &&
+          (m.classification === 'best' || m.classification === 'brilliant')
+      )
+      .map((m) => ({
+        moveNumber: m.moveNumber,
+        color: m.color,
+        san: m.san,
+      }));
+
     try {
-      const isUserWhite = userColor === 'w';
-      const userBlunders = moves
-        .filter(
-          (m) =>
-            m.color === userColor &&
-            (m.classification === 'blunder' ||
-              m.classification === 'missedWin' ||
-              m.classification === 'mistake')
-        )
-        .map((m) => ({
-          moveNumber: m.moveNumber,
-          color: m.color,
-          san: m.san,
-          best: m.bestMoveSan,
-          loss: m.centipawnLoss,
-        }));
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-      const userBestMoves = moves
-        .filter(
-          (m) =>
-            m.color === userColor &&
-            (m.classification === 'best' || m.classification === 'brilliant')
-        )
-        .map((m) => ({
-          moveNumber: m.moveNumber,
-          color: m.color,
-          san: m.san,
-        }));
+      try {
+        const response = await fetch('/api/coach/summary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            userPseudo,
+            userColor,
+            whiteName: metadata.white,
+            blackName: metadata.black,
+            result: metadata.result,
+            opening: metadata.opening,
+            eco: metadata.eco,
+            accuracyWhite: statsWhite.accuracy,
+            accuracyBlack: statsBlack.accuracy,
+            statsWhite,
+            statsBlack,
+            userBlunders,
+            userBestMoves,
+            criticalMoments: criticalMoves.slice(0, 8).map((m) => ({
+              ply: m.ply,
+              moveNumber: m.moveNumber,
+              color: m.color,
+              san: m.san,
+              best: m.bestMoveSan,
+              classification: m.classification,
+              loss: m.centipawnLoss,
+            })),
+          }),
+        });
 
-      const response = await fetch('/api/coach/summary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userPseudo,
-          userColor,
-          whiteName: metadata.white,
-          blackName: metadata.black,
-          result: metadata.result,
-          opening: metadata.opening,
-          eco: metadata.eco,
-          accuracyWhite: statsWhite.accuracy,
-          accuracyBlack: statsBlack.accuracy,
-          statsWhite,
-          statsBlack,
-          userBlunders,
-          userBestMoves,
-          criticalMoments: criticalMoves.slice(0, 8).map((m) => ({
-            ply: m.ply,
-            moveNumber: m.moveNumber,
-            color: m.color,
-            san: m.san,
-            best: m.bestMoveSan,
-            classification: m.classification,
-            loss: m.centipawnLoss,
-          })),
-        }),
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const res = await response.json();
+          if (res.success && res.data) {
+            onUpdateAiSummary(res.data);
+            return;
+          }
+        }
+      } catch (networkErr) {
+        console.warn('Backend call to /api/coach/summary failed or timed out, generating local fallback:', networkErr);
+      }
+
+      // If backend network failed or returned error, generate situational summary immediately
+      const fallbackSummary = generateSituationalSummaryClient({
+        userName: isUserWhite ? metadata.white || 'Blancs' : metadata.black || 'Noirs',
+        userColor,
+        isUserWhite,
+        opponentName: isUserWhite ? metadata.black || 'Noirs' : metadata.white || 'Blancs',
+        result: metadata.result,
+        opening: metadata.opening,
+        eco: metadata.eco,
+        userAccuracy: isUserWhite ? statsWhite.accuracy : statsBlack.accuracy,
+        oppAccuracy: isUserWhite ? statsBlack.accuracy : statsWhite.accuracy,
+        userStats: isUserWhite ? statsWhite : statsBlack,
+        userBlunders,
+        userBestMoves,
+        criticalMoments: criticalMoves,
       });
 
-      const res = await response.json();
-      if (res.success && res.data) {
-        onUpdateAiSummary(res.data);
-      }
+      onUpdateAiSummary(fallbackSummary);
     } catch (err) {
       console.error('Failed to generate full AI coaching summary:', err);
     } finally {
@@ -138,13 +349,28 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={() => generateChessAnalysisPdf(analysis)}
-          className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-98 text-white text-xs font-bold shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
-        >
-          <FileDown className="w-4 h-4" />
-          <span>Télécharger le Rapport PDF</span>
-        </button>
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <button
+            onClick={handleCopySummary}
+            className={`inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-md ${
+              copiedSummary
+                ? 'bg-emerald-600/30 border-emerald-500 text-emerald-300'
+                : 'bg-slate-800/90 hover:bg-slate-750 border-slate-700 hover:border-slate-600 text-slate-200 active:scale-98'
+            }`}
+            title="Copier un résumé formaté prêt à coller sur Discord, WhatsApp ou X"
+          >
+            {copiedSummary ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4 text-indigo-400" />}
+            <span>{copiedSummary ? 'Bilan copié !' : 'Partager le Bilan'}</span>
+          </button>
+
+          <button
+            onClick={() => generateChessAnalysisPdf(analysis)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-98 text-white text-xs font-bold shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
+          >
+            <FileDown className="w-4 h-4" />
+            <span>Télécharger PDF</span>
+          </button>
+        </div>
       </div>
 
       {/* Recognized Lichess Opening Banner */}
@@ -226,6 +452,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <span className="font-mono font-bold text-slate-200">
                 ~{statsWhite.avgThinkTimeSeconds}s / coup
                 {statsWhite.longThinksCount ? ` · ${statsWhite.longThinksCount} longue(s)` : ''}
+                {statsWhite.rushedMovesCount ? (
+                  <span className="text-rose-400 font-semibold"> · {statsWhite.rushedMovesCount} précipité(s) ⚡</span>
+                ) : ''}
               </span>
             </div>
           )}
@@ -290,11 +519,216 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <span className="font-mono font-bold text-slate-200">
                 ~{statsBlack.avgThinkTimeSeconds}s / coup
                 {statsBlack.longThinksCount ? ` · ${statsBlack.longThinksCount} longue(s)` : ''}
+                {statsBlack.rushedMovesCount ? (
+                  <span className="text-rose-400 font-semibold"> · {statsBlack.rushedMovesCount} précipité(s) ⚡</span>
+                ) : ''}
               </span>
             </div>
           )}
         </div>
       </div>
+
+      {/* Phase-by-Phase Breakdown (Ouverture, Milieu de jeu, Finale) */}
+      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col gap-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-amber-400" />
+            Analyse par Phase de Jeu
+          </h3>
+          <span className="text-xs text-slate-400">
+            Précision & fautes réparties par étape
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+          {/* 1. Ouverture */}
+          <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-xl flex flex-col justify-between gap-3">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-bold text-slate-200 text-sm">Ouverture</span>
+                <span className="text-[10px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-full font-mono">
+                  Coups 1 à 12
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Développement des pièces, contrôle du centre et roque.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div>
+                <div className="flex justify-between items-center text-[11px] mb-1">
+                  <span className="text-slate-300 font-medium">Blancs</span>
+                  <span className="font-mono font-bold text-slate-100">
+                    {phaseStats.opening.whiteAccuracy !== null ? `${phaseStats.opening.whiteAccuracy}%` : '-'}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-indigo-400 h-full rounded-full"
+                    style={{ width: `${phaseStats.opening.whiteAccuracy || 0}%` }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center text-[11px] mb-1">
+                  <span className="text-slate-300 font-medium">Noirs</span>
+                  <span className="font-mono font-bold text-slate-100">
+                    {phaseStats.opening.blackAccuracy !== null ? `${phaseStats.opening.blackAccuracy}%` : '-'}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-emerald-400 h-full rounded-full"
+                    style={{ width: `${phaseStats.opening.blackAccuracy || 0}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800/70 flex items-center justify-between text-[11px] text-slate-400">
+              <span>Gaffes / Fautes :</span>
+              <span className="font-mono font-bold text-slate-300">
+                {phaseStats.opening.whiteBlunders + phaseStats.opening.whiteMistakes} (B) / {phaseStats.opening.blackBlunders + phaseStats.opening.blackMistakes} (N)
+              </span>
+            </div>
+          </div>
+
+          {/* 2. Milieu de jeu */}
+          <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-xl flex flex-col justify-between gap-3">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-bold text-slate-200 text-sm">Milieu de Jeu</span>
+                <span className="text-[10px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-full font-mono">
+                  Coups 13 à 30
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Calculs tactiques, plans stratégiques et attaques de roque.
+              </p>
+            </div>
+
+            {phaseStats.middlegame.totalMoves > 0 ? (
+              <div className="space-y-2">
+                <div>
+                  <div className="flex justify-between items-center text-[11px] mb-1">
+                    <span className="text-slate-300 font-medium">Blancs</span>
+                    <span className="font-mono font-bold text-slate-100">
+                      {phaseStats.middlegame.whiteAccuracy !== null ? `${phaseStats.middlegame.whiteAccuracy}%` : '-'}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-indigo-400 h-full rounded-full"
+                      style={{ width: `${phaseStats.middlegame.whiteAccuracy || 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center text-[11px] mb-1">
+                    <span className="text-slate-300 font-medium">Noirs</span>
+                    <span className="font-mono font-bold text-slate-100">
+                      {phaseStats.middlegame.blackAccuracy !== null ? `${phaseStats.middlegame.blackAccuracy}%` : '-'}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-emerald-400 h-full rounded-full"
+                      style={{ width: `${phaseStats.middlegame.blackAccuracy || 0}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="py-4 text-center text-slate-500 text-[11px] italic">
+                Partie conclue avant le milieu de jeu
+              </div>
+            )}
+
+            <div className="pt-2 border-t border-slate-800/70 flex items-center justify-between text-[11px] text-slate-400">
+              <span>Gaffes / Fautes :</span>
+              <span className="font-mono font-bold text-slate-300">
+                {phaseStats.middlegame.whiteBlunders + phaseStats.middlegame.whiteMistakes} (B) / {phaseStats.middlegame.blackBlunders + phaseStats.middlegame.blackMistakes} (N)
+              </span>
+            </div>
+          </div>
+
+          {/* 3. Finale */}
+          <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-xl flex flex-col justify-between gap-3">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="font-bold text-slate-200 text-sm">Finale</span>
+                <span className="text-[10px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-full font-mono">
+                  Coups 31+
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Promotion de pions, technique de roi actif et conversion.
+              </p>
+            </div>
+
+            {phaseStats.endgame.totalMoves > 0 ? (
+              <div className="space-y-2">
+                <div>
+                  <div className="flex justify-between items-center text-[11px] mb-1">
+                    <span className="text-slate-300 font-medium">Blancs</span>
+                    <span className="font-mono font-bold text-slate-100">
+                      {phaseStats.endgame.whiteAccuracy !== null ? `${phaseStats.endgame.whiteAccuracy}%` : '-'}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-indigo-400 h-full rounded-full"
+                      style={{ width: `${phaseStats.endgame.whiteAccuracy || 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center text-[11px] mb-1">
+                    <span className="text-slate-300 font-medium">Noirs</span>
+                    <span className="font-mono font-bold text-slate-100">
+                      {phaseStats.endgame.blackAccuracy !== null ? `${phaseStats.endgame.blackAccuracy}%` : '-'}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-emerald-400 h-full rounded-full"
+                      style={{ width: `${phaseStats.endgame.blackAccuracy || 0}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="py-4 text-center text-slate-500 text-[11px] italic">
+                Finale non atteinte dans cette partie
+              </div>
+            )}
+
+            <div className="pt-2 border-t border-slate-800/70 flex items-center justify-between text-[11px] text-slate-400">
+              <span>Gaffes / Fautes :</span>
+              <span className="font-mono font-bold text-slate-300">
+                {phaseStats.endgame.totalMoves > 0
+                  ? `${phaseStats.endgame.whiteBlunders + phaseStats.endgame.whiteMistakes} (B) / ${phaseStats.endgame.blackBlunders + phaseStats.endgame.blackMistakes} (N)`
+                  : '-'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Spider / Radar Chart (Forces & Faiblesses sur 5 Dimensions) */}
+      <PlayerRadarChart
+        moves={moves}
+        statsWhite={statsWhite}
+        statsBlack={statsBlack}
+        metadata={metadata}
+        userColor={userColor}
+        userPseudo={userPseudo}
+        phaseStats={phaseStats}
+      />
 
       {/* Move Breakdown Matrix */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg">
@@ -303,7 +737,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
           Répartition Détaillée des Coups
         </h3>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
+          <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex flex-col justify-between">
+            <div className="flex items-center gap-1.5 text-violet-400 font-semibold mb-2">
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Théorie</span>
+            </div>
+            <div className="flex justify-between items-baseline font-mono font-bold">
+              <span className="text-slate-200">{statsWhite.book ?? 0}</span>
+              <span className="text-slate-500">|</span>
+              <span className="text-slate-400">{statsBlack.book ?? 0}</span>
+            </div>
+            <span className="text-[10px] text-slate-500 mt-1">Blancs | Noirs</span>
+          </div>
+
           <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex flex-col justify-between">
             <div className="flex items-center gap-1.5 text-cyan-400 font-semibold mb-2">
               <Sparkles className="w-3.5 h-3.5" />
@@ -439,10 +886,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* AI Pedagogical Grandmaster Report */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col gap-4">
-        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+            <div className="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
               <GraduationCap className="w-4 h-4" />
             </div>
             <div>
@@ -459,7 +906,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <button
               onClick={handleGenerateSummary}
               disabled={loadingSummary}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold shadow-md transition-all"
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-semibold shadow-md transition-all w-full sm:w-auto cursor-pointer"
             >
               {loadingSummary ? (
                 <>
@@ -507,50 +954,53 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
               return (
                 <>
-                  <div className="flex items-center justify-between bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 flex-wrap gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 gap-2.5">
                     <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-indigo-400" />
+                      <User className="w-4 h-4 text-indigo-400 shrink-0" />
                       <span className="text-xs text-slate-400">
-                        Bilan affiché pour :
+                        Bilan pour :
                       </span>
-                      <span className="font-bold text-white text-xs bg-indigo-600/30 border border-indigo-500/30 px-2 py-0.5 rounded-md">
+                      <span className="font-bold text-white text-xs bg-indigo-600/30 border border-indigo-500/30 px-2 py-0.5 rounded-md truncate max-w-[200px]">
                         {targetName} ({targetColorLabel})
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+                    <div className="grid grid-cols-3 gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800 w-full sm:w-auto text-center">
                       <button
                         type="button"
                         onClick={() => setSelectedPerspective('user')}
-                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                        className={`px-2 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer truncate ${
                           selectedPerspective === 'user'
-                            ? 'bg-indigo-600 text-white'
+                            ? 'bg-indigo-600 text-white shadow-sm'
                             : 'text-slate-400 hover:text-slate-200'
                         }`}
+                        title={`Mon profil (${isUserWhite ? 'Blancs' : 'Noirs'})`}
                       >
-                        👤 Mon profil ({isUserWhite ? 'Blancs' : 'Noirs'})
+                        👤 Profil
                       </button>
                       <button
                         type="button"
                         onClick={() => setSelectedPerspective('white')}
-                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                        className={`px-2 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer truncate ${
                           selectedPerspective === 'white'
-                            ? 'bg-indigo-600 text-white'
+                            ? 'bg-indigo-600 text-white shadow-sm'
                             : 'text-slate-400 hover:text-slate-200'
                         }`}
+                        title={`Blancs (${metadata.white || 'Blancs'})`}
                       >
-                        ⚪ Blancs ({metadata.white || 'Blancs'})
+                        ⚪ Blancs
                       </button>
                       <button
                         type="button"
                         onClick={() => setSelectedPerspective('black')}
-                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                        className={`px-2 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer truncate ${
                           selectedPerspective === 'black'
-                            ? 'bg-indigo-600 text-white'
+                            ? 'bg-indigo-600 text-white shadow-sm'
                             : 'text-slate-400 hover:text-slate-200'
                         }`}
+                        title={`Noirs (${metadata.black || 'Noirs'})`}
                       >
-                        ⚫ Noirs ({metadata.black || 'Noirs'})
+                        ⚫ Noirs
                       </button>
                     </div>
                   </div>

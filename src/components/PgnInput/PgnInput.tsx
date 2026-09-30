@@ -229,7 +229,7 @@ export const PgnInput: React.FC<PgnInputProps> = ({
           <div className="flex items-center gap-2">
             <Sliders className="w-4 h-4 text-indigo-400 shrink-0" />
             <span className="text-xs font-semibold text-slate-200">
-              Profondeur de calcul Stockfish
+              Profondeur de calcul Stockfish 19
             </span>
           </div>
           <span className="text-[11px] text-indigo-300 font-medium">

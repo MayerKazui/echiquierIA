@@ -8,7 +8,18 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-const apiKey = process.env.GEMINI_API_KEY || '';
+// Enable CORS for preview iframe and cross-origin fetch requests
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+const apiKey = process.env.GEMINI_API_KEY || undefined;
 const ai = new GoogleGenAI({
   apiKey,
   httpOptions: {
@@ -18,15 +29,20 @@ const ai = new GoogleGenAI({
   },
 });
 
-// Helper: Multi-model cascading caller with automatic fallback
+// Helper: Multi-model cascading caller with automatic fallback and strict timeout
 async function callGeminiWithFallback(prompt: string, systemInstruction: string): Promise<any> {
-  // Use resilient list of supported Gemini models
-  const models = ['gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'];
+  // Use resilient list of supported Gemini models starting with gemini-3.8-flash
+  const models = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
   let lastError: any = null;
 
   for (const model of models) {
     try {
-      const response = await ai.models.generateContent({
+      // 8s timeout per model to prevent connection drops in Cloud Run
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout on model ${model}`)), 8000)
+      );
+
+      const genPromise = ai.models.generateContent({
         model,
         contents: prompt,
         config: {
@@ -35,8 +51,16 @@ async function callGeminiWithFallback(prompt: string, systemInstruction: string)
         },
       });
 
+      const response: any = await Promise.race([genPromise, timeoutPromise]);
+
       if (response && response.text) {
-        return JSON.parse(response.text);
+        // Strip code fences if present (e.g. ```json ... ```)
+        const cleaned = response.text
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/\s*```$/i, '')
+          .trim();
+        return JSON.parse(cleaned);
       }
     } catch (err: any) {
       console.warn(`Model ${model} failed (${err.message || 'Error'}), trying next candidate...`);
@@ -427,6 +451,41 @@ Format JSON attendu :
         trainingAdvice: ['Pratiquer les finales élémentaires', 'Travailler les motifs de déviation tactique'],
       },
     });
+  }
+});
+
+// Proxy endpoint to import PGN directly to Lichess via official API without CORS or CSRF restrictions
+app.post('/api/lichess/import', async (req, res) => {
+  try {
+    const { pgn } = req.body;
+    if (!pgn || typeof pgn !== 'string') {
+      return res.status(400).json({ success: false, error: 'PGN requis' });
+    }
+
+    const lichessResponse = await fetch('https://lichess.org/api/import', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ pgn }),
+    });
+
+    if (!lichessResponse.ok) {
+      const errText = await lichessResponse.text();
+      console.warn('Lichess import API error:', lichessResponse.status, errText);
+      return res.status(lichessResponse.status).json({ success: false, error: errText });
+    }
+
+    const data: any = await lichessResponse.json();
+    return res.json({
+      success: true,
+      id: data.id,
+      url: data.url || `https://lichess.org/${data.id}`,
+    });
+  } catch (error: any) {
+    console.error('Error in /api/lichess/import:', error);
+    return res.status(500).json({ success: false, error: error.message || 'Erreur serveur Lichess' });
   }
 });
 
