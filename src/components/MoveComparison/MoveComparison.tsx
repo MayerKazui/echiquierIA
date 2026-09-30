@@ -216,6 +216,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
             moveBest: { san: currentMove.bestMoveSan, uci: currentMove.bestMoveUci },
             evalPlayed: formatEval(currentMove.evalAfter, currentMove.mateAfter),
             evalBest: formatEval(currentMove.evalBefore, currentMove.mateBefore),
+            classificationKey: currentMove.classification,
             classification: badge.label,
             pv: currentMove.pv.slice(0, 5).join(' '),
             playerColor: isWhite ? 'white' : 'black',

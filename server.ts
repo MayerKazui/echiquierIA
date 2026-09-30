@@ -77,6 +77,24 @@ const lichessImportLimiter = rateLimit({
 
 // Request validation. Every string that ends up in the Gemini prompt is restricted to a
 // character set with no quotes, braces or line breaks, so it cannot carry instructions.
+const MOVE_CLASSIFICATIONS = [
+  'brilliant',
+  'great',
+  'best',
+  'excellent',
+  'good',
+  'inaccuracy',
+  'mistake',
+  'blunder',
+  'missedWin',
+  'book',
+] as const;
+type MoveClassification = (typeof MOVE_CLASSIFICATIONS)[number];
+
+// Moves that deserve praise rather than a critique (mirrors the client-side list).
+const GOOD_CLASSIFICATIONS: readonly MoveClassification[] = ['brilliant', 'great', 'best', 'excellent', 'good', 'book'];
+const isGoodClassification = (key: MoveClassification) => GOOD_CLASSIFICATIONS.includes(key);
+
 const moveToken = z
   .string()
   .max(12)
@@ -99,7 +117,9 @@ const explainSchema = z.object({
   moveBest: moveRef,
   evalPlayed: evalLabel,
   evalBest: evalLabel,
-  // Usually a label such as "Gaffe critique", but it can also be an opening name.
+  // Raw MoveClassification from the client: drives the good/bad logic (no French substring tests).
+  classificationKey: z.enum(MOVE_CLASSIFICATIONS),
+  // Display label for the prompt. Usually "Gaffe critique", but it can also be an opening name.
   classification: z
     .string()
     .min(1)
@@ -140,31 +160,40 @@ const ai = new GoogleGenAI({
   },
 });
 
-// Helper: Multi-model cascading caller with automatic fallback and strict timeout
+// Gemini call budget. The client gives up after 10 s, so the whole cascade must finish before
+// that: worst case is one slow model (5 s) followed by a second one cut short at the deadline.
+// Errors that come back quickly (404, 429, bad JSON) move on to the next model immediately.
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.1-flash-lite'];
+const GEMINI_ATTEMPT_TIMEOUT_MS = 5000;
+const GEMINI_TOTAL_TIMEOUT_MS = 9000;
+
+// Helper: cascading Gemini caller. Each attempt is truly cancelled (AbortSignal) when it times out.
 async function callGeminiWithFallback(prompt: string, systemInstruction: string): Promise<any> {
-  // Use resilient list of supported Gemini models starting with gemini-3.8-flash
-  const models = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'];
+  const deadline = Date.now() + GEMINI_TOTAL_TIMEOUT_MS;
   let lastError: any = null;
 
-  for (const model of models) {
-    try {
-      // 8s timeout per model to prevent connection drops in Cloud Run
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout on model ${model}`)), 8000)
-      );
+  for (const model of GEMINI_MODELS) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
 
-      const genPromise = ai.models.generateContent({
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(new Error(`Timeout on model ${model}`)),
+      Math.min(GEMINI_ATTEMPT_TIMEOUT_MS, remaining)
+    );
+
+    try {
+      const response = await ai.models.generateContent({
         model,
         contents: prompt,
         config: {
           systemInstruction,
           responseMimeType: 'application/json',
+          abortSignal: controller.signal,
         },
       });
 
-      const response: any = await Promise.race([genPromise, timeoutPromise]);
-
-      if (response && response.text) {
+      if (response?.text) {
         // Strip code fences if present (e.g. ```json ... ```)
         const cleaned = response.text
           .replace(/^```json\s*/i, '')
@@ -176,10 +205,41 @@ async function callGeminiWithFallback(prompt: string, systemInstruction: string)
     } catch (err: any) {
       console.warn(`Model ${model} failed (${err.message || 'Error'}), trying next candidate...`);
       lastError = err;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
   throw lastError || new Error('All Gemini models failed');
+}
+
+// In-memory cache of Gemini explanations (LRU, capped). Only real Gemini answers are cached, never
+// the heuristic fallback, so a transient outage does not stick. Concurrent identical requests share
+// one Gemini call.
+const EXPLANATION_CACHE_MAX = 500;
+const EXPLANATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const explanationCache = new Map<string, { data: any; expires: number }>();
+const explanationInFlight = new Map<string, Promise<any>>();
+
+function getCachedExplanation(key: string) {
+  const entry = explanationCache.get(key);
+  if (!entry) return undefined;
+  if (entry.expires < Date.now()) {
+    explanationCache.delete(key);
+    return undefined;
+  }
+  // Re-insert to mark as most recently used.
+  explanationCache.delete(key);
+  explanationCache.set(key, entry);
+  return entry.data;
+}
+
+function setCachedExplanation(key: string, data: any) {
+  explanationCache.set(key, { data, expires: Date.now() + EXPLANATION_CACHE_TTL_MS });
+  if (explanationCache.size > EXPLANATION_CACHE_MAX) {
+    const oldest = explanationCache.keys().next().value;
+    if (oldest !== undefined) explanationCache.delete(oldest);
+  }
 }
 
 // Helper: Dynamic, 100% situational heuristic chess coach (never generic boilerplate)
@@ -189,30 +249,15 @@ function generateSituationalExplanation(
   pv: string | undefined,
   playerColor: string,
   moveNumber: number,
-  classification: string
+  classificationKey: MoveClassification
 ) {
   const playedSan = movePlayed?.san || movePlayed?.uci || '';
   const bestSan = moveBest?.san || moveBest?.uci || playedSan;
   const isWhite = playerColor === 'white';
   const oppColor = isWhite ? 'noires' : 'blanches';
 
-  const classLower = (classification || '').toLowerCase();
-  const isBlunder = classLower.includes('gaffe') || classLower.includes('blunder') || classLower.includes('manquée');
-  const isMistake = classLower.includes('erreur') || classLower.includes('mistake');
-  const isInaccuracy = classLower.includes('imprécision') || classLower.includes('inaccuracy');
-
-  const isGoodMove =
-    !isBlunder &&
-    !isMistake &&
-    !isInaccuracy &&
-    (classLower.includes('meilleur') ||
-      classLower.includes('bon') ||
-      classLower.includes('brillant') ||
-      classLower.includes('théorique') ||
-      classLower.includes('précis') ||
-      classLower.includes('livre') ||
-      playedSan === bestSan ||
-      !moveBest?.san);
+  const isBlunder = classificationKey === 'blunder' || classificationKey === 'missedWin';
+  const isGoodMove = isGoodClassification(classificationKey) || playedSan === bestSan || !moveBest?.san;
 
   // Identify moving piece of the relevant move
   const targetMove = isGoodMove ? playedSan : bestSan;
@@ -297,24 +342,13 @@ app.post('/api/coach/explain', explainLimiter, validateBody(explainSchema), asyn
       playerColor,
       moveNumber,
       sanHistory,
+      classificationKey,
     } = req.body;
 
-    const classLower = (classification || '').toLowerCase();
-    const isBlunder = classLower.includes('gaffe') || classLower.includes('blunder') || classLower.includes('manquée');
-    const isMistake = classLower.includes('erreur') || classLower.includes('mistake');
-    const isInaccuracy = classLower.includes('imprécision') || classLower.includes('inaccuracy');
     const isGoodMove =
-      !isBlunder &&
-      !isMistake &&
-      !isInaccuracy &&
-      (classLower.includes('meilleur') ||
-        classLower.includes('bon') ||
-        classLower.includes('brillant') ||
-        classLower.includes('théorique') ||
-        classLower.includes('précis') ||
-        classLower.includes('livre') ||
-        (movePlayed?.san && moveBest?.san && movePlayed.san === moveBest.san) ||
-        !moveBest?.san);
+      isGoodClassification(classificationKey) ||
+      (movePlayed?.san && moveBest?.san && movePlayed.san === moveBest.san) ||
+      !moveBest?.san;
 
     const promptDirective = isGoodMove
       ? `ATTENTION DIRECTIVE CRITIQUE : Le coup joué ${movePlayed?.san || movePlayed?.uci} est UN EXCELLENT COUP ou LE MEILLEUR COUP (classification : "${classification}"). Il n'y a AUCUNE erreur ni gaffe.
@@ -357,15 +391,26 @@ Format JSON strict requis :
   "plan": "1. Action immédiate... \\n2. Suite tactique... \\n3. Consolidation..."
 }`;
 
+    // The prompt depends on everything below, so it is the natural cache key.
+    const cacheKey = prompt;
+    const cached = getCachedExplanation(cacheKey);
+    if (cached) return res.json({ success: true, data: cached });
+
     let parsed;
     try {
-      parsed = await callGeminiWithFallback(
-        prompt,
-        'Tu es un entraîneur d’échecs de Grand Maître bienveillant, rigoureux et précis. Si le coup joué est bon ou optimal, tu le valides sans inventer de défauts imaginaires. Réponds toujours en JSON valide.'
-      );
+      let pending = explanationInFlight.get(cacheKey);
+      if (!pending) {
+        pending = callGeminiWithFallback(
+          prompt,
+          'Tu es un entraîneur d’échecs de Grand Maître bienveillant, rigoureux et précis. Si le coup joué est bon ou optimal, tu le valides sans inventer de défauts imaginaires. Réponds toujours en JSON valide.'
+        ).finally(() => explanationInFlight.delete(cacheKey));
+        explanationInFlight.set(cacheKey, pending);
+      }
+      parsed = await pending;
       if (isGoodMove && parsed) {
         parsed.whyPlayedIsBad = '';
       }
+      if (parsed) setCachedExplanation(cacheKey, parsed);
     } catch (genErr) {
       console.warn('Gemini calls failed, falling back to situational dynamic chess analysis:', genErr);
       parsed = generateSituationalExplanation(
@@ -374,7 +419,7 @@ Format JSON strict requis :
         pv,
         playerColor,
         moveNumber,
-        classification
+        classificationKey
       );
     }
 
@@ -387,7 +432,7 @@ Format JSON strict requis :
       req.body?.pv,
       req.body?.playerColor || 'white',
       req.body?.moveNumber || 1,
-      req.body?.classification || 'erreur'
+      req.body?.classificationKey || 'mistake'
     );
     res.json({ success: true, data: fallback });
   }

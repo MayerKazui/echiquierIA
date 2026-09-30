@@ -29,12 +29,12 @@ Conservés : « Partie Lichess » (`/api/lichess/import`), le graphique radar du
 - [x] Validation des corps de requête avec `zod` (400 sinon) : FEN vérifié par `chess.js`, coups, évaluations, classification et `pv` restreints à des jeux de caractères sans guillemets ni retours à la ligne, ce qui empêche d'injecter des instructions dans le prompt Gemini. Les champs inconnus sont ignorés.
 - [x] Erreurs génériques côté client (plus de `error.message` ni de texte brut de Lichess) ; l'`id` renvoyé par Lichess est validé avant d'être réutilisé. Un gestionnaire d'erreurs JSON couvre les corps trop gros ou mal formés.
 
-### 2. Latence et coût de l'appel Gemini (`server.ts`)
-- [ ] Remplacer le `Promise.race` par un `AbortController` (le timeout n'annule pas la requête en cours).
-- [ ] Réduire le pire cas (3 modèles × 8 s = 24 s avant le fallback heuristique).
-- [ ] Ajouter un cache sur `fen + coup joué` pour ne pas redemander la même explication.
-- [ ] Vérifier que les noms de modèles (`gemini-3.8-flash`, `gemini-3.1-flash-lite`, `gemini-flash-latest`) existent.
-- [ ] Envoyer `MoveClassification` tel quel au serveur au lieu de tester des sous-chaînes françaises (`includes('gaffe')`, `'manquée'`…).
+### 2. Latence et coût de l'appel Gemini (`server.ts`) — fait
+- [x] `Promise.race` remplacé par un `AbortController` par tentative (`config.abortSignal`) : le timeout annule réellement la requête.
+- [x] Pire cas ramené de 24 s à 9 s (2 modèles, 5 s par tentative, budget total de 9 s < timeout client de 10 s). `gemini-flash-latest`, alias redondant, est retiré ; les erreurs rapides (404, 429, JSON invalide) passent au modèle suivant sans attendre.
+- [x] Cache LRU en mémoire (500 entrées, 24 h) sur le prompt complet (FEN, coups, évaluations, classification…) : seules les vraies réponses Gemini sont mises en cache, jamais le repli heuristique. Les requêtes identiques simultanées partagent un seul appel.
+- [x] Noms de modèles vérifiés : `gemini-3.8-flash` et `gemini-3.1-flash-lite` figurent dans les types du SDK installé (`@google/genai`), `gemini-flash-latest` dans son README.
+- [x] Le client envoie `classificationKey` (enum `MoveClassification`, validé par `zod`) ; le serveur n'analyse plus de sous-chaînes françaises. Le libellé `classification` ne sert plus qu'à l'affichage dans le prompt.
 
 ### 3. Découpage des gros fichiers
 - [ ] `src/App.tsx` (1766 lignes, 56 hooks après l'épuration de l'interface ; 2300 lignes / 77 hooks avant) : extraire `useLocalStorage` (5 usages dupliqués), `useGameAnalysis`, `usePlayback`, l'import Lichess, l'export, et des sous-composants.
