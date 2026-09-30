@@ -6,7 +6,6 @@ import {
   Check,
   CheckCircle2,
   Clock,
-  FileDown,
   Lightbulb,
   Share2,
   Sparkles,
@@ -15,7 +14,6 @@ import {
   XCircle,
 } from 'lucide-react';
 import { GameAnalysisResult, MoveAnalysis } from '../../types/chess';
-import { generateChessAnalysisPdf } from '../../utils/pdfExport';
 import { PlayerRadarChart } from './PlayerRadarChart';
 
 interface DashboardProps {
@@ -112,13 +110,13 @@ Analysé avec Échiquier IA & Stockfish 19`;
       <div className="bg-gradient-to-r from-indigo-950/80 via-slate-900 to-slate-900 border border-indigo-900/50 rounded-2xl p-4 sm:p-5 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full inline-block mb-1.5">
-            Exportation & Archivage
+            Synthèse
           </span>
           <h2 className="text-base sm:text-lg font-bold text-white">
             Tableau de Bord & Synthèse de Progression
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Téléchargez le rapport complet au format PDF comprenant les statistiques clés, le graphique d'évaluation et les moments décisifs.
+            Statistiques clés de la partie, à partager en un clic.
           </p>
         </div>
 
@@ -134,14 +132,6 @@ Analysé avec Échiquier IA & Stockfish 19`;
           >
             {copiedSummary ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4 text-indigo-400" />}
             <span>{copiedSummary ? 'Bilan copié !' : 'Partager le Bilan'}</span>
-          </button>
-
-          <button
-            onClick={() => generateChessAnalysisPdf(analysis)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-98 text-white text-xs font-bold shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
-          >
-            <FileDown className="w-4 h-4" />
-            <span>Télécharger PDF</span>
           </button>
         </div>
       </div>
