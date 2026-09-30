@@ -22,12 +22,12 @@ Conservés : « Partie Lichess » (`/api/lichess/import`), le graphique radar du
 
 ## Priorité haute
 
-### 1. Sécurité du serveur (`server.ts`)
-- [ ] Restreindre le CORS (actuellement `*` sur toutes les routes) à l'origine de l'app.
-- [ ] Ajouter un rate-limit sur `/api/coach/*` et `/api/lichess/import` (consomment le quota Gemini / relaient vers Lichess).
-- [ ] Plafonner la taille du body (`express.json({ limit })`) et la taille du PGN importé.
-- [ ] Valider les corps de requête (schéma, ex. zod) : `fen`, `pgn`, `sanHistory`, etc. sont injectés tels quels dans le prompt Gemini (injection de prompt) et `sanHistory.slice` plante si ce n'est pas un tableau.
-- [ ] Ne plus renvoyer les erreurs brutes au client (`error.message`, texte de réponse Lichess).
+### 1. Sécurité du serveur (`server.ts`) — fait
+- [x] CORS : plus de `*`. Les requêtes de même origine passent ; les autres sites doivent être listés dans `APP_URL` / `ALLOWED_ORIGINS`, sinon 403 (l'origine `null` est refusée aussi).
+- [x] Rate-limit par IP (`express-rate-limit`) : 20 requêtes/min sur `/api/coach/explain`, 10 requêtes/10 min sur `/api/lichess/import`. `TRUST_PROXY` est réglé automatiquement sur Cloud Run (`K_SERVICE`) pour lire la vraie IP.
+- [x] Taille du body plafonnée à 100 Ko (413 au-delà) ; PGN limité à 60 000 caractères ; timeout de 10 s sur l'appel à Lichess.
+- [x] Validation des corps de requête avec `zod` (400 sinon) : FEN vérifié par `chess.js`, coups, évaluations, classification et `pv` restreints à des jeux de caractères sans guillemets ni retours à la ligne, ce qui empêche d'injecter des instructions dans le prompt Gemini. Les champs inconnus sont ignorés.
+- [x] Erreurs génériques côté client (plus de `error.message` ni de texte brut de Lichess) ; l'`id` renvoyé par Lichess est validé avant d'être réutilisé. Un gestionnaire d'erreurs JSON couvre les corps trop gros ou mal formés.
 
 ### 2. Latence et coût de l'appel Gemini (`server.ts`)
 - [ ] Remplacer le `Promise.race` par un `AbortController` (le timeout n'annule pas la requête en cours).
