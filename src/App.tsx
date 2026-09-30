@@ -14,7 +14,6 @@ import {
   FileText,
   Flame,
   FlaskConical,
-  Keyboard,
   LayoutDashboard,
   Palette,
   Pause,
@@ -89,7 +88,6 @@ export default function App() {
   const [threatsMode, setThreatsMode] = useState<'suggestion' | 'played'>('suggestion');
   const [isPreviewingAlternative, setIsPreviewingAlternative] = useState(false);
   const [filterOnlyErrors, setFilterOnlyErrors] = useState(false);
-  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [boardTheme, setBoardTheme] = useState<'green' | 'wood' | 'blue'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('chess_board_theme');
@@ -1666,79 +1664,6 @@ export default function App() {
             isAnalyzing={isAnalyzing}
             onClose={() => setIsPgnModalOpen(false)}
           />
-        </div>
-      )}
-
-      {/* Keyboard Shortcuts Cheat Sheet Modal */}
-      {isShortcutsModalOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setIsShortcutsModalOpen(false)}
-        >
-          <div
-            className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-sm w-full shadow-2xl animate-in zoom-in-95 text-slate-100"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-3">
-              <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                <Keyboard className="w-4 h-4 text-indigo-400" />
-                <span>Raccourcis Clavier</span>
-              </h3>
-              <button
-                onClick={() => setIsShortcutsModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Coup précédent / suivant</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-indigo-300 font-bold">← / →</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Début / Fin de partie</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-indigo-300 font-bold">↑ / ↓</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Sauter d'erreur en erreur</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-amber-300 font-bold">Shift + ← / →</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Lecture auto (Play / Pause)</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-indigo-300 font-bold">Espace</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Inverser l'échiquier</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-indigo-300 font-bold">F</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Annotations (flèches & menaces)</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-indigo-300 font-bold">E</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Activer / couper le son</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-indigo-300 font-bold">M</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Variante alternative</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-emerald-300 font-bold">A</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-300">Contrôle de l'espace (Cycle)</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-blue-300 font-bold">H</span>
-              </div>
-              <div className="flex justify-between items-center py-1">
-                <span className="text-slate-300">Quitter le mode Sandbox</span>
-                <span className="font-mono bg-slate-800 border border-slate-700 px-2 py-0.5 rounded text-slate-300 font-bold">Échap</span>
-              </div>
-            </div>
-
-            <p className="text-[10px] text-slate-500 mt-4 text-center">
-              Fonctionne directement depuis l'échiquier.
-            </p>
-          </div>
         </div>
       )}
     </div>
