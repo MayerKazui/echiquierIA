@@ -80,7 +80,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
       <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 min-h-[280px] flex flex-col items-center justify-center text-center text-slate-400">
         <BrainCircuit className="w-10 h-10 text-slate-600 mb-3" />
         <p className="font-medium text-slate-300">Aucun coup sélectionné</p>
-        <p className="text-xs text-slate-500 mt-1 max-w-xs">
+        <p className="text-xs text-slate-400 mt-1 max-w-xs">
           Avancez dans la partie ou cliquez sur un moment critique dans la liste des coups pour comparer les choix.
         </p>
       </div>
@@ -281,6 +281,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
         {isAlternativeAvailable && (
           <button
             onClick={onTogglePreviewAlternative}
+            aria-pressed={isPreviewingAlternative}
             className={`inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
               isPreviewingAlternative
                 ? 'bg-emerald-600 text-white shadow-md'
@@ -364,7 +365,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
                 )}
               </span>
               {currentMove.clock && (
-                <span className="text-[11px] text-slate-500 font-mono">Horloge : {currentMove.clock}</span>
+                <span className="text-[11px] text-slate-400 font-mono">Horloge : {currentMove.clock}</span>
               )}
             </div>
           )}
@@ -449,7 +450,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
           <div className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-800/60 min-w-0">
             {currentMove.pv.length > 0 ? (
               <div className="flex items-center gap-1 min-w-0 overflow-hidden text-slate-300 font-mono text-[11px]">
-                <span className="text-slate-500 shrink-0">Suite :</span>
+                <span className="text-slate-400 shrink-0">Suite :</span>
                 <span className="text-slate-300 truncate font-mono min-w-0">
                   {formatPvToFrench(currentMove.fenBefore, currentMove.pv, 7, true)}
                 </span>
@@ -481,9 +482,14 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
 
           {/* Threats Source Toggle: Engine Suggestion vs Played Move */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-[11px]">
+            <div
+              role="group"
+              aria-label="Origine des menaces affichées"
+              className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-[11px]"
+            >
               <button
                 onClick={() => onSelectThreatsMode?.('suggestion')}
+                aria-pressed={threatsMode === 'suggestion'}
                 className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer ${
                   threatsMode === 'suggestion'
                     ? 'bg-rose-600 text-white shadow-sm'
@@ -508,6 +514,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
 
               <button
                 onClick={() => onSelectThreatsMode?.('played')}
+                aria-pressed={threatsMode === 'played'}
                 className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer ${
                   threatsMode === 'played' ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
                 }`}
@@ -530,6 +537,8 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
             {/* Quick Toggle On/Off for Board Annotations */}
             <button
               onClick={onToggleShowThreats}
+              aria-pressed={showThreats}
+              aria-label="Menaces sur l’échiquier"
               className={`p-1.5 rounded-lg border text-xs transition-colors cursor-pointer ${
                 showThreats
                   ? 'bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30'
@@ -548,7 +557,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
           if (currentThreats.length === 0) {
             return (
               <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800 text-xs text-slate-400 flex items-center gap-2">
-                <span className="text-slate-500 text-base">🛡️</span>
+                <span className="text-slate-400 text-base">🛡️</span>
                 <span>
                   Aucune menace directe immédiate créée par ce coup (manœuvre de consolidation ou coup positionnel).
                 </span>
@@ -617,6 +626,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
             <button
               onClick={handleFetchAiExplanation}
               disabled={loadingAi}
+              aria-busy={loadingAi}
               className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium transition-colors shadow-sm cursor-pointer w-full sm:w-auto"
             >
               {loadingAi ? (
@@ -632,6 +642,15 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
               )}
             </button>
           )}
+        </div>
+
+        {/* Announces the state of the explanation to screen readers */}
+        <div role="status" className="sr-only">
+          {loadingAi
+            ? 'Analyse du plan en cours'
+            : currentMove.aiExplanation
+              ? `Explication disponible. Concept clé : ${currentMove.aiExplanation.concept}`
+              : ''}
         </div>
 
         {/* AI Pedagogical Feedback Display */}

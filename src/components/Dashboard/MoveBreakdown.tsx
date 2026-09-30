@@ -55,10 +55,10 @@ export const MoveBreakdown: React.FC<{ statsWhite: PlayerStats; statsBlack: Play
           </div>
           <div className="flex justify-between items-baseline font-mono font-bold">
             <span className={whiteClass}>{value(statsWhite)}</span>
-            <span className="text-slate-500">|</span>
+            <span className="text-slate-400">|</span>
             <span className={blackClass}>{value(statsBlack)}</span>
           </div>
-          <span className="text-[10px] text-slate-500 mt-1">Blancs | Noirs</span>
+          <span className="text-[10px] text-slate-400 mt-1">Blancs | Noirs</span>
         </div>
       ))}
     </div>

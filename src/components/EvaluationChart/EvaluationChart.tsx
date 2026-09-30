@@ -200,7 +200,7 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({ moves, current
 
   if (moves.length === 0) {
     return (
-      <div className="h-28 w-full flex items-center justify-center text-slate-500 text-xs bg-slate-900/40 rounded-xl border border-slate-800">
+      <div className="h-28 w-full flex items-center justify-center text-slate-400 text-xs bg-slate-900/40 rounded-xl border border-slate-800">
         Chargement de l'analyse Stockfish...
       </div>
     );
@@ -218,14 +218,26 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({ moves, current
     return cp > 0 ? `+${val}` : val;
   };
 
+  // Text alternative of the graph: the same information is available move by move in the move list
+  const chartDescription = {
+    eval: `Courbe d'évaluation de la partie sur ${moves.length} demi-coups. Utilisez la liste des coups pour lire chaque évaluation.`,
+    momentum: `Graphique des impulsions de la partie, ${turningPoints.length} tournant${turningPoints.length > 1 ? 's' : ''} clé${turningPoints.length > 1 ? 's' : ''}.`,
+    accuracy: 'Précision cumulée des Blancs et des Noirs au fil de la partie.',
+  }[chartMode];
+
   return (
     <div className="w-full bg-slate-900/80 border border-slate-800/80 rounded-xl p-3 shadow-lg flex flex-col gap-2.5">
       {/* Top Header: Tab Mode Switcher + Live Information + Legend */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs px-1 gap-2.5">
         {/* Mode Switcher Tabs */}
-        <div className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800/80 shrink-0">
+        <div
+          role="group"
+          aria-label="Type de graphique"
+          className="flex items-center gap-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800/80 shrink-0"
+        >
           <button
             onClick={() => setChartMode('eval')}
+            aria-pressed={chartMode === 'eval'}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
               chartMode === 'eval' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
             }`}
@@ -237,6 +249,7 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({ moves, current
 
           <button
             onClick={() => setChartMode('momentum')}
+            aria-pressed={chartMode === 'momentum'}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
               chartMode === 'momentum' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
             }`}
@@ -253,6 +266,7 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({ moves, current
 
           <button
             onClick={() => setChartMode('accuracy')}
+            aria-pressed={chartMode === 'accuracy'}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
               chartMode === 'accuracy' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
             }`}
@@ -349,6 +363,8 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({ moves, current
       {/* SVG Canvas Area */}
       <div className="relative w-full h-28 overflow-hidden rounded-lg bg-slate-950/80 border border-slate-800/60 select-none">
         <svg
+          role="img"
+          aria-label={chartDescription}
           viewBox={`0 0 ${width} ${height}`}
           className="w-full h-full cursor-pointer"
           preserveAspectRatio="none"
@@ -648,6 +664,7 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({ moves, current
             <button
               key={`tp-btn-${tp.ply}`}
               onClick={() => onSelectPly(tp.ply)}
+              aria-current={tp.ply === currentPly ? 'true' : undefined}
               className={`shrink-0 px-2 py-0.5 rounded-md border text-[11px] font-mono font-medium transition-all cursor-pointer ${
                 tp.ply === currentPly
                   ? 'bg-amber-500 text-slate-950 font-bold border-amber-400 shadow-sm'

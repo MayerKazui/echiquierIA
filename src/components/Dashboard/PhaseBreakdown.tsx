@@ -38,7 +38,7 @@ const PhaseCard: React.FC<PhaseCardProps> = ({ title, range, description, stat, 
     </div>
 
     {emptyMessage && stat.totalMoves === 0 ? (
-      <div className="py-4 text-center text-slate-500 text-[11px] italic">{emptyMessage}</div>
+      <div className="py-4 text-center text-slate-400 text-[11px] italic">{emptyMessage}</div>
     ) : (
       <div className="space-y-2">
         <AccuracyBar label="Blancs" accuracy={stat.whiteAccuracy} barClass="bg-indigo-400" />

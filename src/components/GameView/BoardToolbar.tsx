@@ -100,6 +100,7 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
     <div className="flex items-center gap-1 flex-wrap">
       <button
         onClick={onToggleAnnotations}
+        aria-pressed={showAnnotations}
         className={`flex items-center gap-1 px-2 py-1 rounded-md font-medium border transition-colors cursor-pointer ${
           showAnnotations
             ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30'
@@ -117,11 +118,18 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
       </button>
 
       {/* Space Control / Heatmap Multi-Selector */}
-      <div className={GROUP_CLASS} title="Contrôle de l'espace / Rayon d'action (Touche H pour cycler)">
+      <div
+        role="group"
+        aria-label="Contrôle de l'espace"
+        className={GROUP_CLASS}
+        title="Contrôle de l'espace / Rayon d'action (Touche H pour cycler)"
+      >
         {HEATMAP_OPTIONS.map(({ mode, label, title, active }) => (
           <button
             key={mode}
             onClick={() => onHeatmapModeChange(heatmapMode === mode ? 'none' : mode)}
+            aria-pressed={heatmapMode === mode}
+            aria-label={title}
             className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer ${
               heatmapMode === mode ? active : INACTIVE
             }`}
@@ -133,7 +141,8 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
         {heatmapMode !== 'none' && (
           <button
             onClick={() => onHeatmapModeChange('none')}
-            className="px-1 py-0.5 rounded text-[10px] text-slate-500 hover:text-rose-400 cursor-pointer"
+            aria-label="Désactiver le contrôle de l'espace"
+            className="px-1 py-0.5 rounded text-[10px] text-slate-400 hover:text-rose-400 cursor-pointer"
             title="Désactiver l'affichage du contrôle"
           >
             ✕
@@ -142,11 +151,13 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
       </div>
 
       {/* Board Themes Selector */}
-      <div className={GROUP_CLASS} title="Thème visuel de l'échiquier">
+      <div role="group" aria-label="Thème de l'échiquier" className={GROUP_CLASS} title="Thème visuel de l'échiquier">
         {THEME_OPTIONS.map(({ theme, label, title, swatch, active }) => (
           <button
             key={theme}
             onClick={() => onBoardThemeChange(theme)}
+            aria-pressed={boardTheme === theme}
+            aria-label={title}
             className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer ${
               boardTheme === theme ? active : INACTIVE
             }`}
@@ -159,11 +170,18 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
       </div>
 
       {/* Board Size Selector */}
-      <div className={GROUP_CLASS} title="Ajuster la taille de l'échiquier (Normal 500px, Grand 640px, XL 760px)">
+      <div
+        role="group"
+        aria-label="Taille de l'échiquier"
+        className={GROUP_CLASS}
+        title="Ajuster la taille de l'échiquier (Normal 500px, Grand 640px, XL 760px)"
+      >
         {SIZE_OPTIONS.map(({ size, label, title }) => (
           <button
             key={size}
             onClick={() => onBoardSizeChange(size)}
+            aria-pressed={boardSize === size}
+            aria-label={title}
             className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-all cursor-pointer ${
               boardSize === size ? 'bg-indigo-600/30 text-indigo-300 font-bold border border-indigo-500/40' : INACTIVE
             }`}
@@ -179,6 +197,7 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
     <div className={`${GROUP_CLASS} shrink-0 max-w-full`}>
       <button
         onClick={onOpenLichess}
+        aria-label="Ouvrir la partie sur Lichess"
         disabled={isImportingLichess}
         className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium text-indigo-300 hover:text-white hover:bg-indigo-600/30 transition-colors cursor-pointer disabled:opacity-60"
         title="Importer automatiquement et ouvrir la partie complète sur Lichess.org"

@@ -16,6 +16,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { MoveAnalysis, MoveClassification } from '../../types/chess';
+import { moveButtonLabel } from '../../utils/accessibility';
 import { toFrenchSan } from '../../utils/chessNotation';
 
 interface MoveListProps {
@@ -91,6 +92,9 @@ export const MoveList: React.FC<MoveListProps> = ({
   // Auto-scroll strictly inside the move list container (prevents the page/window from scrolling down)
   useEffect(() => {
     const container = scrollContainerRef.current;
+    const scrollBehavior: ScrollBehavior = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+      ? 'auto'
+      : 'smooth';
     const activeEl = activeRowRef.current;
     if (container && activeEl) {
       const containerTop = container.scrollTop;
@@ -101,12 +105,12 @@ export const MoveList: React.FC<MoveListProps> = ({
       if (elemBottom > containerBottom) {
         container.scrollTo({
           top: elemBottom - container.clientHeight + 16,
-          behavior: 'smooth',
+          behavior: scrollBehavior,
         });
       } else if (elemTop < containerTop) {
         container.scrollTo({
           top: Math.max(0, elemTop - 16),
-          behavior: 'smooth',
+          behavior: scrollBehavior,
         });
       }
     }
@@ -189,6 +193,7 @@ export const MoveList: React.FC<MoveListProps> = ({
           {hasClockData && totalRushed > 0 && (
             <button
               onClick={() => setFilterRushed((prev) => !prev)}
+              aria-pressed={filterRushed}
               className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
                 filterRushed
                   ? 'bg-rose-500/25 text-rose-300 border border-rose-500/50'
@@ -204,6 +209,7 @@ export const MoveList: React.FC<MoveListProps> = ({
           {hasClockData && totalLongThinks > 0 && (
             <button
               onClick={() => setFilterLongThinks((prev) => !prev)}
+              aria-pressed={filterLongThinks}
               className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
                 filterLongThinks
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
@@ -218,6 +224,7 @@ export const MoveList: React.FC<MoveListProps> = ({
 
           <button
             onClick={onToggleFilter}
+            aria-pressed={filterOnlyErrors}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
               filterOnlyErrors
                 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
@@ -234,6 +241,8 @@ export const MoveList: React.FC<MoveListProps> = ({
       {/* Move List Body */}
       <div
         ref={scrollContainerRef}
+        role="list"
+        aria-label="Notation des coups"
         className="flex-1 overflow-y-auto p-2 divide-y divide-slate-800/40 font-mono text-xs"
       >
         {movePairs.map((pair) => {
@@ -243,10 +252,11 @@ export const MoveList: React.FC<MoveListProps> = ({
           return (
             <div
               key={pair.moveNumber}
+              role="listitem"
               ref={isWhiteActive || isBlackActive ? activeRowRef : null}
               className="grid grid-cols-[28px_1fr_1fr] sm:grid-cols-[36px_1fr_1fr] items-center py-1 px-0.5 sm:px-1 hover:bg-slate-800/40 rounded transition-colors"
             >
-              <span className="text-slate-500 font-semibold select-none text-center text-[11px] sm:text-xs">
+              <span className="text-slate-400 font-semibold select-none text-center text-[11px] sm:text-xs">
                 {pair.moveNumber}.
               </span>
 
@@ -254,6 +264,8 @@ export const MoveList: React.FC<MoveListProps> = ({
               {pair.white ? (
                 <button
                   onClick={() => onSelectPly(pair.white!.ply)}
+                  aria-label={moveButtonLabel(pair.white)}
+                  aria-current={isWhiteActive ? 'true' : undefined}
                   className={`flex items-center justify-between px-1.5 sm:px-2 py-1.5 rounded text-left transition-all min-w-0 ${
                     isWhiteActive
                       ? 'bg-indigo-600 text-white font-bold shadow'
@@ -313,6 +325,8 @@ export const MoveList: React.FC<MoveListProps> = ({
               {pair.black ? (
                 <button
                   onClick={() => onSelectPly(pair.black!.ply)}
+                  aria-label={moveButtonLabel(pair.black)}
+                  aria-current={isBlackActive ? 'true' : undefined}
                   className={`flex items-center justify-between px-1.5 sm:px-2 py-1.5 rounded text-left transition-all ml-0.5 sm:ml-1 min-w-0 ${
                     isBlackActive
                       ? 'bg-indigo-600 text-white font-bold shadow'
@@ -372,7 +386,7 @@ export const MoveList: React.FC<MoveListProps> = ({
         })}
 
         {movePairs.length === 0 && (
-          <div className="h-full flex items-center justify-center text-slate-500 text-xs py-8 text-center">
+          <div className="h-full flex items-center justify-center text-slate-400 text-xs py-8 text-center">
             {filterLongThinks
               ? 'Aucune longue réflexion identifiée avec ce filtre.'
               : 'Aucune faute détectée avec ce filtre.'}
@@ -386,6 +400,7 @@ export const MoveList: React.FC<MoveListProps> = ({
           onClick={() => onSelectPly(0)}
           disabled={currentPly <= 0}
           className="p-1.5 rounded-lg hover:bg-slate-800 disabled:opacity-30 text-slate-300 transition-colors"
+          aria-label="Début de la partie"
           title="Début de la partie (Touche Flèche Haut)"
         >
           <ChevronsLeft className="w-4 h-4" />
@@ -394,6 +409,7 @@ export const MoveList: React.FC<MoveListProps> = ({
           onClick={() => onSelectPly(Math.max(0, currentPly - 1))}
           disabled={currentPly <= 0}
           className="p-1.5 rounded-lg hover:bg-slate-800 disabled:opacity-30 text-slate-300 transition-colors"
+          aria-label="Coup précédent"
           title="Coup précédent (Flèche Gauche)"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -407,6 +423,7 @@ export const MoveList: React.FC<MoveListProps> = ({
           onClick={() => onSelectPly(Math.min(moves.length - 1, currentPly + 1))}
           disabled={currentPly >= moves.length - 1}
           className="p-1.5 rounded-lg hover:bg-slate-800 disabled:opacity-30 text-slate-300 transition-colors"
+          aria-label="Coup suivant"
           title="Coup suivant (Flèche Droite)"
         >
           <ChevronRight className="w-4 h-4" />
@@ -415,6 +432,7 @@ export const MoveList: React.FC<MoveListProps> = ({
           onClick={() => onSelectPly(moves.length - 1)}
           disabled={currentPly >= moves.length - 1}
           className="p-1.5 rounded-lg hover:bg-slate-800 disabled:opacity-30 text-slate-300 transition-colors"
+          aria-label="Fin de la partie"
           title="Fin de la partie (Flèche Bas)"
         >
           <ChevronsRight className="w-4 h-4" />

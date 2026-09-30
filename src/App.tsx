@@ -3,6 +3,7 @@ import { RotateCcw } from 'lucide-react';
 
 import { AppTab, BoardSize, BoardTheme, HeatmapMode, PlayerColor, ThreatsMode } from './types/ui';
 import { toFrenchSan } from './utils/chessNotation';
+import { HEATMAP_LABELS, describeMove } from './utils/accessibility';
 import { computeBoardMaterial } from './utils/chessMaterial';
 import { computeBoardHeatmap } from './utils/chessHeatmap';
 import { BOARD_COLUMN_SPAN, BOARD_MAX_WIDTH, PAGE_MAX_WIDTH, SIDE_COLUMN_SPAN } from './utils/boardLayout';
@@ -17,6 +18,9 @@ import { useCriticalMoments } from './hooks/useCriticalMoments';
 import { useSandbox } from './hooks/useSandbox';
 import { useLichessImport } from './hooks/useLichessImport';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { LiveRegion, useAnnouncer } from './components/a11y/LiveRegion';
+import { Modal } from './components/a11y/Modal';
+import { KeyboardHelp } from './components/a11y/KeyboardHelp';
 
 import { ChessBoard } from './components/ChessBoard/ChessBoard';
 import { EvaluationBar } from './components/EvaluationBar/EvaluationBar';
@@ -39,6 +43,8 @@ const HEATMAP_CYCLE: HeatmapMode[] = ['none', 'both', 'white', 'black'];
 export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('board');
   const [isPgnModalOpen, setIsPgnModalOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const { announcement, announce } = useAnnouncer();
 
   // Preferences (persisted in localStorage)
   const [userPseudo, setUserPseudo] = usePersistentState<string>('chess_coach_user_pseudo', '', (raw) => raw);
@@ -89,11 +95,12 @@ export default function App() {
 
   // Free exploration on top of the displayed position
   const stopPreviewingAlternative = useCallback(() => setIsPreviewingAlternative(false), []);
-  const sandbox = useSandbox(
-    isPreviewingAlternative && alternativeFen ? alternativeFen : currentFen,
-    stopPreviewingAlternative
-  );
-  const { exit: exitSandbox } = sandbox;
+  const announceSandboxMove = useCallback((san: string) => announce(`Exploration : ${toFrenchSan(san)}`), [announce]);
+  const sandbox = useSandbox(isPreviewingAlternative && alternativeFen ? alternativeFen : currentFen, {
+    onEnter: stopPreviewingAlternative,
+    onMove: announceSandboxMove,
+  });
+  const { exit: exitSandbox, undo: undoSandboxMove } = sandbox;
   const activeBoardFen = sandbox.activeFen;
 
   const boardMaterial = useMemo(() => computeBoardMaterial(activeBoardFen), [activeBoardFen]);
@@ -112,29 +119,74 @@ export default function App() {
   // Any manual navigation leaves the exploration / alternative preview and stops auto-play
   const goToPly = useCallback(
     (ply: number | ((prev: number) => number)) => {
+      const target = typeof ply === 'function' ? ply(currentPly) : ply;
       setIsPlaying(false);
       exitSandbox();
-      setCurrentPly(ply);
+      setCurrentPly(target);
       setIsPreviewingAlternative(false);
+      announce(describeMove(moves?.[target] ?? null, totalMoves));
     },
-    [setIsPlaying, exitSandbox, setCurrentPly]
+    [currentPly, moves, totalMoves, announce, setIsPlaying, exitSandbox, setCurrentPly]
   );
+
+  // View toggles, shared by the keyboard shortcuts and the buttons; each one is announced
+  const flipBoard = () => {
+    announce(isFlipped ? 'Échiquier normal, Blancs en bas' : 'Échiquier retourné, Noirs en bas');
+    setIsFlipped((f) => !f);
+  };
+  const toggleAnnotations = () => {
+    announce(`Annotations ${showAnnotations ? 'masquées' : 'affichées'}`);
+    setShowAnnotations((a) => !a);
+  };
+  const changeHeatmapMode = (mode: HeatmapMode) => {
+    announce(`Contrôle de l'espace : ${HEATMAP_LABELS[mode]}`);
+    setHeatmapMode(mode);
+  };
+  const cycleHeatmapMode = () =>
+    changeHeatmapMode(HEATMAP_CYCLE[(HEATMAP_CYCLE.indexOf(heatmapMode) + 1) % HEATMAP_CYCLE.length]);
+  const toggleAlternative = () => {
+    announce(isPreviewingAlternative ? 'Aperçu du meilleur coup désactivé' : 'Aperçu du meilleur coup activé');
+    setIsPreviewingAlternative((prev) => !prev);
+  };
+  const toggleSoundAnnounced = () => {
+    announce(isMuted ? 'Son activé' : 'Son coupé');
+    toggleSound();
+  };
+  const togglePlay = () => {
+    announce(isPlaying ? `Pause, ${describeMove(activeMove, totalMoves)}` : 'Lecture automatique');
+    setIsPlaying((p) => !p);
+  };
+  const leaveSandbox = () => {
+    exitSandbox();
+    announce('Exploration terminée, retour à la partie');
+  };
+  const undoSandbox = () => {
+    undoSandboxMove();
+    announce('Dernier coup annulé');
+  };
 
   const runAnalysis = useCallback(
     async (pgnToAnalyze: string, depth = 12) => {
       setCurrentPly(0);
       setIsPreviewingAlternative(false);
       exitSandbox();
+      announce('Analyse en cours');
 
       const result = await analyze(pgnToAnalyze, depth);
-      if (!result) return;
+      if (!result) {
+        announce("L'analyse a échoué");
+        return;
+      }
 
       handleUpdateUserColor(result.userColor ?? userColor);
       // Always land on the first move so the user starts at the beginning
       setCurrentPly(0);
       setIsPreviewingAlternative(false);
+      announce(
+        `Analyse terminée, ${result.moves.length} demi-coups. ${describeMove(result.moves[0] ?? null, result.moves.length)}`
+      );
     },
-    [analyze, exitSandbox, handleUpdateUserColor, setCurrentPly, userColor]
+    [analyze, announce, exitSandbox, handleUpdateUserColor, setCurrentPly, userColor]
   );
 
   useKeyboardShortcuts(Boolean(analysis), {
@@ -144,16 +196,16 @@ export default function App() {
     onEnd: () => goToPly(lastPly),
     onPrevError: () => prevErrorPly !== null && goToPly(prevErrorPly),
     onNextError: () => nextErrorPly !== null && goToPly(nextErrorPly),
-    onTogglePlay: () => setIsPlaying((p) => !p),
-    onFlip: () => setIsFlipped((f) => !f),
-    onToggleAnnotations: () => setShowAnnotations((a) => !a),
-    onToggleSound: toggleSound,
-    onToggleAlternative: () => setIsPreviewingAlternative((prev) => !prev),
-    onCycleHeatmap: () =>
-      setHeatmapMode((prev) => HEATMAP_CYCLE[(HEATMAP_CYCLE.indexOf(prev) + 1) % HEATMAP_CYCLE.length]),
+    onTogglePlay: togglePlay,
+    onFlip: flipBoard,
+    onToggleAnnotations: toggleAnnotations,
+    onToggleSound: toggleSoundAnnounced,
+    onToggleAlternative: toggleAlternative,
+    onCycleHeatmap: cycleHeatmapMode,
+    onHelp: () => setIsHelpOpen(true),
     onEscape: () => {
       if (!sandbox.isSandboxMode) return false;
-      exitSandbox();
+      leaveSandbox();
       return true;
     },
   });
@@ -163,6 +215,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white font-sans antialiased">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-3 focus:py-2 focus:rounded-lg focus:bg-indigo-600 focus:text-white focus:text-sm focus:font-semibold"
+      >
+        Aller au contenu principal
+      </a>
+      <LiveRegion announcement={announcement} />
       <AppHeader
         metadata={metadata}
         hasAnalysis={Boolean(analysis)}
@@ -173,13 +232,16 @@ export default function App() {
         onChangeTab={setActiveTab}
         onUpdatePseudo={setUserPseudo}
         onUpdateUserColor={handleUpdateUserColor}
-        onToggleSound={toggleSound}
+        onToggleSound={toggleSoundAnnounced}
         onOpenPgnModal={() => setIsPgnModalOpen(true)}
+        onOpenHelp={() => setIsHelpOpen(true)}
       />
 
       {isAnalyzing && progress && <AnalysisProgressBanner progress={progress} />}
 
       <main
+        id="main-content"
+        tabIndex={-1}
         className={`flex-1 w-full mx-auto p-2.5 sm:p-4 lg:p-6 flex flex-col gap-4 sm:gap-6 overflow-x-hidden ${PAGE_MAX_WIDTH[boardSize]}`}
       >
         {!analysis && !isAnalyzing ? (
@@ -226,7 +288,7 @@ export default function App() {
               >
                 <div className="flex items-center gap-1 shrink-0 ml-2">
                   <button
-                    onClick={() => setIsFlipped((f) => !f)}
+                    onClick={flipBoard}
                     className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 transition-colors cursor-pointer"
                     title="Inverser l'échiquier (Touche F)"
                   >
@@ -238,9 +300,9 @@ export default function App() {
               <BoardToolbar
                 showAnnotations={showAnnotations}
                 threatCount={activeThreats.length}
-                onToggleAnnotations={() => setShowAnnotations((a) => !a)}
+                onToggleAnnotations={toggleAnnotations}
                 heatmapMode={heatmapMode}
-                onHeatmapModeChange={setHeatmapMode}
+                onHeatmapModeChange={changeHeatmapMode}
                 boardTheme={boardTheme}
                 onBoardThemeChange={setBoardTheme}
                 boardSize={boardSize}
@@ -251,13 +313,13 @@ export default function App() {
               />
 
               {heatmapMode !== 'none' && boardHeatmapData && (
-                <HeatmapSummary mode={heatmapMode} data={boardHeatmapData} onModeChange={setHeatmapMode} />
+                <HeatmapSummary mode={heatmapMode} data={boardHeatmapData} onModeChange={changeHeatmapMode} />
               )}
 
               {lichess.showNotice && <LichessNotice onDismiss={lichess.dismissNotice} />}
 
               {sandbox.isSandboxMode && (
-                <SandboxBanner moves={sandbox.history} onUndo={sandbox.undo} onExit={exitSandbox} />
+                <SandboxBanner moves={sandbox.history} onUndo={undoSandbox} onExit={leaveSandbox} />
               )}
 
               {/* Chessboard + Evaluation Bar */}
@@ -323,7 +385,7 @@ export default function App() {
                       )}
                     </>
                   ) : (
-                    <span className="text-slate-500 text-[11px] italic">Position initiale</span>
+                    <span className="text-slate-400 text-[11px] italic">Position initiale</span>
                   )}
                 </div>
               </PlayerBar>
@@ -343,12 +405,12 @@ export default function App() {
                 onPrev={() => goToPly((p) => Math.max(0, p - 1))}
                 onNext={() => goToPly((p) => Math.min(lastPly, p + 1))}
                 onEnd={() => goToPly(lastPly)}
-                onTogglePlay={() => setIsPlaying((p) => !p)}
+                onTogglePlay={togglePlay}
                 onChangeSpeed={setPlaybackSpeed}
                 onPrevError={() => prevErrorPly !== null && goToPly(prevErrorPly)}
                 onNextError={() => nextErrorPly !== null && goToPly(nextErrorPly)}
-                onToggleSound={toggleSound}
-                onFlip={() => setIsFlipped((f) => !f)}
+                onToggleSound={toggleSoundAnnounced}
+                onFlip={flipBoard}
               />
 
               <EvaluationChart moves={moves || []} currentPly={currentPly} onSelectPly={goToPly} />
@@ -360,7 +422,7 @@ export default function App() {
                 currentMove={activeMove}
                 previousMove={previousMove}
                 isPreviewingAlternative={isPreviewingAlternative}
-                onTogglePreviewAlternative={() => setIsPreviewingAlternative((prev) => !prev)}
+                onTogglePreviewAlternative={toggleAlternative}
                 onUpdateAiExplanation={updateAiExplanation}
                 sanHistory={moves?.map((m) => m.san) || []}
                 userColor={userColor}
@@ -371,7 +433,7 @@ export default function App() {
                 threatsMode={threatsMode}
                 onSelectThreatsMode={setThreatsMode}
                 showThreats={showAnnotations}
-                onToggleShowThreats={() => setShowAnnotations((a) => !a)}
+                onToggleShowThreats={toggleAnnotations}
               />
 
               <MoveList
@@ -386,9 +448,8 @@ export default function App() {
         )}
       </main>
 
-      {/* PGN Import Modal */}
       {isPgnModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+        <Modal title="Charger une autre partie" onClose={() => setIsPgnModalOpen(false)} className="w-full max-w-2xl">
           <PgnInput
             currentPgn={pgn}
             userPseudo={userPseudo}
@@ -400,8 +461,10 @@ export default function App() {
             isAnalyzing={isAnalyzing}
             onClose={() => setIsPgnModalOpen(false)}
           />
-        </div>
+        </Modal>
       )}
+
+      {isHelpOpen && <KeyboardHelp onClose={() => setIsHelpOpen(false)} />}
     </div>
   );
 }

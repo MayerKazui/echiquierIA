@@ -83,6 +83,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             onClick={onStart}
             disabled={currentPly <= 0}
             className={STEP_BUTTON}
+            aria-label="Début de la partie"
             title="Début de la partie (Flèche Haut)"
           >
             <ChevronsLeft className="w-4 h-4" />
@@ -91,6 +92,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             onClick={onPrev}
             disabled={currentPly <= 0}
             className={STEP_BUTTON}
+            aria-label="Coup précédent"
             title="Coup précédent (Flèche Gauche)"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -103,6 +105,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
                 ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-sm'
                 : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm'
             }`}
+            aria-label={isPlaying ? 'Mettre en pause' : `Lecture automatique à la vitesse ${playbackSpeed}x`}
             title={isPlaying ? 'Pause (Touche Espace)' : `Lecture automatique ${playbackSpeed}x (Touche Espace)`}
           >
             {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -112,6 +115,8 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           {/* Playback Speed Selector */}
           <div
             className="flex items-center rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-[10px]"
+            role="group"
+            aria-label="Vitesse de lecture automatique"
             title="Vitesse de lecture automatique"
           >
             {SPEEDS.map(({ speed, perMove }) => (
@@ -123,6 +128,8 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
                     ? 'bg-indigo-600/40 text-indigo-300 border border-indigo-500/50'
                     : 'text-slate-400 hover:text-white'
                 }`}
+                aria-pressed={playbackSpeed === speed}
+                aria-label={`Vitesse ${speed}x`}
                 title={`Vitesse ${speed}x (${perMove}/coup)`}
               >
                 {speed}x
@@ -130,10 +137,22 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             ))}
           </div>
 
-          <button onClick={onNext} disabled={atEnd} className={STEP_BUTTON} title="Coup suivant (Flèche Droite)">
+          <button
+            onClick={onNext}
+            disabled={atEnd}
+            className={STEP_BUTTON}
+            aria-label="Coup suivant"
+            title="Coup suivant (Flèche Droite)"
+          >
             <ChevronRight className="w-4 h-4" />
           </button>
-          <button onClick={onEnd} disabled={atEnd} className={STEP_BUTTON} title="Fin de la partie (Flèche Bas)">
+          <button
+            onClick={onEnd}
+            disabled={atEnd}
+            className={STEP_BUTTON}
+            aria-label="Fin de la partie"
+            title="Fin de la partie (Flèche Bas)"
+          >
             <ChevronsRight className="w-4 h-4" />
           </button>
         </div>
@@ -144,6 +163,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             onClick={onPrevError}
             disabled={!hasPrevError}
             className={ERROR_BUTTON}
+            aria-label="Erreur précédente"
             title="Moment clé / Erreur précédente (Shift + Flèche Gauche)"
           >
             <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -163,6 +183,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             onClick={onNextError}
             disabled={!hasNextError}
             className={ERROR_BUTTON}
+            aria-label="Erreur suivante"
             title="Moment clé / Erreur suivante (Shift + Flèche Droite)"
           >
             <span className="text-[11px]">Suiv.</span>
@@ -193,6 +214,8 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
                 ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30 hover:bg-indigo-600/30'
                 : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
             }`}
+            aria-label="Son des coups"
+            aria-pressed={!isMuted}
             title={isMuted ? 'Activer le son' : 'Couper le son'}
           >
             {!isMuted ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
@@ -201,6 +224,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           <button
             onClick={onFlip}
             className="p-1.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 transition-colors cursor-pointer"
+            aria-label="Inverser l'échiquier"
             title="Inverser l'échiquier"
           >
             <RotateCcw className="w-4 h-4" />

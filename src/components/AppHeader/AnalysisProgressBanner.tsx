@@ -11,7 +11,14 @@ export const AnalysisProgressBanner: React.FC<{ progress: AnalysisProgress }> = 
           Analyse Stockfish en profondeur... Coup {progress.current} sur {progress.total} ({Math.round(ratio * 100)}%)
         </span>
       </div>
-      <div className="w-48 bg-slate-900 rounded-full h-2 overflow-hidden border border-indigo-800/40">
+      <div
+        role="progressbar"
+        aria-label="Progression de l'analyse Stockfish"
+        aria-valuemin={0}
+        aria-valuemax={progress.total}
+        aria-valuenow={progress.current}
+        className="w-48 bg-slate-900 rounded-full h-2 overflow-hidden border border-indigo-800/40"
+      >
         <div
           className="bg-indigo-500 h-full rounded-full transition-all duration-150"
           style={{ width: `${ratio * 100}%` }}

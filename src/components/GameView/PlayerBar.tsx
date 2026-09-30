@@ -46,7 +46,7 @@ export const PlayerBar: React.FC<PlayerBarProps> = ({
             VOUS
           </span>
         )}
-        {elo && <span className="text-slate-500 font-mono text-[10px] sm:text-xs shrink-0">({elo})</span>}
+        {elo && <span className="text-slate-400 font-mono text-[10px] sm:text-xs shrink-0">({elo})</span>}
 
         {/* Captured pieces & material lead */}
         <div className="overflow-hidden flex items-center shrink-0">
