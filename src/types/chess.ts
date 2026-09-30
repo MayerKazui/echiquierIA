@@ -96,23 +96,4 @@ export interface GameAnalysisResult {
   statsBlack: PlayerStats;
   userColor?: 'w' | 'b' | null;
   userPseudo?: string;
-  aiSummary?: {
-    title: string;
-    narrative: string;
-    targetPlayer?: {
-      name: string;
-      color: 'w' | 'b';
-      accuracy: number;
-    };
-    strengthsUser?: string[];
-    weaknessesUser?: string[];
-    strengthsOpponent?: string[];
-    weaknessesOpponent?: string[];
-    strengthsWhite: string[];
-    weaknessesWhite: string[];
-    strengthsBlack: string[];
-    weaknessesBlack: string[];
-    trainingAdvice: string[];
-    keyGameMoments?: Array<{ ply: number; move: string; advice: string }>;
-  };
 }

@@ -9,7 +9,7 @@ export function generateChessAnalysisPdf(analysis: GameAnalysisResult) {
     format: 'a4',
   });
 
-  const { metadata, moves, statsWhite, statsBlack, aiSummary } = analysis;
+  const { metadata, moves, statsWhite, statsBlack } = analysis;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 14;
@@ -361,115 +361,6 @@ export function generateChessAnalysisPdf(analysis: GameAnalysisResult) {
 
     y += 4;
   }
-
-  // Section 4: Pedagogical Coaching Report & Advice
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.setTextColor(...darkBg);
-  doc.text('4. BILAN DU GRAND MAÎTRE & AXES D’AMÉLIORATION', margin, y);
-  y += 6;
-
-  // AI Narrative Summary Card
-  doc.setFillColor(...slateLight);
-  doc.setDrawColor(...borderGray);
-  doc.roundedRect(margin, y, contentWidth, 28, 2, 2, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(...indigoPrimary);
-  doc.text(aiSummary?.title || 'Synthèse Globale de la Partie', margin + 5, y + 7);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(...slateText);
-  const narrative = aiSummary?.narrative ||
-    `Cette partie a mis en évidence un duel tactique intense. Les Blancs (${statsWhite.accuracy}% de précision) et les Noirs (${statsBlack.accuracy}%) ont disputé des positions dynamiques où les moments clés ont fait pencher l'évaluation.`;
-  const splitNarrative = doc.splitTextToSize(narrative, contentWidth - 10);
-  doc.text(splitNarrative.slice(0, 3), margin + 5, y + 13);
-
-  y += 34;
-
-  // Strengths & Weaknesses 2-Column Grid
-  const halfColWidth = (contentWidth - 6) / 2;
-
-  // Strengths Box
-  doc.setFillColor(240, 253, 244); // emerald-50
-  doc.setDrawColor(167, 243, 208); // emerald-200
-  doc.roundedRect(margin, y, halfColWidth, 42, 2, 2, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(...emeraldAccent);
-  doc.text('POINTS FORTS OBSERVÉS', margin + 5, y + 7);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(...slateText);
-  const strengths = aiSummary?.strengthsWhite || [
-    'Bonne combativité au centre en début de partie',
-    'Recherche d\'initiative et pression tactique',
-    'Création de contre-chances lors des transitions',
-  ];
-  strengths.slice(0, 3).forEach((s, idx) => {
-    doc.text(`• ${s}`, margin + 5, y + 14 + idx * 8, { maxWidth: halfColWidth - 10 });
-  });
-
-  // Weaknesses Box
-  const col2X = margin + halfColWidth + 6;
-  doc.setFillColor(255, 241, 242); // rose-50
-  doc.setDrawColor(254, 205, 211); // rose-200
-  doc.roundedRect(col2X, y, halfColWidth, 42, 2, 2, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(...roseAccent);
-  doc.text('AXES D’AMÉLIORATION PRIORITAIRES', col2X + 5, y + 7);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(...slateText);
-  const weaknesses = aiSummary?.weaknessesWhite || [
-    'Surveiller les pièces non protégées et surchargées',
-    'Approfondir le calcul des réponses forcées adverses',
-    'Mieux convertir les positions gagnantes',
-  ];
-  weaknesses.slice(0, 3).forEach((w, idx) => {
-    doc.text(`• ${w}`, col2X + 5, y + 14 + idx * 8, { maxWidth: halfColWidth - 10 });
-  });
-
-  y += 48;
-
-  // Training Advice Cards
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10.5);
-  doc.setTextColor(...darkBg);
-  doc.text('PROGRAMME D’ENTRAÎNEMENT RECOMMANDÉ', margin, y);
-  y += 5;
-
-  const trainingAdvice = aiSummary?.trainingAdvice || [
-    'Résoudre quotidiennement des exercices sur les clouages et déviations.',
-    'Analyser ses parties lentes sans moteur avant de vérifier avec Stockfish.',
-    'Travailler les finales de tours théoriques élémentaires.',
-  ];
-
-  const cardWidth = (contentWidth - 6) / 3;
-  trainingAdvice.slice(0, 3).forEach((advice, idx) => {
-    const cardX = margin + idx * (cardWidth + 3);
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(...borderGray);
-    doc.roundedRect(cardX, y, cardWidth, 34, 1.5, 1.5, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(...indigoPrimary);
-    doc.text(`Conseil #${idx + 1}`, cardX + 4, y + 6);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(...slateText);
-    const splitAdvice = doc.splitTextToSize(advice, cardWidth - 8);
-    doc.text(splitAdvice, cardX + 4, y + 12);
-  });
 
   // Footer Page 2
   doc.setFont('helvetica', 'normal');
