@@ -4,6 +4,9 @@ import { Chess } from 'chess.js';
 import { SAMPLE_GAMES, SampleGame } from '../../utils/sampleGames';
 import { validatePgn, parsePgnHeaders } from '../../utils/pgnParser';
 import { identifyGameOpening } from '../../services/openingBook';
+import { defaultWorkerCount } from '../../services/stockfishEngine';
+import { ANALYSIS_LEVELS, DEFAULT_ANALYSIS_DEPTH } from '../../utils/analysisLevels';
+import { oneOf, usePersistentState } from '../../hooks/usePersistentState';
 
 interface PgnInputProps {
   currentPgn: string;
@@ -23,7 +26,13 @@ export const PgnInput: React.FC<PgnInputProps> = ({
   onClose,
 }) => {
   const [pgnText, setPgnText] = useState(currentPgn);
-  const [selectedDepth, setSelectedDepth] = useState<number>(12);
+  // The chosen depth is remembered between sessions
+  const [selectedDepth, setSelectedDepth] = usePersistentState<number>(
+    'chess_analysis_depth',
+    DEFAULT_ANALYSIS_DEPTH,
+    oneOf(ANALYSIS_LEVELS.map((level) => level.depth))
+  );
+  const workerCount = defaultWorkerCount(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Real-time preview of detected opening from PGN text
@@ -215,13 +224,8 @@ export const PgnInput: React.FC<PgnInputProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full">
-          {[
-            { depth: 8, label: 'Éclair', d: 'd = 8', time: '~2-3s', icon: '⚡' },
-            { depth: 10, label: 'Rapide', d: 'd = 10', time: '~5s', icon: '⏱️' },
-            { depth: 12, label: 'Standard', d: 'd = 12', time: '~15s', icon: '🎯' },
-            { depth: 14, label: 'Poussé', d: 'd = 14', time: '~35s', icon: '🧠' },
-          ].map((item) => {
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 w-full">
+          {ANALYSIS_LEVELS.map((item) => {
             const isSelected = selectedDepth === item.depth;
             return (
               <button
@@ -239,7 +243,7 @@ export const PgnInput: React.FC<PgnInputProps> = ({
                   <span>{item.label}</span>
                 </div>
                 <div className="flex items-center gap-1 text-[11px] mt-0.5 text-slate-400">
-                  <span className="font-mono text-slate-300 font-semibold">{item.d}</span>
+                  <span className="font-mono text-slate-300 font-semibold">d = {item.depth}</span>
                   <span>•</span>
                   <span>{item.time}</span>
                 </div>
@@ -247,6 +251,10 @@ export const PgnInput: React.FC<PgnInputProps> = ({
             );
           })}
         </div>
+        <p className="text-[10px] text-slate-500">
+          Durées indicatives pour une partie d'environ 40 coups sur 4 cœurs. Le calcul s'exécute sur {workerCount}{' '}
+          processus en parallèle.
+        </p>
       </div>
 
       {/* Action Buttons */}
