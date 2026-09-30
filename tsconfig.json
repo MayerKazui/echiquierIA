@@ -19,5 +19,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src", "server", "scripts", "server.ts", "vite.config.ts", "vitest.config.ts"]
+  "include": ["src", "server", "scripts", "vite", "server.ts", "vite.config.ts", "vitest.config.ts"]
 }

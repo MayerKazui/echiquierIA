@@ -64,14 +64,16 @@ Commandes : `bun run test` (Vitest), `bun run lint` (ESLint), `bun run typecheck
   - **Coups de Tour en notation française** : `Te1` devenait `Ke1` dans `checkIsTheoreticalMove`. Ajout de `toEnglishSan` (inverse de `toFrenchSan`, en une seule passe) ; un coup légal tel quel en anglais est gardé, sinon il est lu en français.
   - **`strict` activé** dans `tsconfig.json` (le code passait déjà). `tsconfig.json` a maintenant un `include` explicite : sans lui, `tsc` analysait `dist/` et `public/*.js`, ce qui le ralentissait de 4 s à près de 100 s.
 
-### 5. Dépôt et dépendances
+### 5. Dépôt et dépendances — fait
 
-- [ ] `public/` pèse 8 Mo avec des moteurs en double (Stockfish 19 wasm + asm.js, ancien `stockfish.js` v10 + wasm). Choisir une source unique (copie depuis `node_modules` au build) et supprimer l'ancien repli si possible.
-- [ ] Retirer les dépendances inutilisées ou redondantes (`stockfish`, `stockfish.js`) selon le choix ci-dessus.
-- [ ] Renommer le paquet (`react-example` dans `package.json`).
-- [ ] Mettre `tsx` dans `dependencies` : `start` en production en dépend.
-- [ ] Choisir un seul gestionnaire de paquets (`bun.lock` présent, scripts npm/tsx) et le documenter.
-- [ ] Ajouter un README ; adapter `.env.example` (actuellement orienté AI Studio) ; lire le port depuis `process.env.PORT` (codé en dur à 3000).
+- [x] **Source unique pour le moteur** : `public/` passe de 7,9 Mo à 1 Mo (il ne reste que `openings.json` et le favicon). Les fichiers du moteur (`stockfish-19.js`/`.wasm`, identiques octet pour octet à ceux du paquet) ne sont plus copiés dans le dépôt : `vite/stockfishPlugin.ts` les sert à la racine en développement et les ajoute à `dist/` au build, depuis `node_modules/stockfish`. Le plugin échoue avec un message clair si les fichiers manquent (mise à jour du paquet), et la CI vérifie leur présence dans `dist/`.
+- [x] **Ancien repli supprimé** : le moteur v10 (`stockfish.js` + 2 wasm) et le build asm.js de Stockfish 19 (3,1 Mo, jamais chargé) sont retirés. Il n'y a plus qu'un moteur ; s'il ne peut pas tourner (WebAssembly absent, worker en erreur), les positions sont évaluées par l'heuristique intégrée, qui existait déjà comme dernier repli.
+- [x] **Dépendances** : retrait de `stockfish.js`, et de `motion`, `autoprefixer` et `esbuild` qui n'étaient importés nulle part (5 paquets en moins dans `bun.lock`). `stockfish` reste, il alimente le plugin.
+- [x] **Paquet renommé** `echiquier-ia` (avec une description) ; `tsx` passe en `dependencies`.
+- [x] **Un seul gestionnaire : Bun** (`bun.lock`), déclaré par `"packageManager": "bun@1.3.11"`, documenté dans le README, et les verrous des autres gestionnaires sont ignorés par git.
+- [x] **README** (démarrage, commandes, configuration, architecture, déploiement) ; `.env.example` réécrit (variables réelles, sans référence à AI Studio) ; **`PORT`** lu depuis l'environnement (`server/config.ts`, 3000 par défaut, valeur invalide ignorée).
+- Changements de comportement : `bun run start` lance maintenant le serveur **en production** (`NODE_ENV=production`, sert `dist/`) ; avant, il démarrait le serveur de développement. `bun run dev` est inchangé.
+- Vérifié : le moteur est chargé depuis `node_modules` en développement et en production (workers → `200 /stockfish-19.wasm`, évaluations réelles), `bun run start` sur un `PORT` donné, build sans avertissement (import du plugin avec extension, `__dirname` remplacé par `import.meta.dirname`).
 
 ### 6. Moteur Stockfish (`src/services/stockfishEngine.ts`) — fait
 

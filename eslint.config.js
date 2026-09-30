@@ -24,7 +24,7 @@ export default tseslint.config(
     extends: [reactHooks.configs.flat.recommended],
   },
   {
-    files: ['server.ts', 'server/**/*.ts', 'scripts/**/*.ts', '*.config.{ts,js}'],
+    files: ['server.ts', 'server/**/*.ts', 'scripts/**/*.ts', 'vite/**/*.ts', '*.config.{ts,js}'],
     languageOptions: { globals: globals.node },
   },
   {

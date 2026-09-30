@@ -149,7 +149,7 @@ describe('worker pool', () => {
     const { workers } = setup({ workerCount: 3 });
     expect(workers).toHaveLength(3);
     for (const worker of workers) {
-      expect(worker.script).toBe('/stockfish-19.js#stockfish-19.wasm');
+      expect(worker.script).toBe('/stockfish-19.js#stockfish-19.wasm'); // the only engine
       expect(worker.sent).toEqual(['uci', 'setoption name Threads value 1', 'setoption name Hash value 16', 'isready']);
     }
   });
@@ -347,22 +347,52 @@ describe('evaluatePosition', () => {
       expect(console.warn).toHaveBeenCalled();
     });
 
-    it('retries with the classic engine when Stockfish 19 fails to load', () => {
+    it('takes a failing worker out of the pool and keeps searching on the others', async () => {
+      const { service, workers } = setup({ workerCount: 2 });
+      workers[0].fail();
+      expect(workers[0].terminated).toBe(true);
+      expect(service.activeWorkerCount).toBe(1);
+
+      const pending = service.evaluatePosition(FEN_A, 10);
+      await vi.advanceTimersByTimeAsync(100);
+      await expect(pending).resolves.toMatchObject({ bestMoveUci: 'e2a6' });
+      expect(workers[0].searchesStarted).toBe(0);
+      expect(workers[1].searchesStarted).toBe(1);
+    });
+
+    it('does not start any other engine when the only one fails', () => {
       const { workers } = setup({ workerCount: 1 });
       workers[0].fail();
-      expect(workers).toHaveLength(2);
-      expect(workers[0].terminated).toBe(true);
-      expect(workers[1].script).toBe('/stockfish.js');
+      expect(workers).toHaveLength(1); // no replacement engine is loaded
     });
 
     it('answers every search with the heuristic once all workers failed', async () => {
-      const { service, workers } = setup({ workerCount: 1 });
-      workers[0].fail(); // -> classic engine
-      workers[1].fail(); // classic fails too
+      const { service, workers } = setup({ workerCount: 2 });
+      workers.forEach((worker) => worker.fail());
       expect(service.activeWorkerCount).toBe(0);
       const result = await service.evaluatePosition(FEN_A, 10);
       expect(Number.isFinite(result.cp)).toBe(true);
       expect(searches(workers)).toBe(0);
+    });
+
+    it('answers a search already waiting in the queue when the last worker fails', async () => {
+      const { service, workers } = setup({ workerCount: 1 }, { searchMs: 10_000 });
+      service.evaluatePosition(FEN_A, 10);
+      const queued = service.evaluatePosition(FEN_B, 10);
+      workers[0].fail();
+      expect(Number.isFinite((await queued).cp)).toBe(true);
+    });
+
+    it('uses the heuristic, without any worker, when WebAssembly is unavailable', async () => {
+      vi.stubGlobal('WebAssembly', undefined);
+      try {
+        const { service, workers } = setup({ workerCount: 2 });
+        expect(workers).toHaveLength(0);
+        const result = await service.evaluatePosition(FEN_A, 10);
+        expect(Number.isFinite(result.cp)).toBe(true);
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
   });
 
