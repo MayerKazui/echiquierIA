@@ -36,9 +36,14 @@ Conservés : « Partie Lichess » (`/api/lichess/import`), le graphique radar du
 - [x] Noms de modèles vérifiés : `gemini-3.8-flash` et `gemini-3.1-flash-lite` figurent dans les types du SDK installé (`@google/genai`), `gemini-flash-latest` dans son README.
 - [x] Le client envoie `classificationKey` (enum `MoveClassification`, validé par `zod`) ; le serveur n'analyse plus de sous-chaînes françaises. Le libellé `classification` ne sert plus qu'à l'affichage dans le prompt.
 
-### 3. Découpage des gros fichiers
-- [ ] `src/App.tsx` (1766 lignes, 56 hooks après l'épuration de l'interface ; 2300 lignes / 77 hooks avant) : extraire `useLocalStorage` (5 usages dupliqués), `useGameAnalysis`, `usePlayback`, l'import Lichess, l'export, et des sous-composants.
-- [ ] `ChessBoard.tsx` (999 lignes) et `Dashboard.tsx` (608 lignes) : découper de la même façon.
+### 3. Découpage des gros fichiers — fait
+Vérifié avec `tsc --noEmit`, `vite build`, une comparaison du DOM avant/après (Playwright, sur une partie analysée, avec heatmap, échiquier retourné, aperçu de l'alternative, thème/taille, Bilan et modale PGN) et un test des interactions (navigation clavier, exploration libre, flèches au clic droit, auto-play, préférences conservées après rechargement). Les seules différences de DOM sont l'ordre de certaines classes/attributs et le bruit du moteur Stockfish (résultats non déterministes d'une analyse à l'autre).
+
+- [x] `src/App.tsx` : 1671 → 409 lignes (composition uniquement). Logique extraite dans `src/hooks/` : `usePersistentState` (remplace les 5 usages de `localStorage` dupliqués), `useGameAnalysis`, `usePlayback`, `useMoveSound`, `useGamePosition`, `useMoveAnnotations`, `useCriticalMoments`, `useSandbox`, `useLichessImport`, `useKeyboardShortcuts`. Interface extraite dans `components/AppHeader/` (en-tête, bandeau de progression) et `components/GameView/` (bandeau ouverture, barre joueur, barre d'outils, résumé du contrôle de l'espace, notices, contrôles de lecture). Types partagés dans `src/types/ui.ts`, constantes de mise en page dans `src/utils/boardLayout.ts`.
+- [x] `ChessBoard.tsx` : 999 → 378 lignes. Extraits : `boardTheme.ts`, `useBoardDrawing.ts` (flèches/surbrillances au clic droit), `ArrowsOverlay.tsx`, `HeatmapOverlay.tsx`, `ThreatMarkers.tsx`, `threatInfo.ts`.
+- [x] `Dashboard.tsx` : 598 → 99 lignes. Extraits : `PlayerAccuracyCard`, `PhaseBreakdown`, `MoveBreakdown`, `utils/phaseStats.ts` (calcul des phases, maintenant typé : plus de `any` dans `PlayerRadarChart`) et `utils/gameSummary.ts` (texte du bilan partagé).
+- Petits changements de comportement assumés : `runAnalysis` lit désormais le pseudo et la couleur courants (il utilisait ceux du premier rendu à cause d'un `useCallback` sans dépendances) ; toute navigation manuelle (boutons, graphique, liste de coups, clavier) quitte l'exploration libre et arrête l'auto-play, comme le faisait déjà le clavier ; les raccourcis avec Ctrl/Cmd/Alt ne sont plus interceptés (Ctrl+F…) ; une phase sans coup affiche « - » dans « Gaffes / Fautes ».
+- Reste volumineux (hors périmètre de ce point) : `MoveComparison.tsx` (724), `EvaluationChart.tsx` (653), `PlayerRadarChart.tsx` (549), `MoveList.tsx` (423).
 
 ## Priorité moyenne
 
