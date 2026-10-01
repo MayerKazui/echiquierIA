@@ -22,8 +22,8 @@ export interface PhaseStats {
 }
 
 /** Accuracy (0-100) of the moves, or null without moves. */
-function accuracyOf(moves: MoveAnalysis[]): number | null {
-  return moves.length === 0 ? null : accuracyFromMoves(moves);
+function accuracyOf(moves: MoveAnalysis[], allMoves: MoveAnalysis[]): number | null {
+  return moves.length === 0 ? null : accuracyFromMoves(moves, allMoves);
 }
 
 const countBlunders = (moves: MoveAnalysis[]) =>
@@ -40,8 +40,8 @@ function computePhase(moves: MoveAnalysis[], startMove: number, endMove: number)
     totalMoves: phaseMoves.length,
     whiteCount: white.length,
     blackCount: black.length,
-    whiteAccuracy: accuracyOf(white),
-    blackAccuracy: accuracyOf(black),
+    whiteAccuracy: accuracyOf(white, moves),
+    blackAccuracy: accuracyOf(black, moves),
     whiteBlunders: countBlunders(white),
     blackBlunders: countBlunders(black),
     whiteMistakes: countMistakes(white),

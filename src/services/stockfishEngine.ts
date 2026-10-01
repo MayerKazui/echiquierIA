@@ -657,16 +657,7 @@ export class StockfishService {
       // even if it also happens to be the engine's #1 move!
       const classification = bookCheck.isBook
         ? 'book'
-        : classifyMove(
-            isWhite,
-            move.san,
-            evalBeforeRes.bestMoveSan,
-            cpLoss,
-            winPctDrop,
-            evalBefore,
-            evalAfter,
-            isSacrifice
-          );
+        : classifyMove(isWhite, move.san, evalBeforeRes.bestMoveSan, winPctDrop, evalBefore, evalAfter, isSacrifice);
 
       const moveNumber = Math.floor(ply / 2) + 1;
       const clockInfo = moveClocks[ply];
@@ -727,8 +718,14 @@ export class StockfishService {
     const moves = this.buildMoves(history, fensBefore, fensAfter, moveClocks, evalCache, count);
     return {
       moves,
-      statsWhite: computePlayerStats(moves.filter((m) => m.color === 'w')),
-      statsBlack: computePlayerStats(moves.filter((m) => m.color === 'b')),
+      statsWhite: computePlayerStats(
+        moves.filter((m) => m.color === 'w'),
+        moves
+      ),
+      statsBlack: computePlayerStats(
+        moves.filter((m) => m.color === 'b'),
+        moves
+      ),
       // Identify the official Lichess opening name & ECO
       detectedOpening: identifyGameOpening(fensAfter.slice(0, count)),
     };

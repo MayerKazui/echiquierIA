@@ -100,8 +100,14 @@ function withFreshStats(game: StoredGame): StoredGame {
     result: {
       ...game.result,
       moves,
-      statsWhite: computePlayerStats(moves.filter((m) => m.color === 'w')),
-      statsBlack: computePlayerStats(moves.filter((m) => m.color === 'b')),
+      statsWhite: computePlayerStats(
+        moves.filter((m) => m.color === 'w'),
+        moves
+      ),
+      statsBlack: computePlayerStats(
+        moves.filter((m) => m.color === 'b'),
+        moves
+      ),
     },
   };
 }

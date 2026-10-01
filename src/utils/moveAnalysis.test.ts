@@ -1,13 +1,34 @@
 import { describe, expect, it } from 'vitest';
 import { MoveAnalysis, MoveClassification } from '../types/chess';
 import {
+  CLASS_LIMITS,
   accuracyFromMoves,
   accuracyFromWinDrop,
   calculateWinPercentage,
   classifyMove,
   computePlayerStats,
   moveAccuracy,
+  volatilityWeights,
 } from './moveAnalysis';
+
+/** A game from the White-perspective evaluation after each move (the first value is the starting position). */
+function gameFromEvals(evals: number[]): MoveAnalysis[] {
+  return evals.slice(1).map(
+    (evalAfter, i) =>
+      ({
+        ply: i,
+        color: i % 2 === 0 ? 'w' : 'b',
+        evalBefore: evals[i],
+        evalAfter,
+        centipawnLoss: 0,
+        classification: 'good',
+      }) as MoveAnalysis
+  );
+}
+const side = (game: MoveAnalysis[], color: 'w' | 'b') => game.filter((m) => m.color === color);
+const accuracyOf = (game: MoveAnalysis[], color: 'w' | 'b') => accuracyFromMoves(side(game, color), game);
+/** Quiet moves: the evaluation hovers around +20 cp. */
+const quiet = (plies: number) => Array.from({ length: plies }, (_, i) => (i % 2 ? 15 : 25));
 
 describe('calculateWinPercentage', () => {
   it('is 50% for an equal position', () => {
@@ -17,7 +38,12 @@ describe('calculateWinPercentage', () => {
   it('is symmetric around 0 and increases with the score', () => {
     expect(calculateWinPercentage(200) + calculateWinPercentage(-200)).toBeCloseTo(100, 5);
     expect(calculateWinPercentage(100)).toBeGreaterThan(calculateWinPercentage(50));
-    expect(calculateWinPercentage(100)).toBeGreaterThan(50);
+  });
+
+  it("follows Lichess' curve", () => {
+    expect(calculateWinPercentage(100)).toBeCloseTo(59.1, 1);
+    expect(calculateWinPercentage(300)).toBeCloseTo(75.1, 1);
+    expect(calculateWinPercentage(-100)).toBeCloseTo(40.9, 1);
   });
 
   it('clamps the score to ±1000 centipawns', () => {
@@ -28,9 +54,9 @@ describe('calculateWinPercentage', () => {
 });
 
 describe('accuracyFromWinDrop', () => {
-  it('is (almost) 100 when no win probability is lost', () => {
-    expect(accuracyFromWinDrop(0)).toBeCloseTo(100, 1);
-    expect(accuracyFromWinDrop(-5)).toBe(accuracyFromWinDrop(0));
+  it('is 100 when no win probability is lost, and never above', () => {
+    expect(accuracyFromWinDrop(0)).toBe(100);
+    expect(accuracyFromWinDrop(-5)).toBe(100);
   });
 
   it('decreases as the drop grows and stays within 0-100', () => {
@@ -38,6 +64,11 @@ describe('accuracyFromWinDrop', () => {
     expect(accuracyFromWinDrop(20)).toBeGreaterThan(accuracyFromWinDrop(60));
     expect(accuracyFromWinDrop(100)).toBeGreaterThanOrEqual(0);
     expect(accuracyFromWinDrop(100)).toBeLessThan(5);
+  });
+
+  it("matches Lichess' values", () => {
+    expect(accuracyFromWinDrop(10)).toBeCloseTo(64.6, 1);
+    expect(accuracyFromWinDrop(30)).toBeCloseTo(25.8, 1);
   });
 });
 
@@ -57,86 +88,168 @@ describe('moveAccuracy', () => {
   });
 
   it('gives a move that improves the position full marks', () => {
-    expect(moveAccuracy({ color: 'w', evalBefore: 0, evalAfter: 200, centipawnLoss: 0 })).toBeCloseTo(100, 1);
+    expect(moveAccuracy({ color: 'w', evalBefore: 0, evalAfter: 200, centipawnLoss: 0 })).toBe(100);
+  });
+
+  it('barely penalises a slip inside an already decided position', () => {
+    // +12 -> +9 : the game is won either way
+    expect(moveAccuracy({ color: 'w', evalBefore: 1200, evalAfter: 900, centipawnLoss: 300 })).toBeGreaterThan(95);
   });
 
   it('falls back to the centipawn loss when evaluations are missing', () => {
     const accurate = moveAccuracy({ color: 'w', centipawnLoss: 0 } as MoveAnalysis);
     const poor = moveAccuracy({ color: 'w', centipawnLoss: 300 } as MoveAnalysis);
-    expect(accurate).toBeCloseTo(100, 1);
+    expect(accurate).toBe(100);
     expect(poor).toBeLessThan(accurate);
   });
 });
 
-describe('accuracyFromMoves', () => {
-  const played = (evalBefore: number, evalAfter: number): MoveAnalysis =>
-    ({ color: 'w', evalBefore, evalAfter, centipawnLoss: Math.max(0, evalBefore - evalAfter) }) as MoveAnalysis;
+describe('volatilityWeights', () => {
+  it('weighs the moves of a volatile stretch more than those of a quiet position', () => {
+    const game = gameFromEvals([20, ...quiet(30), -500, -500, ...quiet(10)]);
+    const weights = volatilityWeights(game);
+    const quietWeight = weights.get(game[5])!;
+    const blunderWeight = weights.get(game[30])!;
+    expect(quietWeight).toBeLessThan(1);
+    expect(blunderWeight).toBeGreaterThan(quietWeight * 5);
+  });
 
+  it('stays between 0.5 and 12, and is empty without evaluations', () => {
+    const game = gameFromEvals([20, ...quiet(20), -10000, 10000, -10000, ...quiet(10)]);
+    for (const weight of volatilityWeights(game).values()) {
+      expect(weight).toBeGreaterThanOrEqual(0.5);
+      expect(weight).toBeLessThanOrEqual(12);
+    }
+    expect(volatilityWeights([{ ply: 0 } as MoveAnalysis]).size).toBe(0);
+  });
+});
+
+describe('accuracyFromMoves', () => {
   it('is 100 for no moves or a perfect game', () => {
     expect(accuracyFromMoves([])).toBe(100);
-    expect(accuracyFromMoves([played(0, 0), played(0, 20)])).toBeGreaterThan(99.9);
+    expect(accuracyOf(gameFromEvals([20, ...quiet(40)]), 'w')).toBe(100);
   });
 
   it('is not floored: a lost game can go well under 25', () => {
-    const awful = Array.from({ length: 10 }, () => played(500, -500));
-    expect(accuracyFromMoves(awful)).toBeLessThan(10);
+    const awful = gameFromEvals([
+      500, -500, 500, -500, 500, -500, 500, -500, 500, -500, 500, -500, 500, -500, 500, -500, 500, -500, 500, -500, 500,
+    ]);
+    expect(accuracyOf(awful, 'w')).toBeLessThan(10);
   });
 
-  it('is not wiped out by a single blunder (even into a mate) among solid moves', () => {
-    const solid = Array.from({ length: 19 }, () => played(0, -5));
-    expect(accuracyFromMoves([...solid, played(300, -10000)])).toBeGreaterThan(85);
+  it.each<[string, number]>([
+    ['a blunder into a lost position', -400],
+    ['a blunder into a forced mate', -10000],
+  ])('stays realistic after a single blunder in a long game: %s', (_label, evalAfter) => {
+    // 24 quiet plies, White blunders, then 16 more plies in the new position
+    const game = gameFromEvals([20, ...quiet(24), evalAfter, ...Array.from({ length: 15 }, () => evalAfter)]);
+    const white = accuracyOf(game, 'w');
+    expect(white).toBeGreaterThan(55);
+    expect(white).toBeLessThan(90); // still clearly below a clean game
+    expect(accuracyOf(game, 'b')).toBeGreaterThan(95); // the opponent is not penalised
   });
 
   it('ranks players by the errors they made', () => {
-    const fewer = [...Array.from({ length: 18 }, () => played(0, 0)), played(0, -300), played(0, -300)];
-    const more = [
-      ...Array.from({ length: 14 }, () => played(0, 0)),
-      ...Array.from({ length: 6 }, () => played(0, -300)),
-    ];
-    expect(accuracyFromMoves(fewer)).toBeGreaterThan(accuracyFromMoves(more));
+    const few = gameFromEvals([20, ...quiet(20), -250, -250, ...quiet(16)]);
+    const many = gameFromEvals([
+      20,
+      ...quiet(12),
+      -250,
+      -250,
+      200,
+      200,
+      -250,
+      -250,
+      200,
+      200,
+      -250,
+      -250,
+      ...quiet(14),
+    ]);
+    expect(accuracyOf(few, 'w')).toBeGreaterThan(accuracyOf(many, 'w'));
+  });
+
+  it('is barely touched by a slip made inside a decided position', () => {
+    const game = gameFromEvals([
+      20,
+      ...quiet(10),
+      1200,
+      1200,
+      900,
+      900,
+      950,
+      ...quiet(0),
+      ...Array.from({ length: 10 }, () => 950),
+    ]);
+    expect(accuracyOf(game, 'w')).toBeGreaterThan(97);
+  });
+
+  it('also penalises an isolated blunder through the harmonic mean, not only through the weights', () => {
+    // Without evaluations every move weighs the same: only the harmonic mean can pull the result down
+    const perfect = { color: 'w', centipawnLoss: 0 } as MoveAnalysis;
+    const blunder = { color: 'w', centipawnLoss: 1000 } as MoveAnalysis;
+    const moves = [...Array.from({ length: 9 }, () => perfect), blunder];
+    const plainMean = (9 * 100 + moveAccuracy(blunder)) / 10;
+    expect(plainMean).toBeGreaterThan(90);
+    expect(accuracyFromMoves(moves)).toBeGreaterThan(65);
+    expect(accuracyFromMoves(moves)).toBeLessThan(plainMean - 10);
+  });
+
+  it('counts the moves of a critical stretch more than quiet ones (weighted, not a plain average)', () => {
+    const game = gameFromEvals([20, ...quiet(30), -250, ...quiet(9)]);
+    const white = side(game, 'w');
+    const plainMean = white.reduce((sum, m) => sum + moveAccuracy(m), 0) / white.length;
+    expect(accuracyFromMoves(white, game)).toBeLessThan(plainMean - 5);
   });
 });
 
 describe('classifyMove', () => {
-  // classifyMove(isWhite, playedSan, bestSan, cpLoss, winPctDrop, evalBefore, evalAfter, isSacrifice)
+  // classifyMove(isWhite, playedSan, bestSan, winPctDrop, evalBefore, evalAfter, isSacrifice)
   it('labels the engine move (or a near-identical one) as best', () => {
-    expect(classifyMove(true, 'Nf3', 'Nf3', 0, 0, 20, 20)).toBe('best');
-    expect(classifyMove(true, 'd4', 'Nf3', 10, 0.5, 20, 10)).toBe('best');
+    expect(classifyMove(true, 'Nf3', 'Nf3', 0, 20, 20)).toBe('best');
+    expect(classifyMove(true, 'Nf3', 'Nf3', 6, 20, 20)).toBe('best'); // the engine's own move is always "best"
+    expect(classifyMove(true, 'd4', 'Nf3', CLASS_LIMITS.best, 20, 10)).toBe('best');
   });
 
-  it('labels a sacrifice that is as good as the best move as brilliant', () => {
-    expect(classifyMove(true, 'Bxh7+', 'Nf3', 8, 1, 50, 150, true)).toBe('brilliant');
-    // The engine's own move, with up to 15 cp of noise, also counts
-    expect(classifyMove(true, 'Bxh7+', 'Bxh7+', 14, 1, 50, 150, true)).toBe('brilliant');
-    // Without a sacrifice the same move is only "best"
-    expect(classifyMove(true, 'Bxh7+', 'Nf3', 8, 1, 50, 150, false)).toBe('best');
+  it('labels a sacrifice that gives nothing away as brilliant', () => {
+    expect(classifyMove(true, 'Bxh7+', 'Nf3', 1, 50, 150, true)).toBe('brilliant');
+    // Without a sacrifice the same move is only "excellent"
+    expect(classifyMove(true, 'Bxh7+', 'Nf3', 1, 50, 150, false)).toBe('excellent');
   });
 
   it('does not label a costly sacrifice as brilliant', () => {
-    expect(classifyMove(true, 'Bxh7+', 'Nf3', 40, 3, 50, 150, true)).toBe('good');
+    expect(classifyMove(true, 'Bxh7+', 'Nf3', 3, 50, 150, true)).toBe('good');
   });
 
   it('detects a missed win for White and for Black', () => {
-    expect(classifyMove(true, 'h3', 'Qxf7#', 300, 40, 300, 0)).toBe('missedWin');
-    expect(classifyMove(false, 'h6', 'Qxf2#', 300, 40, -300, 0)).toBe('missedWin');
+    expect(classifyMove(true, 'h3', 'Qxf7#', 40, 300, 0)).toBe('missedWin');
+    expect(classifyMove(false, 'h6', 'Qxf2#', 40, -300, 0)).toBe('missedWin');
   });
 
   it('does not report a missed win when the advantage is kept', () => {
-    expect(classifyMove(true, 'h3', 'Qxf7#', 120, 10, 300, 180)).toBe('mistake');
+    expect(classifyMove(true, 'h3', 'Qxf7#', 12, 300, 180)).toBe('mistake');
   });
 
-  it.each<[string, number, number, MoveClassification]>([
-    ['win% drop of 18', 50, 18, 'blunder'],
-    ['loss of 200 cp', 200, 5, 'blunder'],
-    ['win% drop of 9', 50, 9, 'mistake'],
-    ['loss of 90 cp', 90, 2, 'mistake'],
-    ['win% drop of 4', 20, 4, 'inaccuracy'],
-    ['loss of 45 cp', 45, 1, 'inaccuracy'],
-    ['loss of 25 cp', 25, 1, 'excellent'],
-    ['loss of 30 cp', 30, 1, 'good'],
-  ])('thresholds: %s', (_label, cpLoss, winPctDrop, expected) => {
+  it.each<[number, MoveClassification]>([
+    [0.6, 'excellent'],
+    [1.9, 'excellent'],
+    [2, 'good'],
+    [4.9, 'good'],
+    [5, 'inaccuracy'],
+    [9.9, 'inaccuracy'],
+    [10, 'mistake'],
+    [19.9, 'mistake'],
+    [20, 'blunder'],
+    [80, 'blunder'],
+  ])("chess.com's limits: a Win%-drop of %s is %s", (winPctDrop, expected) => {
     // Evaluations stay close to equal so the "missed win" rule cannot apply
-    expect(classifyMove(true, 'a3', 'e4', cpLoss, winPctDrop, 20, 20 - cpLoss)).toBe(expected);
+    expect(classifyMove(true, 'a3', 'e4', winPctDrop, 20, -20)).toBe(expected);
+  });
+
+  it('is based on the Win% only: giving up pawns in a won position is not a blunder', () => {
+    // +12 -> +9 is about 1.2 points of win probability
+    const drop = calculateWinPercentage(1200) - calculateWinPercentage(900);
+    expect(classifyMove(true, 'a3', 'e4', drop, 1200, 900)).toBe('excellent');
   });
 });
 
