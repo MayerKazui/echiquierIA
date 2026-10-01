@@ -15,6 +15,14 @@ export interface PhaseStat {
   blackInaccuracies: number;
 }
 
+export type GamePhase = 'opening' | 'middlegame' | 'endgame';
+
+/** Opening: moves 1-12, middlegame: 13-30, endgame: 31+. */
+export function phaseOfMove(moveNumber: number): GamePhase {
+  if (moveNumber <= 12) return 'opening';
+  return moveNumber <= 30 ? 'middlegame' : 'endgame';
+}
+
 export interface PhaseStats {
   opening: PhaseStat;
   middlegame: PhaseStat;

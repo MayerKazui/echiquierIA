@@ -23,7 +23,15 @@ import { useMediaQuery } from './hooks/useMediaQuery';
 import { useIdleWarmUp } from './hooks/useIdleWarmUp';
 import { stockfishService } from './services/stockfishEngine';
 import { ensureOpeningBookLoaded } from './services/openingBook';
-import { ChessBoard, Dashboard, EvaluationChart, MoveComparison, MoveList, prefetchViews } from './lazyViews';
+import {
+  ChessBoard,
+  Dashboard,
+  EvaluationChart,
+  MoveComparison,
+  MoveList,
+  WeaknessProfile,
+  prefetchViews,
+} from './lazyViews';
 import { LiveRegion, useAnnouncer } from './components/a11y/LiveRegion';
 import { Modal } from './components/a11y/Modal';
 import { GameHistory } from './components/GameHistory/GameHistory';
@@ -52,6 +60,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('board');
   const [isPgnModalOpen, setIsPgnModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const { announcement, announce } = useAnnouncer();
 
   // While the user reads the start screen: download the engine, the openings database and the game views
@@ -517,6 +526,7 @@ export default function App() {
         onToggleSound={toggleSoundAnnounced}
         onOpenPgnModal={() => setIsPgnModalOpen(true)}
         onOpenHistory={() => setIsHistoryOpen(true)}
+        onOpenProfile={() => setIsProfileOpen(true)}
       />
 
       <BatchAnalysisBanner batch={batch} onResume={batch.resume} onCancel={batch.cancel} onDismiss={batch.dismiss} />
@@ -578,6 +588,21 @@ export default function App() {
               void runAnalysis(game.pgn, game.depth);
             }}
           />
+        </Modal>
+      )}
+
+      {isProfileOpen && (
+        <Modal title="Mon profil" onClose={() => setIsProfileOpen(false)} className="w-full max-w-3xl">
+          <Suspense fallback={null}>
+            <WeaknessProfile
+              onClose={() => setIsProfileOpen(false)}
+              onImport={() => {
+                setIsProfileOpen(false);
+                // Without a game on screen the start screen already shows the import form
+                if (analysis) setIsPgnModalOpen(true);
+              }}
+            />
+          </Suspense>
         </Modal>
       )}
 

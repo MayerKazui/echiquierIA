@@ -26,6 +26,8 @@ export interface MoveAnalysis {
   winPercentAfter: number;
   winPercentLoss: number;
   classification: MoveClassification;
+  /** What kind of fault this is (mistake, blunder, miss only); filled in when the game is stored, see `faultKinds`. */
+  faultKind?: 'mate' | 'hanging' | 'tactic' | 'wasted' | 'other';
   clock?: string;
   thinkTimeSeconds?: number;
   thinkTimeFormatted?: string;

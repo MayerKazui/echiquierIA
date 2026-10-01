@@ -6,7 +6,7 @@ Ce fichier suit ce qui reste à faire. `IMPROVEMENTS.md` garde l'historique de c
 
 Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait
 
-Ordre conseillé : **1 → 2** (le point 4 est fait), puis 3, 5 et 6. L'import et l'analyse en lot (4) alimentent le profil (1), qui alimente l'entraînement (2).
+Ordre conseillé : **2** (les points 4 et 1 sont faits), puis 3, 5 et 6. L'import et l'analyse en lot (4) alimentent le profil (1), qui alimente l'entraînement (2).
 
 ## A. Outil d'entraînement (priorité)
 
@@ -14,10 +14,10 @@ Ordre conseillé : **1 → 2** (le point 4 est fait), puis 3, 5 et 6. L'import e
 
 Une vue « Mon profil » qui agrège les parties enregistrées : « qu'est-ce que je rate le plus souvent ? »
 
-- [ ] **Par phase** : précision en ouverture, milieu de jeu et finale (le calcul existe : `utils/phaseStats.ts`, à agréger).
-- [ ] **Par type d'erreur** : pièce laissée en prise, fourchette ou clouage manqué, mat en 1 ou 2 raté, position gagnée gâchée. Les menaces sont déjà détectées (`threatInfo.ts`) mais pas rattachées aux erreurs.
-- [ ] **Par situation** : zeitnot et coups rapides (les horloges sont lues), Blancs ou Noirs, adversaire plus fort ou plus faible.
-- [ ] **Tendance** : précision et nombre de gaffes par partie dans le temps.
+- [x] **Par phase** : précision en ouverture, milieu de jeu et finale.
+- [x] **Par type d'erreur** : mat, pièce en prise, tactique manquée, avantage gâché, autre (`utils/faultKinds.ts`). À affiner : « autre » reste le plus gros groupe.
+- [x] **Par situation** : zeitnot et coups rapides, Blancs ou Noirs, adversaire plus fort ou plus faible, cadence.
+- [x] **Tendance** : précision de chaque partie dans le temps, dernières parties contre les précédentes.
 - [x] Prérequis : plafond levé (500 parties, les 50 plus récentes complètes, les autres allégées avec évaluations et classements par coup).
 
 ### 2. S'entraîner sur ses propres erreurs

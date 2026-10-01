@@ -130,6 +130,62 @@ describe('saveGame / loadGame', () => {
     expect(MAX_FULL_GAMES).toBe(50);
   });
 
+  describe('the kind of fault', () => {
+    const blunderOf = (ply: number): MoveAnalysis =>
+      ({
+        ...makeResult().moves[0],
+        ply,
+        color: ply % 2 === 0 ? 'w' : 'b',
+        classification: 'blunder',
+        // From White's side: 85 → 30 for White, 15 → 70 for Black (a position won, then not)
+        winPercentBefore: ply % 2 === 0 ? 85 : 15,
+        winPercentAfter: ply % 2 === 0 ? 30 : 70,
+        mateBefore: null,
+        mateAfter: null,
+      }) as MoveAnalysis;
+    const resultWith = (userColor: 'w' | 'b' | null): GameAnalysisResult => ({
+      ...makeResult(),
+      moves: [blunderOf(0), blunderOf(1)],
+      userColor,
+    });
+
+    it('is recorded with the game, for the faults of the player', async () => {
+      await saveGame({ pgn: PGN, depth: 12, result: resultWith('w') });
+      const [mine, theirs] = (await loadGame(PGN))!.result.moves;
+      expect(mine.faultKind).toBe('wasted');
+      expect(theirs.faultKind).toBeUndefined();
+    });
+
+    it('follows the side of the player', async () => {
+      await saveGame({ pgn: PGN, depth: 12, result: resultWith('b') });
+      const [theirs, mine] = (await loadGame(PGN))!.result.moves;
+      expect(theirs.faultKind).toBeUndefined();
+      expect(mine.faultKind).toBe('wasted');
+    });
+
+    it('is not recorded when the side of the player is not known', async () => {
+      await saveGame({ pgn: PGN, depth: 12, result: resultWith(null) });
+      expect((await loadGame(PGN))!.result.moves.map((m) => m.faultKind)).toEqual([undefined, undefined]);
+    });
+
+    it('does not change the result it was given', async () => {
+      const result = resultWith('w');
+      await saveGame({ pgn: PGN, depth: 12, result });
+      expect(result.moves[0].faultKind).toBeUndefined();
+    });
+
+    it('is kept in the summary of an old game', async () => {
+      const limits = { full: 1, total: 5 };
+      vi.spyOn(Date, 'now').mockReturnValue(1000);
+      await saveGame({ pgn: PGN, depth: 12, result: resultWith('w') }, limits);
+      vi.spyOn(Date, 'now').mockReturnValue(2000);
+      await saveGame({ pgn: '1. d4 *', depth: 12, result: makeResult() }, limits);
+      const old = (await loadGame(PGN))!;
+      expect(old.detail).toBe('summary');
+      expect(old.result.moves[0].faultKind).toBe('wasted');
+    });
+  });
+
   describe('a long history', () => {
     const limits = { full: 3, total: 6 };
     const pgnOf = (i: number) => `1. a3 *\n; game ${i}`;
