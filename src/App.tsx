@@ -24,7 +24,6 @@ import { ensureOpeningBookLoaded } from './services/openingBook';
 import { ChessBoard, Dashboard, EvaluationChart, MoveComparison, MoveList, prefetchViews } from './lazyViews';
 import { LiveRegion, useAnnouncer } from './components/a11y/LiveRegion';
 import { Modal } from './components/a11y/Modal';
-import { KeyboardHelp } from './components/a11y/KeyboardHelp';
 
 import { EvaluationBar } from './components/EvaluationBar/EvaluationBar';
 import { PgnInput } from './components/PgnInput/PgnInput';
@@ -43,7 +42,6 @@ const HEATMAP_CYCLE: HeatmapMode[] = ['none', 'both', 'white', 'black'];
 export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('board');
   const [isPgnModalOpen, setIsPgnModalOpen] = useState(false);
-  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const { announcement, announce } = useAnnouncer();
 
   // While the user reads the start screen: download the engine, the openings database and the game views
@@ -206,7 +204,6 @@ export default function App() {
     onToggleSound: toggleSoundAnnounced,
     onToggleAlternative: toggleAlternative,
     onCycleHeatmap: cycleHeatmapMode,
-    onHelp: () => setIsHelpOpen(true),
     onEscape: () => {
       if (!sandbox.isSandboxMode) return false;
       leaveSandbox();
@@ -238,7 +235,6 @@ export default function App() {
         onUpdateUserColor={handleUpdateUserColor}
         onToggleSound={toggleSoundAnnounced}
         onOpenPgnModal={() => setIsPgnModalOpen(true)}
-        onOpenHelp={() => setIsHelpOpen(true)}
       />
 
       {isAnalyzing && progress && <AnalysisProgressBanner progress={progress} />}
@@ -469,8 +465,6 @@ export default function App() {
           />
         </Modal>
       )}
-
-      {isHelpOpen && <KeyboardHelp onClose={() => setIsHelpOpen(false)} />}
     </div>
   );
 }

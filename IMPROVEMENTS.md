@@ -102,8 +102,8 @@ Mesures (partie réelle de 82 demi-coups, machine à 4 cœurs, navigateur headle
 
 - [x] **Échiquier au clavier** : grille ARIA (`role="grid"`, une seule case dans l'ordre de tabulation, « roving tabindex »). Flèches, Début/Fin pour se déplacer (directions miroir quand l'échiquier est retourné), Entrée/Espace pour sélectionner ou jouer en exploration libre, Échap pour quitter. Chaque case porte un nom en français (« e4, pion blanc », « tour blanche », « sélectionné », « coup possible », menace tactique). Le focus obtenu à la souris n'est pas gardé : après un clic, les flèches continuent de naviguer dans la partie.
 - [x] **Annonces aux lecteurs d'écran** : région `aria-live` qui annonce le coup courant en navigation (joueur, coup en français, qualité, évaluation, meilleur coup après une faute, position dans la partie), le début et la fin d'analyse, les coups et la sortie de l'exploration, et chaque bascule (échiquier retourné, annotations, contrôle de l'espace, aperçu, son, lecture). Pas d'annonce coup par coup pendant la lecture automatique.
-- [x] **Raccourcis** : Espace/Entrée restent aux boutons et liens focalisés, les flèches restent à la grille, tout reste aux champs de formulaire et aux dialogues. Nouvelle aide (touche `?` ou bouton dans l'en-tête).
-- [x] **Dialogues** accessibles (`Modal`) pour l'import PGN et l'aide : focus piégé, Échap, focus rendu au déclencheur, reste de la page rendu inerte.
+- [x] **Raccourcis** : Espace/Entrée restent aux boutons et liens focalisés, les flèches restent à la grille, tout reste aux champs de formulaire et aux dialogues. (L'aide des raccourcis, touche `?` et bouton de l'en-tête, a été retirée ensuite : voir le point 10.)
+- [x] **Dialogues** accessibles (`Modal`) pour l'import PGN : focus piégé, Échap, focus rendu au déclencheur, reste de la page rendu inerte.
 - [x] **Sémantique** : liste de coups (`aria-current`, libellé complet « Coup 3, Blancs : Fb5, Erreur, réflexion longue… »), boutons à bascule en `aria-pressed`, groupes nommés, boutons icône nommés, barre et graphiques décrits (`role="img"`), radar décrit, progression de l'analyse en `progressbar`, explication de l'IA annoncée.
 - [x] **Formulaire d'import** : champs libellés, profondeur en boutons radio natifs (flèches), sélecteur de fichier enfin atteignable au clavier (il était en `display:none`), erreurs en `role="alert"`.
 - [x] **Visuel** : contraste (`text-slate-500` à 3,6–4:1 remplacé par `text-slate-400`), zoom autorisé (`user-scalable=no` retiré), focus clavier visible partout, `prefers-reduced-motion` respecté (CSS et défilement), lien d'évitement « Aller au contenu principal ».
@@ -140,7 +140,7 @@ Proposition 1. Une analyse prend de quelques secondes à plusieurs dizaines de s
 
 Proposition 2. L'aide (fenêtre « Raccourcis clavier ») a été retirée à la demande dans la PR #4, puis réintroduite par le travail d'accessibilité (PR #9) : touche `?` **et** bouton (icône clavier) dans l'en-tête. Les raccourcis eux-mêmes restent actifs.
 
-- [ ] Retirer `KeyboardHelp`, le bouton de l'en-tête, la touche `?` (`onHelp`), l'état `isHelpOpen` et les tests correspondants ; mettre à jour le README.
+- [x] Retiré : `KeyboardHelp`, le bouton de l'en-tête, la touche `?` (`onHelp`), l'état `isHelpOpen`, les tests correspondants et la mention dans le README. Les raccourcis (flèches, `Maj+←/→`, Espace, `F`, `E`, `M`, `A`, `H`, Échap) restent actifs et accessibles ; seule leur liste n'est plus affichée dans l'appli.
 
 ## Ordre suggéré
 

@@ -72,7 +72,6 @@ function handlers(): KeyboardShortcutHandlers {
     onToggleSound: vi.fn(),
     onToggleAlternative: vi.fn(),
     onCycleHeatmap: vi.fn(),
-    onHelp: vi.fn(),
     onEscape: vi.fn(() => false),
   };
 }
@@ -103,13 +102,6 @@ describe('useKeyboardShortcuts', () => {
     expect(h.onNext).toHaveBeenCalledOnce();
     expect(h.onTogglePlay).toHaveBeenCalledOnce();
     expect(h.onFlip).toHaveBeenCalledOnce();
-  });
-
-  it('opens the shortcut help with ?', () => {
-    const h = handlers();
-    render(<Host enabled h={h} />);
-    fireEvent.keyDown(document.body, { key: '?', shiftKey: true });
-    expect(h.onHelp).toHaveBeenCalledOnce();
   });
 
   it('does not toggle auto-play when Space is pressed on a focused button', () => {
