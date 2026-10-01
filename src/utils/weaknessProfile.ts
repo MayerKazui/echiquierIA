@@ -427,6 +427,15 @@ const PRESSURE_GAP = 8;
 const COLOR_GAP = 5;
 const TREND_GAP = 3;
 
+/** The phase to work on: the least accurate one, if it is 3 points under the average and has enough moves. */
+export function weakestPhase({ phases, baseline }: Pick<Profile, 'phases' | 'baseline'>): GamePhase | null {
+  if (baseline.accuracy === null) return null;
+  const weakest = (Object.keys(phases) as GamePhase[])
+    .filter((p) => phases[p].moves >= 2 * MIN_BUCKET_MOVES && phases[p].accuracy !== null)
+    .sort((a, b) => phases[a].accuracy! - phases[b].accuracy!)[0];
+  return weakest && baseline.accuracy - phases[weakest].accuracy! >= PHASE_GAP ? weakest : null;
+}
+
 /** The few things worth remembering, from what is measured (only when there are enough moves to say it). */
 export function buildInsights(profile: Profile): Insight[] {
   const insights: Insight[] = [];
@@ -448,16 +457,12 @@ export function buildInsights(profile: Profile): Insight[] {
     });
   }
 
-  if (baseline.accuracy !== null) {
-    const weakest = (Object.keys(phases) as GamePhase[])
-      .filter((p) => phases[p].moves >= 2 * MIN_BUCKET_MOVES && phases[p].accuracy !== null)
-      .sort((a, b) => phases[a].accuracy! - phases[b].accuracy!)[0];
-    if (weakest && baseline.accuracy - phases[weakest].accuracy! >= PHASE_GAP) {
-      insights.push({
-        id: 'phase',
-        text: `Votre phase la plus fragile est ${PHASE_LABELS[weakest]} : ${percent(phases[weakest].accuracy!)} de précision, contre ${percent(baseline.accuracy)} en moyenne.`,
-      });
-    }
+  const weakest = weakestPhase(profile);
+  if (weakest && baseline.accuracy !== null) {
+    insights.push({
+      id: 'phase',
+      text: `Votre phase la plus fragile est ${PHASE_LABELS[weakest]} : ${percent(phases[weakest].accuracy!)} de précision, contre ${percent(baseline.accuracy)} en moyenne.`,
+    });
   }
 
   const { pressure, comfortable } = time;
