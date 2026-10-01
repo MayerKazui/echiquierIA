@@ -28,17 +28,17 @@ Sans clé Gemini, l'application fonctionne : les explications de l'entraîneur I
 
 ## Commandes
 
-| Commande                 | Rôle                                                                      |
-| ------------------------ | ------------------------------------------------------------------------- |
-| `bun run dev`            | Serveur de développement (Express + Vite, rechargement à chaud)           |
-| `bun run build`          | Construit le front dans `dist/`                                           |
-| `bun run start`          | Sert `dist/` en production (`NODE_ENV=production`) : lancer `build` avant |
-| `bun run test`           | Tests unitaires (Vitest)                                                  |
-| `bun run lint`           | ESLint                                                                    |
-| `bun run typecheck`      | `tsc --noEmit` (mode `strict`)                                            |
-| `bun run format`         | Formate avec Prettier (`format:check` pour seulement vérifier)            |
-| `bun run check`          | lint + typecheck + format + tests, comme la CI                            |
-| `bun run build:openings` | Régénère `public/openings.json` depuis `src/data/openings/*.tsv`          |
+| Commande                 | Rôle                                                                               |
+| ------------------------ | ---------------------------------------------------------------------------------- |
+| `bun run dev`            | Serveur de développement (Express + Vite, rechargement à chaud)                    |
+| `bun run build`          | Construit l'interface (`dist/`) et compile le serveur en `server.js`               |
+| `bun run start`          | Sert `dist/` en production (`NODE_ENV=production`, via tsx) : lancer `build` avant |
+| `bun run test`           | Tests unitaires (Vitest)                                                           |
+| `bun run lint`           | ESLint                                                                             |
+| `bun run typecheck`      | `tsc --noEmit` (mode `strict`)                                                     |
+| `bun run format`         | Formate avec Prettier (`format:check` pour seulement vérifier)                     |
+| `bun run check`          | lint + typecheck + format + tests, comme la CI                                     |
+| `bun run build:openings` | Régénère `public/openings.json` depuis `src/data/openings/*.tsv`                   |
 
 La CI (GitHub Actions) exécute lint, typecheck, format, tests et build à chaque pull request.
 
@@ -86,7 +86,7 @@ erreurs génériques côté client.
 
 ## Déploiement
 
-`bun run build` puis `bun run start`. Le serveur écoute sur `PORT` (3000 par défaut) et sert `dist/` compressé (brotli/gzip), avec un cache long pour les fichiers hachés et une revalidation pour le reste. Derrière un
+`bun run build` puis `node server.js` (ou `bun run start`). `build` compile le serveur en `server.js`, qui démarre en une fraction de seconde (tsx compile le TypeScript au lancement, ce qui prend plusieurs secondes sur un hôte lent) : c'est ce que lance la commande par défaut de Cloud Run (`if [ -f server.js ]; then node server.js; else npm start; fi`), qui laisse peu de temps au conteneur pour écouter sur son port. Le serveur écoute sur `PORT` (3000 par défaut) et sert `dist/` compressé (brotli/gzip), avec un cache long pour les fichiers hachés et une revalidation pour le reste. Derrière un
 reverse proxy, définissez `TRUST_PROXY` (automatique sur Cloud Run) et `APP_URL`.
 
 ## Suivi des améliorations

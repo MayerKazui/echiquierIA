@@ -1,6 +1,5 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { resolvePort } from './server/config';
@@ -476,6 +475,8 @@ const PORT = resolvePort();
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
   if (!isProd) {
+    // Only the dev server needs Vite: loading it in production would slow the start for nothing
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
