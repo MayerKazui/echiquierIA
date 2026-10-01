@@ -155,6 +155,33 @@ describe('statistics of games saved by an older version', () => {
   });
 });
 
+describe('best moves of games saved by an older version', () => {
+  const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+  const withBest = (bestMoveSan: string, bestMoveUci: string, fenBefore = START) => {
+    const result = makeResult();
+    return { ...result, moves: [{ ...result.moves[0], fenBefore, bestMoveSan, bestMoveUci }] };
+  };
+  const loaded = async (result: GameAnalysisResult) => {
+    await rawPut(stored({ id: gameId(PGN), result }));
+    return (await loadGame(PGN))?.result.moves[0].bestMoveSan;
+  };
+
+  it('are read in English SAN, rebuilt from the UCI move', async () => {
+    expect(await loaded(withBest('Cf3', 'g1f3'))).toBe('Nf3');
+  });
+
+  it('turns a French king move back into a king move, not a rook move', async () => {
+    const afterE4 = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2';
+    expect(await loaded(withBest('Re2', 'e1e2', afterE4))).toBe('Ke2');
+  });
+
+  it('keeps pawn moves, English moves and unreadable ones as they are', async () => {
+    expect(await loaded(withBest('e4', 'e2e4'))).toBe('e4');
+    expect(await loaded(withBest('Nf3', 'g1f3'))).toBe('Nf3');
+    expect(await loaded(withBest('Cf3', 'zzzz', 'not a fen'))).toBe('Cf3');
+  });
+});
+
 describe('loadLatestGame', () => {
   it('is null when nothing is stored', async () => {
     expect(await loadLatestGame()).toBeNull();

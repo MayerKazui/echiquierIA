@@ -1,26 +1,39 @@
 import { MoveClassification, PlayerStats, MoveAnalysis } from '../types/chess';
 
+const LICHESS_COEFFICIENT = 0.00368208;
+// The three constants below were fitted on 66 public chess.com games (132 players, 160 to 3300 Elo) whose
+// accuracy is published by chess.com: see IMPROVEMENTS.md. Held-out error: 3.7 points on average.
+/** The curve is flatter than Lichess' (0.6 times its slope): a won position is worth less than it looks. */
+const WIN_CURVE_SLOPE = 0.6;
+/** The accuracy of a move decays 2.5 times faster with the Win% given away than in Lichess' formula. */
+const DECAY = 0.04354 * 2.5;
+/** A single move can pull the mean down only so far (a mate blunder is already one lost game). */
+const MOVE_FLOOR = 10;
+
 /**
- * Win probability (0-100) of White from a centipawn score (White's perspective).
- * Logistic curve, with the score clamped to ±1000 cp.
+ * Win probability (0-100) of White from a centipawn score (White's perspective). Lichess' logistic curve,
+ * flattened (see `WIN_CURVE_SLOPE`), with the score clamped to ±1000 cp. It is the only curve of the app:
+ * the classification thresholds and the accuracy below are both calibrated on it.
  */
 export function calculateWinPercentage(cp: number): number {
   const clampedCp = Math.max(-1000, Math.min(1000, cp));
-  return 100 / (1 + Math.pow(10, -clampedCp / 400));
+  return 50 + 50 * (2 / (1 + Math.exp(-LICHESS_COEFFICIENT * WIN_CURVE_SLOPE * clampedCp)) - 1);
 }
 
 /**
- * Accuracy (0-100) of a single move from the Win% it gave away (Lichess formula).
- * Based on the win probability rather than on raw centipawns, so a blunder or a mate
- * score weighs at most "the whole game lost", never thousands of centipawns.
+ * Accuracy (0-100) of a single move from the Win% it gave away: Lichess' formula (with its small
+ * "uncertainty bonus"), decaying faster. Based on the win probability rather than on raw centipawns, so a
+ * blunder or a mate score weighs at most "the whole game lost", never thousands of centipawns.
  */
 export function accuracyFromWinDrop(winPctDrop: number): number {
-  const raw = 103.1668 * Math.exp(-0.04354 * Math.max(0, winPctDrop)) - 3.1669;
+  const raw = 103.1668 * Math.exp(-DECAY * Math.max(0, winPctDrop)) - 3.1669 + 1;
   return Math.min(100, Math.max(0, raw));
 }
 
+type EvaluatedMove = Pick<MoveAnalysis, 'color' | 'evalBefore' | 'evalAfter' | 'centipawnLoss'>;
+
 /** Accuracy of one analysed move; falls back to its centipawn loss when evaluations are missing. */
-export function moveAccuracy(m: Pick<MoveAnalysis, 'color' | 'evalBefore' | 'evalAfter' | 'centipawnLoss'>): number {
+export function moveAccuracy(m: EvaluatedMove): number {
   if (typeof m.evalBefore === 'number' && typeof m.evalAfter === 'number') {
     const before = calculateWinPercentage(m.evalBefore);
     const after = calculateWinPercentage(m.evalAfter);
@@ -29,52 +42,55 @@ export function moveAccuracy(m: Pick<MoveAnalysis, 'color' | 'evalBefore' | 'eva
   return accuracyFromWinDrop(calculateWinPercentage(m.centipawnLoss) - 50);
 }
 
-/** Accuracy (0-100, one decimal) of a set of moves: the mean of the per-move accuracies. */
+/**
+ * Accuracy (0-100, one decimal) of a set of moves of one player: the geometric mean of the per-move accuracies
+ * (each at least `MOVE_FLOOR`). Unlike a plain average it does not hide an isolated blunder among many good
+ * moves, and unlike a harmonic mean it is not dominated by it. Of the aggregations tried (arithmetic,
+ * volatility-weighted as on Lichess, harmonic, power means) it was the simplest of those closest to chess.com.
+ */
 export function accuracyFromMoves(moves: MoveAnalysis[]): number {
   if (moves.length === 0) return 100;
-  const total = moves.reduce((acc, m) => acc + moveAccuracy(m), 0);
-  return Math.round((total / moves.length) * 10) / 10;
+  const logSum = moves.reduce((sum, m) => sum + Math.log(Math.max(moveAccuracy(m), MOVE_FLOOR)), 0);
+  return Math.round(Math.exp(logSum / moves.length) * 10) / 10;
 }
 
-/** Classifies a move from the Win% drop and centipawn loss it caused. */
+/**
+ * Win% (0-100 points) a move may give away for each class: chess.com's expected-points limits (0.02, 0.05,
+ * 0.10, 0.20) scaled by 0.6, so that on the flat curve above the moves counted as inaccuracies, mistakes and
+ * blunders over 14 chess.com reference players come close to chess.com's counts (132 against 136).
+ */
+export const CLASS_LIMITS = { best: 0.3, excellent: 1.2, good: 3, inaccuracy: 6, mistake: 12 } as const;
+
+/** Classifies a move from the Win% it gave away (from the mover's point of view, in points). */
 export function classifyMove(
   isWhite: boolean,
   playedSan: string,
   bestSan: string,
-  cpLoss: number,
   winPctDrop: number,
   evalBefore: number,
   evalAfter: number,
   isSacrifice = false
 ): MoveClassification {
-  // Identical to the best move (or practically as good)
-  if (playedSan === bestSan || cpLoss <= 10) {
-    if (isSacrifice && cpLoss <= 15) {
-      return 'brilliant';
-    }
-    return 'best';
-  }
+  // The engine's move, or one as good within its noise
+  if (playedSan === bestSan || winPctDrop <= CLASS_LIMITS.best) return 'best';
+
+  // A sacrifice that gives away practically nothing
+  if (isSacrifice && winPctDrop <= CLASS_LIMITS.excellent) return 'brilliant';
 
   // Missed win: was heavily winning (>+2.5) and dropped to near equal or worse
   if (isWhite && evalBefore >= 250 && evalAfter <= 50) return 'missedWin';
   if (!isWhite && evalBefore <= -250 && evalAfter >= -50) return 'missedWin';
 
-  // Blunder (Gaffe): huge drop
-  if (winPctDrop >= 18 || cpLoss >= 200) return 'blunder';
-
-  // Mistake (Erreur)
-  if (winPctDrop >= 9 || cpLoss >= 90) return 'mistake';
-
-  // Inaccuracy (Imprécision)
-  if (winPctDrop >= 4 || cpLoss >= 45) return 'inaccuracy';
-
-  // Excellent / Good
-  if (cpLoss <= 25) return 'excellent';
-
-  return 'good';
+  if (winPctDrop < CLASS_LIMITS.excellent) return 'excellent';
+  if (winPctDrop < CLASS_LIMITS.good) return 'good';
+  if (winPctDrop < CLASS_LIMITS.inaccuracy) return 'inaccuracy';
+  if (winPctDrop < CLASS_LIMITS.mistake) return 'mistake';
+  return 'blunder';
 }
 
-/** Aggregates the moves of one player into the statistics shown in the dashboard. */
+/**
+ * Aggregates the moves of one player into the statistics shown in the dashboard.
+ */
 export function computePlayerStats(playerMoves: MoveAnalysis[]): PlayerStats {
   let book = 0;
   let brilliant = 0;

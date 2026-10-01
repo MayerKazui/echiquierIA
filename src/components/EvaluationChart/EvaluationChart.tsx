@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Activity, TrendingUp, Zap } from 'lucide-react';
 import { MoveAnalysis } from '../../types/chess';
+import { toFrenchSan } from '../../utils/chessNotation';
 
 export type ChartMode = 'eval' | 'momentum' | 'accuracy';
 
@@ -283,7 +284,7 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({ moves, current
             <span className="text-slate-200 truncate">
               <strong>
                 {activePoint.moveNumber}
-                {activePoint.color === 'w' ? '.' : '...'} {activePoint.san}
+                {activePoint.color === 'w' ? '.' : '...'} {toFrenchSan(activePoint.san)}
               </strong>
               {chartMode === 'eval' && (
                 <span className="text-indigo-300 ml-1.5 font-bold">
@@ -672,7 +673,7 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({ moves, current
               }`}
             >
               {tp.moveNumber}
-              {tp.color === 'w' ? '.' : '...'} {tp.san}{' '}
+              {tp.color === 'w' ? '.' : '...'} {toFrenchSan(tp.san)}{' '}
               <span className={tp.swing >= 0 ? 'text-blue-400 font-bold' : 'text-rose-400 font-bold'}>
                 ({tp.swing >= 0 ? `+${(tp.swing / 100).toFixed(1)}` : (tp.swing / 100).toFixed(1)})
               </span>

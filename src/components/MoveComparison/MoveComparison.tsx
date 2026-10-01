@@ -14,7 +14,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { MoveAnalysis } from '../../types/chess';
-import { formatPvToFrench, toFrenchSan } from '../../utils/chessNotation';
+import { formatPvToFrench, frenchifyMoveText, toFrenchSan } from '../../utils/chessNotation';
 import { TacticalThreat } from '../../utils/tacticalThreats';
 
 /**
@@ -181,13 +181,13 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
 
     const whyPlayedIsBad = isGood
       ? ''
-      : `En jouant ${move.san}, les ${
+      : `En jouant ${toFrenchSan(move.san)}, les ${
           isWhiteMove ? 'Blancs' : 'Noirs'
         } concèdent un temps précieux ou concèdent un désavantage tactique que l'adversaire peut exploiter.`;
 
     const whyBestIsBetter = isGood
-      ? `Le coup joué ${move.san} (${badgeLabel}) est optimal : il coordonne parfaitement les pièces et maintient l'initiative dans cette position.`
-      : `Le coup recommandé ${move.bestMoveSan || 'alternatif'} active directement ${pieceName} pour maintenir la pression tactique et le contrôle des cases centrales.`;
+      ? `Le coup joué ${toFrenchSan(move.san)} (${badgeLabel}) est optimal : il coordonne parfaitement les pièces et maintient l'initiative dans cette position.`
+      : `Le coup recommandé ${toFrenchSan(move.bestMoveSan) || 'alternatif'} active directement ${pieceName} pour maintenir la pression tactique et le contrôle des cases centrales.`;
 
     const plan = `1. Continuer le développement actif de ${pieceName}.\n2. Sécuriser les pièces maîtresses et contester les colonnes ouvertes.\n3. Augmenter la pression sur les points faibles du camp adverse.`;
 
@@ -658,7 +658,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
           {loadingAi
             ? 'Analyse du plan en cours'
             : currentMove.aiExplanation
-              ? `Explication disponible. Concept clé : ${currentMove.aiExplanation.concept}`
+              ? `Explication disponible. Concept clé : ${frenchifyMoveText(currentMove.aiExplanation.concept)}`
               : ''}
         </div>
 
@@ -668,16 +668,16 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
             {/* Concept Kicker */}
             <div className="flex items-center gap-2 text-indigo-400 font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-              <span>Concept clé : {currentMove.aiExplanation.concept}</span>
+              <span>Concept clé : {frenchifyMoveText(currentMove.aiExplanation.concept)}</span>
             </div>
 
             {/* If NOT a positive move: show why played move is bad in red */}
             {!isPositiveMove && currentMove.aiExplanation.whyPlayedIsBad && (
               <div className="p-3 bg-rose-950/20 border border-rose-900/40 rounded-lg text-slate-300 break-words">
                 <span className="font-semibold text-rose-300 block mb-1">
-                  Pourquoi {currentMove.san} est une {badge.label.toLowerCase()} :
+                  Pourquoi {toFrenchSan(currentMove.san)} est une {badge.label.toLowerCase()} :
                 </span>
-                <p className="break-words">{currentMove.aiExplanation.whyPlayedIsBad}</p>
+                <p className="break-words">{frenchifyMoveText(currentMove.aiExplanation.whyPlayedIsBad)}</p>
               </div>
             )}
 
@@ -687,17 +687,19 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
                 {isPositiveMove ? (
                   <>
                     <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                    Pourquoi {currentMove.san} est le coup optimal :
+                    Pourquoi {toFrenchSan(currentMove.san)} est le coup optimal :
                   </>
                 ) : (
                   <>
                     <ArrowRight className="w-3.5 h-3.5 text-emerald-400" />
-                    L'idée directrice de {currentMove.bestMoveSan || 'l’alternative recommandée'} :
+                    L'idée directrice de {toFrenchSan(currentMove.bestMoveSan) || 'l’alternative recommandée'} :
                   </>
                 )}
               </span>
               <p className="break-words">
-                {currentMove.aiExplanation.whyBestIsBetter || currentMove.aiExplanation.whyPlayedIsBad}
+                {frenchifyMoveText(
+                  currentMove.aiExplanation.whyBestIsBetter || currentMove.aiExplanation.whyPlayedIsBad
+                )}
               </p>
             </div>
 
@@ -709,7 +711,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
                   {isPositiveMove ? 'Plan suggéré pour exploiter la position :' : 'Plan de redressement recommandé :'}
                 </span>
                 <div className="flex flex-col gap-2">
-                  {formatPlanSteps(currentMove.aiExplanation.plan).map((step, idx) => (
+                  {formatPlanSteps(frenchifyMoveText(currentMove.aiExplanation.plan)).map((step, idx) => (
                     <div
                       key={idx}
                       className="flex items-start gap-2.5 p-2.5 bg-slate-950/70 border border-slate-800/80 rounded-lg text-slate-200 min-w-0"

@@ -97,23 +97,42 @@ export function convertUciToFrenchSan(fen: string, uciMove: string): string {
   return uciMove;
 }
 
+const UCI_MOVE = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
+
+/** Plays one move of a variation, written in UCI or SAN (English, then French), on the board. */
+function playToken(chess: Chess, token: string) {
+  if (UCI_MOVE.test(token)) {
+    return chess.move({
+      from: token.substring(0, 2),
+      to: token.substring(2, 4),
+      promotion: token.length > 4 ? token[4] : undefined,
+    });
+  }
+  try {
+    return chess.move(token);
+  } catch {
+    return chess.move(toEnglishSan(token));
+  }
+}
+
 /**
- * Formats a sequence of UCI moves (PV - Principal Variation) into French SAN notation.
+ * Formats a sequence of moves (PV - Principal Variation) into French SAN notation. Each move is either
+ * UCI (what the engine gives) or SAN (what the opening book gives: English, or already French).
  * Example:
  *   ['d1f3', 'c7c6', 'h2h3', 'f6d7']
  *   -> 'Df3 c6 h3 Cfd7' (or with move numbers: '10. Df3 c6  11. h3 Cfd7')
  */
-export function formatPvToFrench(fen: string, pvUci: string[], maxMoves = 6, includeMoveNumbers = true): string {
-  if (!pvUci || pvUci.length === 0) return '';
+export function formatPvToFrench(fen: string, pv: string[], maxMoves = 6, includeMoveNumbers = true): string {
+  if (!pv || pv.length === 0) return '';
 
   const formattedMoves: string[] = [];
 
   try {
     const chess = new Chess(fen);
-    const movesToProcess = pvUci.slice(0, maxMoves);
+    const movesToProcess = pv.slice(0, maxMoves);
 
-    for (const uci of movesToProcess) {
-      if (!uci || uci.length < 4) break;
+    for (const token of movesToProcess) {
+      if (!token) break;
 
       const isWhiteTurn = chess.turn() === 'w';
       // Fullmove number of the position itself (history() is empty when starting from a FEN)
@@ -121,15 +140,10 @@ export function formatPvToFrench(fen: string, pvUci: string[], maxMoves = 6, inc
 
       let move;
       try {
-        move = chess.move({
-          from: uci.substring(0, 2),
-          to: uci.substring(2, 4),
-          promotion: uci.length > 4 ? uci[4] : undefined,
-        });
+        move = playToken(chess, token);
       } catch {
         break; // Illegal move: keep what was formatted so far
       }
-      if (!move) break;
 
       const sanFr = toFrenchSan(move.san);
 
@@ -147,8 +161,33 @@ export function formatPvToFrench(fen: string, pvUci: string[], maxMoves = 6, inc
     }
   } catch {
     // Fallback if simulation fails
-    return pvUci.slice(0, maxMoves).join(' ');
+    return pv.slice(0, maxMoves).join(' ');
   }
 
-  return formattedMoves.length > 0 ? formattedMoves.join(' ') : pvUci.slice(0, maxMoves).join(' ');
+  return formattedMoves.length > 0 ? formattedMoves.join(' ') : pv.slice(0, maxMoves).join(' ');
+}
+
+/**
+ * Rewrites moves written with English piece letters inside a free text (e.g. an AI explanation that
+ * mixes "Qc5" and "Db3") into French notation: Qc5 -> Dc5, Nxf3 -> Cxf3, Bg5+ -> Fg5+, Kg1 -> Rg1.
+ * Only K, Q, B and N are rewritten: they are not French piece letters, so they cannot be mistaken for
+ * something else. A leading R is left alone (a rook in English, a king in French: ambiguous), as are
+ * French moves and ordinary words.
+ */
+export function frenchifyMoveText(text: string): string {
+  if (!text) return '';
+  const promotion = (suffix: string) =>
+    suffix.replace(/=([QRBN])/, (_, p: string) => `=${ENGLISH_TO_FRENCH_PIECES[p]}`);
+  return (
+    text
+      // Piece moves: Qc5, Nbd7, Bxf7+, Kg1
+      .replace(
+        /(?<![\p{L}\p{N}])([KQBN])([a-h]?[1-8]?x?[a-h][1-8][+#]?)(?![\p{L}\p{N}])/gu,
+        (_, piece: string, rest: string) => `${ENGLISH_TO_FRENCH_PIECES[piece]}${rest}`
+      )
+      // Pawn promotions: e8=Q#, exd8=N+
+      .replace(/(?<![\p{L}\p{N}])([a-h]x?[a-h]?[18]=[QRBN][+#]?)(?![\p{L}\p{N}])/gu, (_, move: string) =>
+        promotion(move)
+      )
+  );
 }

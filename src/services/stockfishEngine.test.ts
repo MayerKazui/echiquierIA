@@ -227,14 +227,14 @@ describe('worker pool', () => {
 });
 
 describe('evaluatePosition', () => {
-  it('returns the engine evaluation from White’s point of view, with a French SAN', async () => {
+  it('returns the engine evaluation from White’s point of view, with an English SAN (translated only for display)', async () => {
     const { service } = setup({ workerCount: 1 });
     const whiteToMove = service.evaluatePosition(FEN_A, 10);
     await vi.advanceTimersByTimeAsync(100);
     const white = await whiteToMove;
     expect(white.cp).toBe(30);
     expect(white.bestMoveUci).toBe('e2a6');
-    expect(white.bestMoveSan).toBe('Fxa6');
+    expect(white.bestMoveSan).toBe('Bxa6');
     expect(white.pv).toEqual(['e2a6']);
 
     // The engine scores from the side to move: Black to move flips the sign
