@@ -15,8 +15,8 @@ export function buildGameSummary(analysis: GameAnalysisResult, phaseStats: Phase
   return `♟️ Échiquier IA — Bilan de la partie
 ${whiteName} (${statsWhite.accuracy}%) vs ${blackName} (${statsBlack.accuracy}%)
 ${resultStr}${openingStr}⏱️ Durée : ${Math.ceil(moves.length / 2)} coups
-⚪ Blancs : ${statsWhite.best + statsWhite.brilliant} meilleurs coups · ${statsWhite.inaccuracies} imprécision(s) · ${statsWhite.mistakes} erreur(s) · ${statsWhite.blunders + statsWhite.missedWins} gaffe(s)
-⚫ Noirs : ${statsBlack.best + statsBlack.brilliant} meilleurs coups · ${statsBlack.inaccuracies} imprécision(s) · ${statsBlack.mistakes} erreur(s) · ${statsBlack.blunders + statsBlack.missedWins} gaffe(s)
+⚪ Blancs : ${statsWhite.best + statsWhite.brilliant} meilleurs coups · ${statsWhite.inaccuracies} imprécision(s) · ${statsWhite.mistakes} erreur(s) · ${statsWhite.blunders} gaffe(s) · ${statsWhite.missedWins} occasion(s) manquée(s)
+⚫ Noirs : ${statsBlack.best + statsBlack.brilliant} meilleurs coups · ${statsBlack.inaccuracies} imprécision(s) · ${statsBlack.mistakes} erreur(s) · ${statsBlack.blunders} gaffe(s) · ${statsBlack.missedWins} occasion(s) manquée(s)
 ${
   opening.whiteAccuracy !== null
     ? `\n📊 Précision par phase :

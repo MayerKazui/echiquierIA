@@ -1,5 +1,15 @@
 import React from 'react';
-import { AlertTriangle, Award, BookOpen, CheckCircle2, Lightbulb, Sparkles, Target, XCircle } from 'lucide-react';
+import {
+  AlertTriangle,
+  Award,
+  BookOpen,
+  CheckCircle2,
+  Crosshair,
+  Lightbulb,
+  Sparkles,
+  Target,
+  XCircle,
+} from 'lucide-react';
 import { PlayerStats } from '../../types/chess';
 
 interface BreakdownTile {
@@ -22,13 +32,14 @@ const TILES: BreakdownTile[] = [
   { label: 'Excellents', icon: Award, titleClass: 'text-sky-400', ...NEUTRAL, value: (s) => s.excellent + s.good },
   { label: 'Imprécisions', icon: Lightbulb, titleClass: 'text-yellow-300', ...NEUTRAL, value: (s) => s.inaccuracies },
   { label: 'Erreurs', icon: AlertTriangle, titleClass: 'text-amber-400', ...NEUTRAL, value: (s) => s.mistakes },
+  { label: 'Manqués', icon: Crosshair, titleClass: 'text-orange-400', ...NEUTRAL, value: (s) => s.missedWins },
   {
     label: 'Gaffes',
     icon: XCircle,
     titleClass: 'text-rose-400',
     whiteClass: 'text-rose-400',
     blackClass: 'text-rose-400',
-    value: (s) => s.blunders + s.missedWins,
+    value: (s) => s.blunders,
   },
 ];
 
@@ -43,7 +54,7 @@ export const MoveBreakdown: React.FC<{ statsWhite: PlayerStats; statsBlack: Play
       Répartition Détaillée des Coups
     </h3>
 
-    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 text-xs">
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 text-xs">
       {TILES.map(({ label, icon: Icon, titleClass, whiteClass, blackClass, value }) => (
         <div
           key={label}

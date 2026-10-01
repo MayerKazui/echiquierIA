@@ -8,7 +8,7 @@ const WIN_CURVE_SLOPE = 0.6;
 /** The accuracy of a move decays 2.5 times faster with the Win% given away than in Lichess' formula. */
 const DECAY = 0.04354 * 2.5;
 /** A single move can pull the mean down only so far (a mate blunder is already one lost game). */
-const MOVE_FLOOR = 10;
+const MOVE_FLOOR = 5;
 
 /**
  * Win probability (0-100) of White from a centipawn score (White's perspective). Lichess' logistic curve,
@@ -55,21 +55,29 @@ export function accuracyFromMoves(moves: MoveAnalysis[]): number {
 }
 
 /**
- * Win% (0-100 points) a move may give away for each class: chess.com's expected-points limits (0.02, 0.05,
- * 0.10, 0.20) scaled by 0.6, so that on the flat curve above the moves counted as inaccuracies, mistakes and
- * blunders over 14 chess.com reference players come close to chess.com's counts (132 against 136).
+ * Win% (0-100 points) a move may give away for each class. They follow chess.com's expected-points limits
+ * (0.05, 0.10 and 0.20 for inaccuracies, mistakes and blunders) on this flatter curve, and were fitted so that the
+ * moves counted in each class over 14 chess.com reference players come close to chess.com's counts.
  */
-export const CLASS_LIMITS = { best: 0.3, excellent: 1.2, good: 3, inaccuracy: 6, mistake: 12 } as const;
+export const CLASS_LIMITS = { best: 0.3, excellent: 1.2, good: 4, inaccuracy: 8, mistake: 20 } as const;
 
-/** Classifies a move from the Win% it gave away (from the mover's point of view, in points). */
+/**
+ * A "miss" (chess.com's "Manqué"): a move that does not punish a mistake of the opponent. The opponent's previous
+ * move gave away at least `opponentDrop` points and this one gives away at least `ownDrop`: the advantage that was
+ * offered is not taken. Fitted on the same reference players: 27 against 28 for chess.com.
+ */
+export const MISS_LIMITS = { opponentDrop: 8, ownDrop: 5 } as const;
+
+/**
+ * Classifies a move from the Win% it gave away (from the mover's point of view, in points).
+ * `previousOpponentDrop` is what the opponent's move just before gave away: it tells a miss from a plain error.
+ */
 export function classifyMove(
-  isWhite: boolean,
   playedSan: string,
   bestSan: string,
   winPctDrop: number,
-  evalBefore: number,
-  evalAfter: number,
-  isSacrifice = false
+  isSacrifice = false,
+  previousOpponentDrop = 0
 ): MoveClassification {
   // The engine's move, or one as good within its noise
   if (playedSan === bestSan || winPctDrop <= CLASS_LIMITS.best) return 'best';
@@ -77,12 +85,12 @@ export function classifyMove(
   // A sacrifice that gives away practically nothing
   if (isSacrifice && winPctDrop <= CLASS_LIMITS.excellent) return 'brilliant';
 
-  // Missed win: was heavily winning (>+2.5) and dropped to near equal or worse
-  if (isWhite && evalBefore >= 250 && evalAfter <= 50) return 'missedWin';
-  if (!isWhite && evalBefore <= -250 && evalAfter >= -50) return 'missedWin';
-
   if (winPctDrop < CLASS_LIMITS.excellent) return 'excellent';
   if (winPctDrop < CLASS_LIMITS.good) return 'good';
+
+  // The opponent has just offered something and it is not taken
+  if (previousOpponentDrop >= MISS_LIMITS.opponentDrop && winPctDrop >= MISS_LIMITS.ownDrop) return 'missedWin';
+
   if (winPctDrop < CLASS_LIMITS.inaccuracy) return 'inaccuracy';
   if (winPctDrop < CLASS_LIMITS.mistake) return 'mistake';
   return 'blunder';
@@ -101,8 +109,7 @@ export function computePlayerStats(playerMoves: MoveAnalysis[]): PlayerStats {
   let inaccuracies = 0;
   let mistakes = 0;
   let blunders = 0;
-  // Missed wins are counted with the blunders, so this stays at 0
-  const missedWins = 0;
+  let missedWins = 0;
   let totalCpLoss = 0;
   let openingBlunders = 0;
   let middlegameBlunders = 0;
@@ -145,7 +152,9 @@ export function computePlayerStats(playerMoves: MoveAnalysis[]): PlayerStats {
         break;
       case 'blunder':
       case 'missedWin':
-        blunders++;
+        // A miss is counted apart from the blunders (as chess.com does) but is still a fault of its phase
+        if (m.classification === 'missedWin') missedWins++;
+        else blunders++;
         if (isOpening) openingBlunders++;
         else if (isMiddlegame) middlegameBlunders++;
         else endgameBlunders++;

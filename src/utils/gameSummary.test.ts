@@ -44,8 +44,10 @@ describe('buildGameSummary', () => {
     expect(text).toContain('🏆 Résultat : 1-0');
     expect(text).toContain('📖 Ouverture : Italian Game [C50]');
     expect(text).toContain('Durée : 12 coups');
-    // best + brilliant, inaccuracies, mistakes, blunders + missed wins
-    expect(text).toContain('⚪ Blancs : 11 meilleurs coups · 2 imprécision(s) · 1 erreur(s) · 2 gaffe(s)');
+    // best + brilliant, inaccuracies, mistakes, blunders, missed wins (counted apart)
+    expect(text).toContain(
+      '⚪ Blancs : 11 meilleurs coups · 2 imprécision(s) · 1 erreur(s) · 1 gaffe(s) · 1 occasion(s) manquée(s)'
+    );
     expect(text).toContain('⚫ Noirs : 4 meilleurs coups');
   });
 

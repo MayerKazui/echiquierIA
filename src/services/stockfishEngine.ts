@@ -605,6 +605,8 @@ export class StockfishService {
     let inBook = true;
     // Last opening named so far: book moves on an unnamed position keep showing it
     let currentOpening: { eco?: string; name?: string } = {};
+    // Win% the previous move (the opponent's) gave away: a mistake it makes is a chance for the next move to miss
+    let previousDrop = 0;
     for (let ply = 0; ply < count; ply++) {
       const move = history[ply];
       const isWhite = move.color === 'w';
@@ -658,7 +660,8 @@ export class StockfishService {
       // even if it also happens to be the engine's #1 move!
       const classification = bookCheck.isBook
         ? 'book'
-        : classifyMove(isWhite, move.san, evalBeforeRes.bestMoveSan, winPctDrop, evalBefore, evalAfter, isSacrifice);
+        : classifyMove(move.san, evalBeforeRes.bestMoveSan, winPctDrop, isSacrifice, previousDrop);
+      previousDrop = winPctDrop; // what the next move (the opponent's) is measured against
 
       const moveNumber = Math.floor(ply / 2) + 1;
       const clockInfo = moveClocks[ply];
