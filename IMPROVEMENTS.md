@@ -191,7 +191,30 @@ Points 1 et 2 (mise en page), historique des parties et polish de la liste de pr
 - [x] **Doublons retirés** : un seul bouton « son » (en-tête), un seul bouton d'inversion de l'échiquier (contrôles de lecture), la couleur du joueur n'est plus dans le bandeau d'ouverture (il reste l'en-tête et le Bilan).
 - [x] **Noms d'ouverture harmonisés** : l'aperçu de l'écran d'accueil lisait 25 demi-coups contre 35 pour l'analyse et mélangeait des libellés français de la base intégrée (« Défense sicilienne (2. Cf3) ») avec les noms anglais de la base complète (« Sicilian Defense: Sozin Attack… »). Maintenant l'aperçu, le bandeau, le panneau et le Bilan utilisent la même recherche (`chooseOpening` : la base d'abord, l'en-tête du PGN seulement en repli, nom et code ECO toujours de la même source), et les noms de la base complète remplacent les libellés français (qui ne servent plus qu'avant le chargement de la base). Le bandeau montre l'ouverture atteinte **au coup affiché** (`openingAtPly`) au lieu du nom final dès le coup 1.
 - Tests : 415 au total (36 fichiers). Nouveaux : `diffPositions` (8), `usePieceDrag` (8), `PromotionPicker`, `useSandbox` (promotion), `SidePanel`, `useMediaQuery`, `PseudoEditor`, `openingAtPly`, `chooseOpening` et noms de la base, `GameHistory`, `listGames`/`deleteGame`. Mutations vérifiées : seuil de glisser, clic avalé après un glisser, détection des sauts, priorité des noms de la base, `hidden` des onglets.
-- Limites / non fait : les noms d'ouverture restent en anglais (aucune traduction des ~3 800 noms) ; `ChessBoard` recalcule toujours les 64 cases à chaque rendu (pas de `React.memo` par case) ; la lecture automatique garde un intervalle fixe (pas de pause sur les gaffes) et le défilement de la liste reste « smooth » ; vérifié sur Chrome émulé, pas sur un vrai téléphone.
+- Limites / non fait : les noms d'ouverture restent en anglais (aucune traduction des ~3 800 noms) ; le plateau, la pause de la lecture sur les gaffes et le défilement de la liste sont traités à la section 13 ; vérifié sur Chrome émulé, pas sur un vrai téléphone.
+
+### 13. Plateau et lecture automatique — fait
+
+Deux limites notées à la section 12.
+
+**Plateau : seules les cases qui changent sont rendues**
+
+- [x] **Case mémoïsée** (`BoardSquare`, `React.memo`) : chaque case reçoit des valeurs simples (booléens, nombres, texte) et des gestionnaires stables, au lieu d'un bloc JSX de 150 lignes reconstruit 64 fois à chaque rendu. Cases rendues (comptées par des tests) : un coup joué **128 → 2** (le plateau se rendait deux fois à cause de l'état dérivé pendant le rendu), un roque 4, la sélection d'une pièce 64 → 3, un rendu du parent sans changement 64 → 0. Retourner l'échiquier ou changer de thème rend toujours les 64 (c'est normal).
+- [x] **Gestionnaires stables** : `useStableCallback` (identité fixe, appelle toujours la dernière version) et `usePieceDrag` (toutes ses fonctions stables, callbacks lus par une référence : une case qui ne se re-rend pas ne garde pas de fermeture périmée).
+- [x] **Qui peut glisser dépend du trait, donc de chaque coup** : c'était une propriété, ce qui re-rendait les 32 pièces à chaque pas. C'est maintenant une règle de style pilotée par `data-turn` (sur la grille) et `data-color` (sur la pièce), et `usePieceDrag` vérifie `canDrag` à l'appui. Même comportement, vérifié dans le navigateur : curseur `grab` et `touch-action: none` pour le camp au trait, `pointer-events: none` pour l'autre, glisser à la souris et au doigt (la page ne défile pas).
+- Mesures. Plateau seul (Profiler React, jsdom, 425 pas) : **2,5 → 1,8 ms par pas (−30 %)**. Application entière (Chrome, build de production, processeur ralenti ×4, 70 pas dans une partie de 82 demi-coups) : **aucune différence mesurable** (≈ 9 s des deux côtés). Le plateau n'est qu'une petite partie du coût d'un pas ; le reste (graphique d'évaluation, liste de coups, panneau du coup, recalcul de style) n'a pas été examiné et serait la piste suivante si la fluidité pose problème.
+- Tests : 8 tests de comptage de rendus (`ChessBoard.renders.test.tsx`), 3 pour `useStableCallback`, 2 pour le garde de glisser et les gestionnaires stables, 2 pour `data-turn`/`data-color` et le glisser du camp au trait. Mutations vérifiées (mémoïsation retirée, gestionnaire instable, case marquée sur toutes les cases, garde de glisser retiré, fermeture périmée : toutes détectées).
+
+**Lecture automatique**
+
+- [x] **Pause sur les erreurs** : la lecture s'arrête en arrivant sur une **erreur, une gaffe ou une occasion manquée** (pas sur les simples imprécisions, elle s'arrêterait presque à chaque coup), annonce vocale « Lecture en pause. Coup 4, Noirs : Fxf3. Gaffe critique… » et reprise par « Auto » (on peut aussi la lancer depuis une gaffe : elle repart). Réglage « Pause sur les erreurs » (icône dans le groupe des erreurs), **activé par défaut** et conservé. Vérifié à ×4 sur une partie réelle : six arrêts, chacun sur une erreur ou une gaffe ; réglage coupé, la lecture va jusqu'à la fin (32 demi-coups en 8,9 s).
+- [x] La lecture s'arrête dès qu'elle atteint le dernier coup (elle attendait un tick de plus), et son minuteur lit le coup et les options courants par une référence : plus de coup répété si deux ticks tombent avant un rendu.
+- Tests : 11 pour `usePlayback`, `isPauseWorthy`, 4 pour le bouton ; 6 mutations vérifiées.
+
+**Liste de coups : défilement**
+
+- [x] Le défilement n'est progressif (« smooth ») que pour un pas de ±2 demi-coups fait par l'utilisateur ; il est **instantané** pendant la lecture automatique (l'animation était relancée à chaque pas, la liste courait après) et pour un saut (début, fin, erreur, clic sur le graphique). `prefers-reduced-motion` reste respecté. Le pas sur lequel la lecture s'arrête compte comme joué. Vérifié dans le navigateur : 40 pas manuels 26 progressifs / 0 instantané, sauts instantanés, lecture à ×4 : 43 défilements instantanés sur 43 (un seul était progressif avant la correction du dernier pas).
+- Tests : `moveListScrollBehavior` (5) et 8 pour la liste elle-même (`scrollTo` espionné) ; 5 mutations vérifiées (dont une qui survivait, ajoutée ensuite).
 
 ## Ordre suggéré
 
