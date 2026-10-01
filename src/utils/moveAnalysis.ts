@@ -10,12 +10,30 @@ export function calculateWinPercentage(cp: number): number {
 }
 
 /**
- * Accuracy (25-99.4) from an average centipawn loss: a CAPS-like precision curve,
- * 100 * exp(-0.0038 * avgCpLoss).
+ * Accuracy (0-100) of a single move from the Win% it gave away (Lichess formula).
+ * Based on the win probability rather than on raw centipawns, so a blunder or a mate
+ * score weighs at most "the whole game lost", never thousands of centipawns.
  */
-export function accuracyFromCpLoss(avgCpLoss: number): number {
-  const raw = 100 * Math.exp(-0.0038 * avgCpLoss);
-  return Math.min(99.4, Math.max(25.0, Math.round(raw * 10) / 10));
+export function accuracyFromWinDrop(winPctDrop: number): number {
+  const raw = 103.1668 * Math.exp(-0.04354 * Math.max(0, winPctDrop)) - 3.1669;
+  return Math.min(100, Math.max(0, raw));
+}
+
+/** Accuracy of one analysed move; falls back to its centipawn loss when evaluations are missing. */
+export function moveAccuracy(m: Pick<MoveAnalysis, 'color' | 'evalBefore' | 'evalAfter' | 'centipawnLoss'>): number {
+  if (typeof m.evalBefore === 'number' && typeof m.evalAfter === 'number') {
+    const before = calculateWinPercentage(m.evalBefore);
+    const after = calculateWinPercentage(m.evalAfter);
+    return accuracyFromWinDrop(m.color === 'w' ? before - after : after - before);
+  }
+  return accuracyFromWinDrop(calculateWinPercentage(m.centipawnLoss) - 50);
+}
+
+/** Accuracy (0-100, one decimal) of a set of moves: the mean of the per-move accuracies. */
+export function accuracyFromMoves(moves: MoveAnalysis[]): number {
+  if (moves.length === 0) return 100;
+  const total = moves.reduce((acc, m) => acc + moveAccuracy(m), 0);
+  return Math.round((total / moves.length) * 10) / 10;
 }
 
 /** Classifies a move from the Win% drop and centipawn loss it caused. */
@@ -131,7 +149,7 @@ export function computePlayerStats(playerMoves: MoveAnalysis[]): PlayerStats {
   const longThinksCount = playerMoves.filter((m) => m.isLongThink).length;
   const rushedMovesCount = playerMoves.filter((m) => m.isRushed).length;
 
-  const accuracy = accuracyFromCpLoss(avgCentipawnLoss);
+  const accuracy = accuracyFromMoves(playerMoves);
 
   return {
     accuracy,

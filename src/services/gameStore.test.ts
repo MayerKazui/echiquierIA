@@ -1,6 +1,7 @@
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameAnalysisResult, MoveAnalysis } from '../types/chess';
+import { computePlayerStats } from '../utils/moveAnalysis';
 import {
   MAX_GAMES,
   SCHEMA_VERSION,
@@ -18,12 +19,21 @@ import {
 const PGN = '[White "A"]\n[Black "B"]\n\n1. e4 e5 2. Nf3 Nc6 *';
 
 function makeResult(label = 'a'): GameAnalysisResult {
-  const move = { san: 'e4', fenBefore: 'start', ply: 0 } as MoveAnalysis;
+  const move = {
+    san: 'e4',
+    fenBefore: 'start',
+    ply: 0,
+    color: 'w',
+    classification: 'best',
+    centipawnLoss: 0,
+    evalBefore: 0,
+    evalAfter: 20,
+  } as MoveAnalysis;
   return {
     metadata: { white: label, black: 'B' },
     moves: [move],
-    statsWhite: {} as GameAnalysisResult['statsWhite'],
-    statsBlack: {} as GameAnalysisResult['statsBlack'],
+    statsWhite: computePlayerStats([move]),
+    statsBlack: computePlayerStats([]),
     userColor: 'w',
     userPseudo: label,
   };
@@ -120,6 +130,28 @@ describe('saveGame / loadGame', () => {
     }
     for (let i = 0; i < 3; i++) expect(await loadGame(`1. a3 *\n; game ${i}`)).toBeNull();
     for (let i = 3; i < MAX_GAMES + 3; i++) expect(await loadGame(`1. a3 *\n; game ${i}`)).not.toBeNull();
+  });
+});
+
+describe('statistics of games saved by an older version', () => {
+  const staleResult = () => {
+    const result = makeResult();
+    return {
+      ...result,
+      statsWhite: { ...result.statsWhite, accuracy: 25 },
+      statsBlack: { ...result.statsBlack, accuracy: 25 },
+    };
+  };
+
+  it('are recomputed from the moves by loadGame, loadLatestGame and listGames', async () => {
+    const fresh = makeResult().statsWhite.accuracy;
+    expect(fresh).not.toBe(25);
+    await rawPut(stored({ id: gameId(PGN), result: staleResult() }));
+
+    expect((await loadGame(PGN))?.result.statsWhite.accuracy).toBe(fresh);
+    expect((await loadLatestGame())?.result.statsWhite.accuracy).toBe(fresh);
+    expect((await listGames())[0].result.statsWhite.accuracy).toBe(fresh);
+    expect((await loadGame(PGN))?.result.statsBlack).toEqual(makeResult().statsBlack);
   });
 });
 

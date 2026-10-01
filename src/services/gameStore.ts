@@ -1,4 +1,5 @@
 import type { GameAnalysisResult } from '../types/chess';
+import { computePlayerStats } from '../utils/moveAnalysis';
 
 /**
  * Analysed games kept in the browser (IndexedDB), so that reloading the page or analysing the same PGN again
@@ -65,6 +66,22 @@ function isStoredGame(value: unknown): value is StoredGame {
   if (!Array.isArray(moves) || moves.length === 0) return false;
   const first: unknown = moves[0];
   return isObject(first) && typeof first.san === 'string' && typeof first.fenBefore === 'string';
+}
+
+/**
+ * Recomputes the statistics from the stored moves: they are cheap to derive and games saved
+ * before a change in the way they are computed (e.g. the accuracy) must not keep the old values.
+ */
+function withFreshStats(game: StoredGame): StoredGame {
+  const { moves } = game.result;
+  return {
+    ...game,
+    result: {
+      ...game.result,
+      statsWhite: computePlayerStats(moves.filter((m) => m.color === 'w')),
+      statsBlack: computePlayerStats(moves.filter((m) => m.color === 'b')),
+    },
+  };
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -146,7 +163,7 @@ export async function loadGame(pgn: string): Promise<StoredGame | null> {
       const request = store.get(gameId(pgn));
       request.onsuccess = () => done(request.result);
     });
-    return isStoredGame(found) && found.pgn === normalizePgn(pgn) ? found : null;
+    return isStoredGame(found) && found.pgn === normalizePgn(pgn) ? withFreshStats(found) : null;
   } catch (err) {
     console.warn('Could not read the analysed game:', err);
     return null;
@@ -162,7 +179,7 @@ export async function loadLatestGame(): Promise<StoredGame | null> {
       cursor.onsuccess = () => {
         const current = cursor.result;
         if (!current) return;
-        if (isStoredGame(current.value)) done(current.value);
+        if (isStoredGame(current.value)) done(withFreshStats(current.value));
         else current.continue(); // Skip entries from an older schema or damaged ones
       };
     });
@@ -193,7 +210,7 @@ export async function listGames(): Promise<StoredGame[]> {
       cursor.onsuccess = () => {
         const current = cursor.result;
         if (!current) return;
-        if (isStoredGame(current.value)) games.push(current.value);
+        if (isStoredGame(current.value)) games.push(withFreshStats(current.value));
         current.continue();
       };
     });
