@@ -22,6 +22,38 @@ html {
   }
 }
 
+@keyframes pieceVanish {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes pieceAppear {
+  from {
+    opacity: 0;
+    transform: translate(var(--delta-x, 0), var(--delta-y, 0)) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+/* The captured piece goes away while the capturing piece slides over it */
+.animate-piece-vanish {
+  animation: pieceVanish 220ms ease-out forwards;
+}
+
+/* A capture taken back: the piece comes back on its square */
+.animate-piece-appear {
+  animation: pieceAppear 220ms ease-out both;
+}
+
 .animate-piece-slide {
   animation: pieceSlide 220ms cubic-bezier(0.2, 0, 0.2, 1) forwards;
   will-change: transform;

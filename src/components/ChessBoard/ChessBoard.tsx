@@ -6,6 +6,10 @@ import { HeatmapSquareOverlay, heatmapSquareTitle } from './HeatmapOverlay';
 import { ThreatBadge, ThreatTarget, ThreatTooltip } from './ThreatMarkers';
 import { getSquareStyle } from './boardTheme';
 import { useBoardDrawing } from './useBoardDrawing';
+import { usePieceDrag } from './usePieceDrag';
+import { PromotionPicker } from './PromotionPicker';
+import type { PendingPromotion, PromotionPiece } from '../../hooks/useSandbox';
+import { diffPositions, type BoardTransition } from './boardTransition';
 import { nextSquare, squareLabel, type BoardKey } from '../../utils/accessibility';
 import { TacticalThreat } from '../../utils/tacticalThreats';
 import { computeBoardHeatmap } from '../../utils/chessHeatmap';
@@ -25,19 +29,15 @@ interface ChessBoardProps {
   onSquareClick?: (square: string) => void;
   onPieceMove?: (from: string, to: string) => void;
   selectedSquare?: string | null;
+  /** A pawn move waiting for the choice of the new piece. */
+  promotion?: PendingPromotion | null;
+  onPromote?: (piece: PromotionPiece) => void;
+  onCancelPromotion?: () => void;
   className?: string;
 }
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS = [8, 7, 6, 5, 4, 3, 2, 1];
-
-// Castling: the rook slides too, so the square it lands on animates from its corner
-const CASTLING_ROOK_FROM: Record<string, string> = {
-  'e1-g1-f1': 'h1',
-  'e1-c1-d1': 'a1',
-  'e8-g8-f8': 'h8',
-  'e8-c8-d8': 'a8',
-};
 
 const OPTIMAL_CLASSIFICATIONS = ['best', 'brilliant', 'great', 'excellent', 'good', 'book'];
 
@@ -74,6 +74,9 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   onSquareClick,
   onPieceMove,
   selectedSquare = null,
+  promotion = null,
+  onPromote,
+  onCancelPromotion,
   className,
 }) => {
   const effectiveHeatmapMode: HeatmapMode = heatmapMode ?? (showHeatmap ? 'both' : 'none');
@@ -171,9 +174,18 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     }
   };
 
-  // Drag and drop / touch drag
-  const [draggedSquare, setDraggedSquare] = useState<string | null>(null);
-  const touchOriginRef = useRef<string | null>(null);
+  // Each step of the game animates from the previous position: the pieces that moved slide (forward or
+  // backward), a captured piece fades out, a capture taken back fades in. The state is derived during render
+  // (not in an effect) so that the first frame of the new position already carries its animation.
+  const [track, setTrack] = useState<{ fen: string; id: number; transition: BoardTransition | null }>({
+    fen,
+    id: 0,
+    transition: null,
+  });
+  if (track.fen !== fen) {
+    setTrack({ fen, id: track.id + 1, transition: diffPositions(track.fen, fen) });
+  }
+  const transition = track.fen === fen ? track.transition : null;
 
   // Right-click arrows and highlights
   const drawing = useBoardDrawing(fen, (square) => Boolean(chess.get(square as Square)));
@@ -183,32 +195,16 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     else onSquareClick?.(to);
   };
 
-  const handleTouchStart = (square: string) => {
-    const piece = chess.get(square as Square);
-    if (piece && piece.color === chess.turn()) {
-      touchOriginRef.current = square;
-      onSquareClick?.(square);
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchOriginRef.current) return;
-    const touch = e.changedTouches[0];
-    if (touch) {
-      const elem = document.elementFromPoint(touch.clientX, touch.clientY);
-      const targetSquare = elem?.closest('[data-square]')?.getAttribute('data-square');
-      if (targetSquare && targetSquare !== touchOriginRef.current) {
-        movePiece(touchOriginRef.current, targetSquare);
-      }
-    }
-    touchOriginRef.current = null;
-  };
+  // Drag and drop with pointer events (mouse and finger): the piece follows the pointer
+  const { drag, ghostRef, consumeClick, pieceHandlers } = usePieceDrag({
+    onDragStart: (from) => onSquareClick?.(from),
+    onDrop: movePiece,
+  });
 
   return (
     <div
       className={`relative w-full aspect-square select-none rounded-xl shadow-2xl border-2 sm:border-4 border-slate-800 bg-slate-900 mx-auto ${className ?? ''}`}
       onContextMenu={(e) => e.preventDefault()}
-      onTouchEnd={handleTouchEnd}
     >
       {/* 8x8 Board Grid */}
       <div
@@ -246,22 +242,19 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
 
               const { squareBg, coordTextColor } = getSquareStyle(boardTheme, isLight, isLastMove);
 
-              // Move animation: the moved piece slides from its origin square
-              const moveAnimationFrom: string | null =
-                isLastMoveTo && lastMove?.from
-                  ? lastMove.from
-                  : (CASTLING_ROOK_FROM[`${lastMove?.from}-${lastMove?.to}-${squareName}`] ?? null);
+              // Step animation (see `transition`): where this square's piece slides in from, and what fades
+              const slideFrom = transition?.slides[squareName] ?? null;
+              const vanishedPiece = transition?.vanished[squareName] ?? null;
+              const hasReappeared = transition?.appeared.includes(squareName) ?? false;
 
               let animationStyle: React.CSSProperties = {};
-              if (moveAnimationFrom && moveAnimationFrom.length === 2) {
-                const fromCol = files.indexOf(moveAnimationFrom[0]);
-                const fromRow = ranks.indexOf(parseInt(moveAnimationFrom[1], 10));
-                if (fromCol !== -1 && fromRow !== -1) {
-                  animationStyle = {
-                    '--delta-x': `${(fromCol - fileColIdx) * 100}%`,
-                    '--delta-y': `${(fromRow - rankRowIdx) * 100}%`,
-                  } as React.CSSProperties;
-                }
+              if (slideFrom) {
+                const fromCol = files.indexOf(slideFrom[0]);
+                const fromRow = ranks.indexOf(parseInt(slideFrom[1], 10));
+                animationStyle = {
+                  '--delta-x': `${(fromCol - fileColIdx) * 100}%`,
+                  '--delta-y': `${(fromRow - rankRowIdx) * 100}%`,
+                } as React.CSSProperties;
               }
 
               const canDragPiece = Boolean(piece && piece.color === chess.turn());
@@ -297,22 +290,13 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
                   }
                   className={`relative flex items-center justify-center cursor-pointer transition-colors duration-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-indigo-500 ${
                     isSelected ? 'bg-amber-300/85 ring-2 ring-inset ring-amber-500' : squareBg
-                  }`}
-                  onClick={() => onSquareClick?.(squareName)}
+                  } ${drag && drag.over === squareName && drag.from !== squareName ? 'ring-4 ring-inset ring-white/60' : ''}`}
+                  onClick={() => {
+                    if (!consumeClick()) onSquareClick?.(squareName);
+                  }}
                   onMouseDown={(e) => drawing.onSquareMouseDown(squareName, e)}
                   onMouseEnter={() => drawing.onSquareMouseEnter(squareName)}
                   onMouseUp={(e) => drawing.onSquareMouseUp(squareName, e)}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    const fromSquare = e.dataTransfer.getData('text/plain') || draggedSquare;
-                    setDraggedSquare(null);
-                    if (fromSquare && fromSquare !== squareName) movePiece(fromSquare, squareName);
-                  }}
-                  onTouchStart={() => handleTouchStart(squareName)}
                 >
                   {/* King in check red ring */}
                   {checkSquare === squareName && (
@@ -387,26 +371,31 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
                     </span>
                   )}
 
-                  {/* Chess piece (draggable for free exploration & click-to-move) */}
+                  {/* A captured piece fades out under the piece that took it */}
+                  {vanishedPiece && (
+                    <div
+                      aria-hidden="true"
+                      className="absolute inset-0 flex items-center justify-center pointer-events-none z-[5]"
+                    >
+                      <div key={`vanish-${track.id}`} className="w-[84%] h-[84%] animate-piece-vanish">
+                        <ChessPiece type={vanishedPiece.type} color={vanishedPiece.color} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Chess piece (draggable for free exploration & click-to-move). Only the pieces that
+                      move or come back are re-created for the animation, not the 32 of them at each step. */}
                   {piece && (
                     <div
-                      key={`${squareName}-${lastMove?.from}-${lastMove?.to}`}
+                      key={slideFrom || hasReappeared ? `step-${track.id}` : 'piece'}
                       aria-hidden="true"
-                      draggable={canDragPiece}
-                      onDragStart={(e) => {
-                        if (!canDragPiece) return;
-                        e.dataTransfer.setData('text/plain', squareName);
-                        e.dataTransfer.effectAllowed = 'move';
-                        setDraggedSquare(squareName);
-                        onSquareClick?.(squareName);
-                      }}
-                      onDragEnd={() => setDraggedSquare(null)}
+                      {...(canDragPiece ? pieceHandlers(squareName, piece) : {})}
                       className={`relative w-[84%] h-[84%] z-10 select-none ${
                         canDragPiece
-                          ? 'cursor-grab active:cursor-grabbing hover:scale-105 transition-transform'
+                          ? 'cursor-grab active:cursor-grabbing hover:scale-105 transition-transform touch-none'
                           : 'pointer-events-none'
-                      } ${draggedSquare === squareName ? 'opacity-40' : 'opacity-100'} ${
-                        moveAnimationFrom ? 'animate-piece-slide' : ''
+                      } ${drag?.from === squareName ? 'opacity-40' : 'opacity-100'} ${
+                        slideFrom ? 'animate-piece-slide' : hasReappeared ? 'animate-piece-appear' : ''
                       }`}
                       style={animationStyle}
                     >
@@ -420,6 +409,18 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
         ))}
       </div>
 
+      {/* The piece being dragged follows the pointer */}
+      {drag && (
+        <div
+          ref={ghostRef}
+          aria-hidden="true"
+          className="fixed left-0 top-0 z-50 pointer-events-none drop-shadow-xl scale-110"
+          style={{ width: drag.size, height: drag.size }}
+        >
+          <ChessPiece type={drag.piece.type} color={drag.piece.color} />
+        </div>
+      )}
+
       <ArrowsOverlay
         toPoint={toPoint}
         lastMove={lastMove}
@@ -432,6 +433,10 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
         userArrows={drawing.userArrows}
         draftArrow={drawing.draftArrow}
       />
+
+      {promotion && onPromote && onCancelPromotion && (
+        <PromotionPicker promotion={promotion} onChoose={onPromote} onCancel={onCancelPromotion} />
+      )}
 
       {hoveredThreat && (
         <ThreatTooltip

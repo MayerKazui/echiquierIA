@@ -320,6 +320,9 @@ export default function App() {
           onSquareClick={sandbox.handleSquareClick}
           onPieceMove={sandbox.handlePieceMove}
           selectedSquare={sandbox.selectedSquare}
+          promotion={sandbox.pendingPromotion}
+          onPromote={sandbox.choosePromotion}
+          onCancelPromotion={sandbox.cancelPromotion}
         />
       </div>
     </div>
