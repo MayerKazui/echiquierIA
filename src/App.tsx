@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 
 import { AppTab, BoardSize, BoardTheme, HeatmapMode, PlayerColor, ThreatsMode } from './types/ui';
@@ -18,17 +18,18 @@ import { useCriticalMoments } from './hooks/useCriticalMoments';
 import { useSandbox } from './hooks/useSandbox';
 import { useLichessImport } from './hooks/useLichessImport';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useSwipe } from './hooks/useSwipe';
 import { useIdleWarmUp } from './hooks/useIdleWarmUp';
 import { stockfishService } from './services/stockfishEngine';
 import { ensureOpeningBookLoaded } from './services/openingBook';
 import { ChessBoard, Dashboard, EvaluationChart, MoveComparison, MoveList, prefetchViews } from './lazyViews';
 import { LiveRegion, useAnnouncer } from './components/a11y/LiveRegion';
 import { Modal } from './components/a11y/Modal';
-import { KeyboardHelp } from './components/a11y/KeyboardHelp';
 
 import { EvaluationBar } from './components/EvaluationBar/EvaluationBar';
 import { PgnInput } from './components/PgnInput/PgnInput';
 import { AppHeader } from './components/AppHeader/AppHeader';
+import { BottomNav } from './components/AppHeader/BottomNav';
 import { AnalysisProgressBanner } from './components/AppHeader/AnalysisProgressBanner';
 import { OpeningStrip } from './components/GameView/OpeningStrip';
 import { PlayerBar } from './components/GameView/PlayerBar';
@@ -43,7 +44,6 @@ const HEATMAP_CYCLE: HeatmapMode[] = ['none', 'both', 'white', 'black'];
 export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('board');
   const [isPgnModalOpen, setIsPgnModalOpen] = useState(false);
-  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const { announcement, announce } = useAnnouncer();
 
   // While the user reads the start screen: download the engine, the openings database and the game views
@@ -76,11 +76,18 @@ export default function App() {
   const {
     pgn,
     isAnalyzing,
+    isRestoring,
     progress,
-    result: analysis,
+    result: finalResult,
+    partial,
     analyze,
+    cancel: cancelAnalysis,
+    restoreLast,
     updateAiExplanation,
+    updateUserColor: updateResultUserColor,
   } = useGameAnalysis(userPseudo, userColor);
+  // The game on screen: the moves analysed so far while an analysis runs, otherwise the finished analysis
+  const analysis = partial ?? finalResult;
   const moves = analysis?.moves;
   const totalMoves = moves?.length ?? 0;
   const lastPly = Math.max(0, totalMoves - 1);
@@ -114,10 +121,14 @@ export default function App() {
 
   const lichess = useLichessImport(pgn, isFlipped);
 
-  const handleUpdateUserColor = useCallback((color: PlayerColor) => {
-    setUserColor(color);
-    setIsFlipped(color === 'b');
-  }, []);
+  const handleUpdateUserColor = useCallback(
+    (color: PlayerColor) => {
+      setUserColor(color);
+      setIsFlipped(color === 'b');
+      updateResultUserColor(color);
+    },
+    [updateResultUserColor]
+  );
 
   // Any manual navigation leaves the exploration / alternative preview and stops auto-play
   const goToPly = useCallback(
@@ -173,25 +184,62 @@ export default function App() {
       setCurrentPly(0);
       setIsPreviewingAlternative(false);
       exitSandbox();
+      setActiveTab('board');
       announce('Analyse en cours');
       prefetchViews();
 
-      const result = await analyze(pgnToAnalyze, depth);
-      if (!result) {
+      const outcome = await analyze(pgnToAnalyze, depth, {
+        // The game is shown from the first moves on: take the user's side right away
+        onFirstMoves: (firstMoves) => {
+          handleUpdateUserColor(firstMoves.userColor ?? userColor);
+          announce('Les premiers coups sont prêts, l’analyse continue.');
+        },
+      });
+      if (outcome.status === 'cancelled') {
+        announce('Analyse annulée');
+        return;
+      }
+      if (outcome.status === 'failed') {
         announce("L'analyse a échoué");
         return;
       }
 
+      const { result } = outcome;
+      setIsPgnModalOpen(false);
       handleUpdateUserColor(result.userColor ?? userColor);
-      // Always land on the first move so the user starts at the beginning
-      setCurrentPly(0);
-      setIsPreviewingAlternative(false);
       announce(
         `Analyse terminée, ${result.moves.length} demi-coups. ${describeMove(result.moves[0] ?? null, result.moves.length)}`
       );
     },
     [analyze, announce, exitSandbox, handleUpdateUserColor, setCurrentPly, userColor]
   );
+
+  // The form (start screen or dialog) stays open with the progress until the first moves can be shown
+  const isPgnModalVisible = isPgnModalOpen && !partial;
+  const cancelFromBanner = () => {
+    cancelAnalysis();
+    setIsPgnModalOpen(false);
+  };
+  // The summary needs the finished analysis
+  const visibleTab = isAnalyzing ? 'board' : activeTab;
+
+  // Reopen the last analysed game (kept in the browser) instead of the start screen, at its first move
+  useEffect(() => {
+    void restoreLast().then((restored) => {
+      if (!restored) return;
+      handleUpdateUserColor(restored.userColor ?? 'w');
+      setCurrentPly(0);
+      prefetchViews();
+      announce('Dernière partie analysée rouverte');
+    });
+  }, [restoreLast, handleUpdateUserColor, setCurrentPly, announce]);
+
+  // Swipe on a phone: left for the next move, right for the previous one (see useSwipe for where it applies)
+  const swipe = useSwipe({
+    enabled: Boolean(analysis) && visibleTab === 'board' && !sandbox.isSandboxMode,
+    onSwipeLeft: () => goToPly((p) => Math.min(lastPly, p + 1)),
+    onSwipeRight: () => goToPly((p) => Math.max(0, p - 1)),
+  });
 
   useKeyboardShortcuts(Boolean(analysis), {
     onStart: () => goToPly(0),
@@ -206,7 +254,6 @@ export default function App() {
     onToggleSound: toggleSoundAnnounced,
     onToggleAlternative: toggleAlternative,
     onCycleHeatmap: cycleHeatmapMode,
-    onHelp: () => setIsHelpOpen(true),
     onEscape: () => {
       if (!sandbox.isSandboxMode) return false;
       leaveSandbox();
@@ -229,7 +276,8 @@ export default function App() {
       <AppHeader
         metadata={metadata}
         hasAnalysis={Boolean(analysis)}
-        activeTab={activeTab}
+        isAnalyzing={isAnalyzing}
+        activeTab={visibleTab}
         userPseudo={userPseudo}
         userColor={userColor}
         isMuted={isMuted}
@@ -238,18 +286,23 @@ export default function App() {
         onUpdateUserColor={handleUpdateUserColor}
         onToggleSound={toggleSoundAnnounced}
         onOpenPgnModal={() => setIsPgnModalOpen(true)}
-        onOpenHelp={() => setIsHelpOpen(true)}
       />
 
-      {isAnalyzing && progress && <AnalysisProgressBanner progress={progress} />}
+      {isAnalyzing && progress && analysis && !isPgnModalVisible && (
+        <AnalysisProgressBanner progress={progress} onCancel={cancelFromBanner} />
+      )}
 
       <main
         id="main-content"
         tabIndex={-1}
-        className={`flex-1 w-full mx-auto p-2.5 sm:p-4 lg:p-6 flex flex-col gap-4 sm:gap-6 overflow-x-hidden ${PAGE_MAX_WIDTH[boardSize]}`}
+        className={`flex-1 w-full mx-auto p-2.5 sm:p-4 lg:p-6 flex flex-col gap-4 sm:gap-6 overflow-x-hidden ${PAGE_MAX_WIDTH[boardSize]} ${
+          analysis ? 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pb-4 lg:pb-6' : ''
+        }`}
       >
         <Suspense fallback={<ViewFallback />}>
-          {!analysis && !isAnalyzing ? (
+          {isRestoring ? (
+            <ViewFallback />
+          ) : !analysis ? (
             <div className="flex flex-col items-center justify-center my-auto py-8">
               <div className="max-w-2xl w-full">
                 <PgnInput
@@ -258,10 +311,12 @@ export default function App() {
                   onUpdatePseudo={setUserPseudo}
                   onAnalyze={runAnalysis}
                   isAnalyzing={isAnalyzing}
+                  progress={progress}
+                  onCancel={cancelAnalysis}
                 />
               </div>
             </div>
-          ) : activeTab === 'dashboard' && analysis ? (
+          ) : visibleTab === 'dashboard' && analysis ? (
             <Dashboard
               analysis={analysis}
               userPseudo={userPseudo}
@@ -270,7 +325,10 @@ export default function App() {
               onUpdatePseudo={setUserPseudo}
             />
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start w-full max-w-full">
+            <div
+              {...swipe}
+              className="touch-pan-y grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start w-full max-w-full"
+            >
               {/* Left Column: Board + Eval Bar + Eval Chart (width depends on the board size) */}
               <div
                 className={`flex flex-col gap-3.5 lg:sticky lg:top-16 lg:self-start w-full max-w-full ${BOARD_COLUMN_SPAN[boardSize]}`}
@@ -439,6 +497,7 @@ export default function App() {
                   onSelectThreatsMode={setThreatsMode}
                   showThreats={showAnnotations}
                   onToggleShowThreats={toggleAnnotations}
+                  isAiDisabled={isAnalyzing}
                 />
 
                 <MoveList
@@ -454,23 +513,22 @@ export default function App() {
         </Suspense>
       </main>
 
-      {isPgnModalOpen && (
+      {analysis && <BottomNav activeTab={visibleTab} isAnalyzing={isAnalyzing} onChangeTab={setActiveTab} />}
+
+      {isPgnModalVisible && (
         <Modal title="Charger une autre partie" onClose={() => setIsPgnModalOpen(false)} className="w-full max-w-2xl">
           <PgnInput
             currentPgn={pgn}
             userPseudo={userPseudo}
             onUpdatePseudo={setUserPseudo}
-            onAnalyze={(newPgn, depth) => {
-              setIsPgnModalOpen(false);
-              runAnalysis(newPgn, depth);
-            }}
+            onAnalyze={runAnalysis}
             isAnalyzing={isAnalyzing}
+            progress={progress}
+            onCancel={cancelAnalysis}
             onClose={() => setIsPgnModalOpen(false)}
           />
         </Modal>
       )}
-
-      {isHelpOpen && <KeyboardHelp onClose={() => setIsHelpOpen(false)} />}
     </div>
   );
 }

@@ -4,9 +4,11 @@ Analyse de parties d'échecs dans le navigateur : Stockfish 19 évalue chaque co
 coups brillants, trace la courbe d'évaluation et un « entraîneur IA » (Gemini) explique les moments clés en français.
 
 - Import d'un PGN (collé, fichier ou exemples) avec reconnaissance de l'ouverture (base lichess, ~3 800 lignes)
-- Analyse Stockfish en parallèle dans des Web Workers, profondeur réglable (8 à 18)
+- Analyse Stockfish en parallèle dans des Web Workers, profondeur réglable (8 à 18) : les coups s'affichent dès qu'ils sont analysés et l'analyse peut être annulée
+- Les parties analysées (20 au plus) sont conservées dans le navigateur (IndexedDB) : la dernière se rouvre après un rechargement et ré-analyser un même PGN est instantané. Rien n'est envoyé à un serveur
 - Bilan par joueur : précision, phases de jeu, répartition des coups, gestion du temps si le PGN contient les pendules
-- Accessible : échiquier et toutes les commandes utilisables au clavier (touche `?` pour la liste des raccourcis), annonces pour lecteurs d'écran, contrastes et mouvement réduit respectés
+- Utilisable sur téléphone : en-tête et barre d'outils compacts, navigation en bas de l'écran, balayage pour changer de coup
+- Accessible : échiquier et toutes les commandes utilisables au clavier, annonces pour lecteurs d'écran, contrastes et mouvement réduit respectés
 - Échiquier interactif : exploration libre (« Et si j'avais joué… ? »), flèches et surbrillances au clic droit,
   contrôle de l'espace, menaces tactiques, lecture automatique, raccourcis clavier
 - Explications pédagogiques via l'API Gemini, appelée uniquement côté serveur
@@ -60,7 +62,7 @@ src/
   App.tsx            composition de l'interface
   hooks/             état et logique de l'application (analyse, lecture, exploration, raccourcis…)
   components/        échiquier, graphiques, liste de coups, bilan, import PGN…
-  services/          stockfishEngine (pool de workers, cache), openingBook
+  services/          stockfishEngine (pool de workers, cache), openingBook, gameStore (parties analysées, IndexedDB)
   utils/             logique pure testée : classification des coups, précision, PGN, pendules, notation…
   data/openings/     fichiers .tsv de lichess, source de public/openings.json
 vite/                plugin qui sert et empaquette le moteur Stockfish

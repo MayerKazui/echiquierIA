@@ -655,7 +655,7 @@ export const EvaluationChart: React.FC<EvaluationChartProps> = ({ moves, current
 
       {/* Quick Turning Points Bar (when in Momentum mode) */}
       {chartMode === 'momentum' && turningPoints.length > 0 && (
-        <div className="flex items-center gap-1.5 overflow-x-auto text-[11px] pt-1">
+        <div data-no-swipe className="flex items-center gap-1.5 overflow-x-auto text-[11px] pt-1">
           <span className="text-amber-400 font-bold flex items-center gap-1 shrink-0">
             <Zap className="w-3.5 h-3.5" />
             <span>Tournants clés :</span>

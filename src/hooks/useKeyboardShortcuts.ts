@@ -13,8 +13,6 @@ export interface KeyboardShortcutHandlers {
   onToggleSound: () => void;
   onToggleAlternative: () => void;
   onCycleHeatmap: () => void;
-  /** `?`: show the list of shortcuts. */
-  onHelp: () => void;
   /** Escape: return true when something was closed (prevents the default action). */
   onEscape: () => boolean;
 }
@@ -95,8 +93,6 @@ export function useKeyboardShortcuts(enabled: boolean, handlers: KeyboardShortcu
           return run(h.onToggleAlternative);
         case 'h':
           return run(h.onCycleHeatmap);
-        case '?':
-          return run(h.onHelp);
       }
     };
 

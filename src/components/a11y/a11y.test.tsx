@@ -3,7 +3,6 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { KeyboardHelp, SHORTCUT_GROUPS } from './KeyboardHelp';
 import { LiveRegion, useAnnouncer } from './LiveRegion';
 import { Modal } from './Modal';
 
@@ -119,34 +118,5 @@ describe('LiveRegion', () => {
     const { rerender } = render(<Announcer />);
     act(() => rerender(<Announcer />));
     expect(screen.getByRole('status').textContent).toBe('');
-  });
-});
-
-describe('KeyboardHelp', () => {
-  it('lists every group of shortcuts in a dialog that Escape closes', async () => {
-    const user = userEvent.setup();
-    const onClose = vi.fn();
-    render(<KeyboardHelp onClose={onClose} />);
-    expect(screen.getByRole('dialog', { name: 'Raccourcis clavier' })).toBeTruthy();
-    for (const group of SHORTCUT_GROUPS) {
-      expect(screen.getByRole('heading', { name: group.title })).toBeTruthy();
-    }
-    expect(screen.getAllByText('Espace').length).toBeGreaterThan(0);
-    await user.keyboard('{Escape}');
-    expect(onClose).toHaveBeenCalled();
-  });
-
-  it('documents the board keys and the help key', () => {
-    const actions = SHORTCUT_GROUPS.flatMap((g) => g.shortcuts.map((s) => s.action)).join(' | ');
-    expect(actions).toContain('case en case');
-    expect(actions).toContain('Afficher cette aide');
-  });
-
-  it('closes with its close button', async () => {
-    const user = userEvent.setup();
-    const onClose = vi.fn();
-    render(<KeyboardHelp onClose={onClose} />);
-    await user.click(screen.getByRole('button', { name: "Fermer l'aide" }));
-    expect(onClose).toHaveBeenCalledOnce();
   });
 });

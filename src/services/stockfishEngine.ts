@@ -1,4 +1,4 @@
-import { Chess } from 'chess.js';
+import { Chess, type Move } from 'chess.js';
 import { MoveAnalysis, PlayerStats } from '../types/chess';
 import { calculateWinPercentage, classifyMove, computePlayerStats } from '../utils/moveAnalysis';
 import { extractGameClocks } from '../utils/clockUtils';
@@ -31,6 +31,41 @@ interface QueuedTask {
   depth: number;
   resolve: (evaluation: EngineEvaluation) => void;
   reject: (err: unknown) => void;
+  /** Set once the task runs on a worker: stops its search and frees the worker (used when cancelled). */
+  interrupt?: () => void;
+}
+
+/** What an analysis produces; the same shape is used for the partial results sent while it runs. */
+export interface GameAnalysisOutput {
+  moves: MoveAnalysis[];
+  statsWhite: PlayerStats;
+  statsBlack: PlayerStats;
+  detectedOpening?: { eco: string; name: string } | null;
+}
+
+export interface AnalyzeOptions {
+  /** Aborting it stops the analysis: pending positions are dropped, the running searches are stopped, and the
+   * returned promise rejects with an AbortError. */
+  signal?: AbortSignal;
+  /**
+   * Called while the analysis runs with the moves analysed so far (the first plies of the game, in order,
+   * as soon as both of their positions are evaluated), at most every PARTIAL_INTERVAL_MS. Not called for the
+   * complete result: that is what the promise returns.
+   */
+  onPartial?: (partial: GameAnalysisOutput, totalPlies: number) => void;
+}
+
+/** Minimum delay between two partial results (each one makes the interface re-render the game). */
+export const PARTIAL_INTERVAL_MS = 200;
+
+function abortReason(signal: AbortSignal): unknown {
+  return signal.reason ?? new DOMException('The analysis was cancelled', 'AbortError');
+}
+
+/** True for the error an aborted analysis rejects with. */
+export function isAbortError(err: unknown): boolean {
+  // By name only: a DOMException is not an `Error` in every environment
+  return typeof err === 'object' && err !== null && (err as { name?: unknown }).name === 'AbortError';
 }
 
 interface CachedEvaluation {
@@ -376,6 +411,13 @@ export class StockfishService {
     slot.worker.addEventListener('message', onMessage);
     slot.worker.addEventListener('error', onTaskError);
 
+    task.interrupt = () => {
+      if (completed) return;
+      completed = true; // nobody waits for this search any more: its result is dropped
+      cleanup();
+      this.releaseAfterStop(slot); // the slot stays busy until the interrupted search has ended
+    };
+
     try {
       slot.worker.postMessage(`position fen ${fen}`);
       slot.worker.postMessage(`go depth ${depth}`);
@@ -390,7 +432,9 @@ export class StockfishService {
    * Evaluate a single position using Stockfish UCI protocol.
    * If worker is unavailable or times out, uses positional heuristic evaluation.
    */
-  public async evaluatePosition(fen: string, depth = 12): Promise<EngineEvaluation> {
+  public async evaluatePosition(fen: string, depth = 12, signal?: AbortSignal): Promise<EngineEvaluation> {
+    if (signal?.aborted) throw abortReason(signal);
+
     // 1. Initial starting position (instant 0 ms cache)
     if (fen === 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') {
       return {
@@ -427,16 +471,28 @@ export class StockfishService {
 
       // 6. Queue to parallel worker pool (never rejects, always resolves with heuristic on failure)
       this.warmUp();
-      return new Promise<EngineEvaluation>((resolve) => {
-        this.taskQueue.push({
+      return new Promise<EngineEvaluation>((resolve, reject) => {
+        const onAbort = () => {
+          const index = this.taskQueue.indexOf(task);
+          if (index !== -1) this.taskQueue.splice(index, 1);
+          else task.interrupt?.();
+          reject(abortReason(signal!));
+        };
+        const task: QueuedTask = {
           fen,
           depth: effectiveDepth,
-          resolve,
+          resolve: (evaluation) => {
+            signal?.removeEventListener('abort', onAbort);
+            resolve(evaluation);
+          },
           reject: (err) => {
+            signal?.removeEventListener('abort', onAbort);
             console.warn('Worker task error, resolving with heuristic:', err);
             resolve(this.evaluateHeuristic(fen));
           },
-        });
+        };
+        signal?.addEventListener('abort', onAbort, { once: true });
+        this.taskQueue.push(task);
         this.processQueue();
       });
     } catch {
@@ -536,70 +592,20 @@ export class StockfishService {
     };
   }
 
-  /**
-   * Full Game Analysis
-   * Parses moves, runs Stockfish at given depth, classifies moves and aggregates statistics.
-   */
-  public async analyzeFullGame(
-    pgn: string,
-    depth = 12,
-    onProgress?: (current: number, total: number) => void
-  ): Promise<{
-    moves: MoveAnalysis[];
-    statsWhite: PlayerStats;
-    statsBlack: PlayerStats;
-    detectedOpening?: { eco: string; name: string } | null;
-  }> {
-    const chess = new Chess();
-    chess.loadPgn(pgn);
-    const history = chess.history({ verbose: true });
-
-    const totalPlies = history.length;
+  /** The analysis of the first `count` plies, from positions that are already evaluated (`evalCache`). */
+  private buildMoves(
+    history: Move[],
+    fensBefore: string[],
+    fensAfter: string[],
+    moveClocks: ReturnType<typeof extractGameClocks>['moveClocks'],
+    evalCache: Map<string, EngineEvaluation>,
+    count: number
+  ): MoveAnalysis[] {
     const movesAnalysis: MoveAnalysis[] = [];
-
-    // Ensure full theoretical openings dataset (7,800+ lines) is loaded into cache
-    await ensureOpeningBookLoaded();
-
-    // Extract clocks and thinking times from PGN comments if present
-    const { moveClocks } = extractGameClocks(pgn, history);
-
-    // Replay moves to get FENs
-    const replayChess = new Chess();
-    const fensBefore: string[] = [];
-    const fensAfter: string[] = [];
-
-    for (const m of history) {
-      fensBefore.push(replayChess.fen());
-      replayChess.move(m);
-      fensAfter.push(replayChess.fen());
-    }
-
-    // Collect all unique FENs across the entire game for parallel evaluation
-    const allUniqueFens = Array.from(new Set([...fensBefore, ...fensAfter]));
-    const totalPositions = allUniqueFens.length;
-    let completedPositions = 0;
-
-    // Concurrent evaluation of all unique positions with the parallel worker pool & opening book
-    const evalPromises = allUniqueFens.map(async (fen) => {
-      const res = await this.evaluatePosition(fen, depth);
-      completedPositions++;
-      if (onProgress) {
-        onProgress(completedPositions, totalPositions);
-      }
-      return { fen, res };
-    });
-
-    const evaluatedResults = await Promise.all(evalPromises);
-    const evalCache = new Map<string, EngineEvaluation>();
-    for (const item of evaluatedResults) {
-      evalCache.set(item.fen, item.res);
-    }
-
-    // Build MoveAnalysis records with pre-evaluated positions
     let inBook = true;
     // Last opening named so far: book moves on an unnamed position keep showing it
     let currentOpening: { eco?: string; name?: string } = {};
-    for (let ply = 0; ply < totalPlies; ply++) {
+    for (let ply = 0; ply < count; ply++) {
       const move = history[ply];
       const isWhite = move.color === 'w';
       const fenBefore = fensBefore[ply];
@@ -707,20 +713,114 @@ export class StockfishService {
         thinkRatioToAverage: clockInfo?.thinkRatioToAverage,
       });
     }
+    return movesAnalysis;
+  }
 
-    // Identify the official Lichess opening name & ECO
-    const detectedOpening = identifyGameOpening(fensAfter);
-
-    // Compute stats for White and Black
-    const statsWhite = computePlayerStats(movesAnalysis.filter((m) => m.color === 'w'));
-    const statsBlack = computePlayerStats(movesAnalysis.filter((m) => m.color === 'b'));
-
+  /** Moves, statistics and opening of the first `count` plies. */
+  private summarize(
+    history: Move[],
+    fensBefore: string[],
+    fensAfter: string[],
+    moveClocks: ReturnType<typeof extractGameClocks>['moveClocks'],
+    evalCache: Map<string, EngineEvaluation>,
+    count: number
+  ): GameAnalysisOutput {
+    const moves = this.buildMoves(history, fensBefore, fensAfter, moveClocks, evalCache, count);
     return {
-      moves: movesAnalysis,
-      statsWhite,
-      statsBlack,
-      detectedOpening,
+      moves,
+      statsWhite: computePlayerStats(moves.filter((m) => m.color === 'w')),
+      statsBlack: computePlayerStats(moves.filter((m) => m.color === 'b')),
+      // Identify the official Lichess opening name & ECO
+      detectedOpening: identifyGameOpening(fensAfter.slice(0, count)),
     };
+  }
+
+  /**
+   * Full Game Analysis
+   * Parses moves, runs Stockfish at given depth, classifies moves and aggregates statistics.
+   * See `AnalyzeOptions` for cancelling it and for receiving the moves as they are analysed.
+   */
+  public async analyzeFullGame(
+    pgn: string,
+    depth = 12,
+    onProgress?: (current: number, total: number) => void,
+    options: AnalyzeOptions = {}
+  ): Promise<GameAnalysisOutput> {
+    const { signal, onPartial } = options;
+    if (signal?.aborted) throw abortReason(signal);
+
+    const chess = new Chess();
+    chess.loadPgn(pgn);
+    const history = chess.history({ verbose: true });
+    const totalPlies = history.length;
+
+    // Ensure full theoretical openings dataset (7,800+ lines) is loaded into cache
+    await ensureOpeningBookLoaded();
+    if (signal?.aborted) throw abortReason(signal);
+
+    // Extract clocks and thinking times from PGN comments if present
+    const { moveClocks } = extractGameClocks(pgn, history);
+
+    // Replay moves to get FENs
+    const replayChess = new Chess();
+    const fensBefore: string[] = [];
+    const fensAfter: string[] = [];
+
+    for (const m of history) {
+      fensBefore.push(replayChess.fen());
+      replayChess.move(m);
+      fensAfter.push(replayChess.fen());
+    }
+
+    // Collect all unique FENs across the entire game for parallel evaluation
+    const allUniqueFens = Array.from(new Set([...fensBefore, ...fensAfter]));
+    const totalPositions = allUniqueFens.length;
+    let completedPositions = 0;
+    const evalCache = new Map<string, EngineEvaluation>();
+
+    // Partial results: the plies, in order, whose two positions are evaluated
+    let readyPlies = 0;
+    let sentPlies = 0;
+    let lastSentAt = 0;
+    let trailingTimer: ReturnType<typeof setTimeout> | undefined;
+    // A position that completes right before the end (or the cancellation) can still run its continuation
+    // afterwards: nothing may be reported, or scheduled, from then on.
+    let finished = false;
+    const sendPartial = () => {
+      trailingTimer = undefined;
+      if (finished) return;
+      while (readyPlies < totalPlies && evalCache.has(fensBefore[readyPlies]) && evalCache.has(fensAfter[readyPlies])) {
+        readyPlies++;
+      }
+      // The complete result is the return value, not a partial one
+      if (!onPartial || readyPlies === 0 || readyPlies === sentPlies || readyPlies === totalPlies) return;
+      const wait = lastSentAt + PARTIAL_INTERVAL_MS - Date.now();
+      if (wait > 0) {
+        trailingTimer ??= setTimeout(sendPartial, wait); // not lost if no other position completes soon
+        return;
+      }
+      sentPlies = readyPlies;
+      lastSentAt = Date.now();
+      onPartial(this.summarize(history, fensBefore, fensAfter, moveClocks, evalCache, readyPlies), totalPlies);
+    };
+
+    try {
+      // Concurrent evaluation of all unique positions with the parallel worker pool & opening book
+      await Promise.all(
+        allUniqueFens.map(async (fen) => {
+          evalCache.set(fen, await this.evaluatePosition(fen, depth, signal));
+          completedPositions++;
+          onProgress?.(completedPositions, totalPositions);
+          sendPartial();
+        })
+      );
+    } finally {
+      finished = true;
+      clearTimeout(trailingTimer);
+      trailingTimer = undefined;
+    }
+
+    return this.summarize(history, fensBefore, fensAfter, moveClocks, evalCache, totalPlies);
   }
 
   public destroy() {

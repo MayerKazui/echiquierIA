@@ -56,6 +56,8 @@ interface MoveComparisonProps {
   onSelectThreatsMode?: (mode: 'suggestion' | 'played') => void;
   showThreats?: boolean;
   onToggleShowThreats?: () => void;
+  /** The AI coach cannot be asked while the analysis runs (the moves shown are still changing). */
+  isAiDisabled?: boolean;
 }
 
 export const MoveComparison: React.FC<MoveComparisonProps> = ({
@@ -63,6 +65,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
   isPreviewingAlternative,
   onTogglePreviewAlternative,
   onUpdateAiExplanation,
+  isAiDisabled = false,
   sanHistory,
   userColor,
   openingName,
@@ -625,8 +628,9 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
           {!currentMove.aiExplanation && (
             <button
               onClick={handleFetchAiExplanation}
-              disabled={loadingAi}
+              disabled={loadingAi || isAiDisabled}
               aria-busy={loadingAi}
+              title={isAiDisabled ? "Disponible quand l'analyse est terminée" : undefined}
               className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium transition-colors shadow-sm cursor-pointer w-full sm:w-auto"
             >
               {loadingAi ? (
