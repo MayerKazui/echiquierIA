@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 
 import { AppTab, BoardSize, BoardTheme, HeatmapMode, PlayerColor, ThreatsMode } from './types/ui';
@@ -74,10 +74,13 @@ export default function App() {
   const {
     pgn,
     isAnalyzing,
+    isRestoring,
     progress,
     result: analysis,
     analyze,
+    restoreLast,
     updateAiExplanation,
+    updateUserColor: updateResultUserColor,
   } = useGameAnalysis(userPseudo, userColor);
   const moves = analysis?.moves;
   const totalMoves = moves?.length ?? 0;
@@ -112,10 +115,14 @@ export default function App() {
 
   const lichess = useLichessImport(pgn, isFlipped);
 
-  const handleUpdateUserColor = useCallback((color: PlayerColor) => {
-    setUserColor(color);
-    setIsFlipped(color === 'b');
-  }, []);
+  const handleUpdateUserColor = useCallback(
+    (color: PlayerColor) => {
+      setUserColor(color);
+      setIsFlipped(color === 'b');
+      updateResultUserColor(color);
+    },
+    [updateResultUserColor]
+  );
 
   // Any manual navigation leaves the exploration / alternative preview and stops auto-play
   const goToPly = useCallback(
@@ -191,6 +198,17 @@ export default function App() {
     [analyze, announce, exitSandbox, handleUpdateUserColor, setCurrentPly, userColor]
   );
 
+  // Reopen the last analysed game (kept in the browser) instead of the start screen, at its first move
+  useEffect(() => {
+    void restoreLast().then((restored) => {
+      if (!restored) return;
+      handleUpdateUserColor(restored.userColor ?? 'w');
+      setCurrentPly(0);
+      prefetchViews();
+      announce('Dernière partie analysée rouverte');
+    });
+  }, [restoreLast, handleUpdateUserColor, setCurrentPly, announce]);
+
   useKeyboardShortcuts(Boolean(analysis), {
     onStart: () => goToPly(0),
     onPrev: () => goToPly((p) => Math.max(0, p - 1)),
@@ -245,7 +263,9 @@ export default function App() {
         className={`flex-1 w-full mx-auto p-2.5 sm:p-4 lg:p-6 flex flex-col gap-4 sm:gap-6 overflow-x-hidden ${PAGE_MAX_WIDTH[boardSize]}`}
       >
         <Suspense fallback={<ViewFallback />}>
-          {!analysis && !isAnalyzing ? (
+          {isRestoring ? (
+            <ViewFallback />
+          ) : !analysis && !isAnalyzing ? (
             <div className="flex flex-col items-center justify-center my-auto py-8">
               <div className="max-w-2xl w-full">
                 <PgnInput

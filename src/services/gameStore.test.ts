@@ -1,0 +1,181 @@
+import { IDBFactory } from 'fake-indexeddb';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { GameAnalysisResult, MoveAnalysis } from '../types/chess';
+import {
+  MAX_GAMES,
+  SCHEMA_VERSION,
+  clearGames,
+  gameId,
+  loadGame,
+  loadLatestGame,
+  normalizePgn,
+  saveGame,
+  type StoredGame,
+} from './gameStore';
+
+const PGN = '[White "A"]\n[Black "B"]\n\n1. e4 e5 2. Nf3 Nc6 *';
+
+function makeResult(label = 'a'): GameAnalysisResult {
+  const move = { san: 'e4', fenBefore: 'start', ply: 0 } as MoveAnalysis;
+  return {
+    metadata: { white: label, black: 'B' },
+    moves: [move],
+    statsWhite: {} as GameAnalysisResult['statsWhite'],
+    statsBlack: {} as GameAnalysisResult['statsBlack'],
+    userColor: 'w',
+    userPseudo: label,
+  };
+}
+
+function useFreshDatabase() {
+  Object.defineProperty(globalThis, 'indexedDB', { value: new IDBFactory(), configurable: true, writable: true });
+}
+
+/** Writes a record as is, bypassing `saveGame` (to simulate old or damaged data). */
+async function rawPut(record: unknown): Promise<void> {
+  await clearGames(); // creates the database and its store
+  const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open('echiquier-ia', 1);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction('games', 'readwrite');
+    tx.objectStore('games').put(record);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+function stored(overrides: Partial<StoredGame> & { id: string }): StoredGame {
+  return {
+    pgn: PGN,
+    depth: 12,
+    savedAt: 1,
+    schemaVersion: SCHEMA_VERSION,
+    result: makeResult(),
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  useFreshDatabase();
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('gameId / normalizePgn', () => {
+  it('ignores line endings and spacing', () => {
+    expect(normalizePgn(`  ${PGN.replace(/\n/g, '\r\n')}  `)).toBe(normalizePgn(PGN));
+    expect(gameId(PGN.replace(/ /g, '  '))).toBe(gameId(PGN));
+  });
+
+  it('differs between games', () => {
+    expect(gameId(PGN)).not.toBe(gameId(PGN.replace('e5', 'c5')));
+  });
+});
+
+describe('saveGame / loadGame', () => {
+  it('returns what was saved, with its depth', async () => {
+    const result = makeResult();
+    await saveGame({ pgn: PGN, depth: 14, result });
+    const found = await loadGame(PGN);
+    expect(found?.depth).toBe(14);
+    expect(found?.result).toEqual(result);
+  });
+
+  it('finds the game again when the pasted text only differs by spacing', async () => {
+    await saveGame({ pgn: PGN, depth: 12, result: makeResult() });
+    expect(await loadGame(`\r\n${PGN.replace(/\n/g, '\r\n')}  `)).not.toBeNull();
+  });
+
+  it('returns null for a game that was never saved', async () => {
+    expect(await loadGame(PGN)).toBeNull();
+  });
+
+  it('replaces the previous analysis of the same game', async () => {
+    await saveGame({ pgn: PGN, depth: 10, result: makeResult('old') });
+    await saveGame({ pgn: PGN, depth: 16, result: makeResult('new') });
+    const found = await loadGame(PGN);
+    expect(found?.depth).toBe(16);
+    expect(found?.result.userPseudo).toBe('new');
+  });
+
+  it('does not return a record whose PGN differs from the one asked for (key collision)', async () => {
+    await rawPut(stored({ id: gameId(PGN), pgn: normalizePgn('1. d4 d5 *') }));
+    expect(await loadGame(PGN)).toBeNull();
+  });
+
+  it('keeps at most MAX_GAMES games and drops the oldest first', async () => {
+    const now = vi.spyOn(Date, 'now');
+    for (let i = 0; i < MAX_GAMES + 3; i++) {
+      now.mockReturnValue(1000 + i);
+      await saveGame({ pgn: `1. a3 *\n; game ${i}`, depth: 12, result: makeResult(String(i)) });
+    }
+    for (let i = 0; i < 3; i++) expect(await loadGame(`1. a3 *\n; game ${i}`)).toBeNull();
+    for (let i = 3; i < MAX_GAMES + 3; i++) expect(await loadGame(`1. a3 *\n; game ${i}`)).not.toBeNull();
+  });
+});
+
+describe('loadLatestGame', () => {
+  it('is null when nothing is stored', async () => {
+    expect(await loadLatestGame()).toBeNull();
+  });
+
+  it('returns the most recently saved game, and saving an older game again makes it the latest', async () => {
+    const now = vi.spyOn(Date, 'now');
+    now.mockReturnValue(1);
+    await saveGame({ pgn: '1. e4 *', depth: 12, result: makeResult('first') });
+    now.mockReturnValue(2);
+    await saveGame({ pgn: '1. d4 *', depth: 12, result: makeResult('second') });
+    expect((await loadLatestGame())?.result.userPseudo).toBe('second');
+
+    now.mockReturnValue(3);
+    await saveGame({ pgn: '1. e4 *', depth: 12, result: makeResult('first') });
+    expect((await loadLatestGame())?.result.userPseudo).toBe('first');
+  });
+
+  it('skips entries from another schema version and damaged ones', async () => {
+    await rawPut(stored({ id: 'good', savedAt: 1, result: makeResult('good') }));
+    const db = await new Promise<IDBDatabase>((resolve) => {
+      const request = indexedDB.open('echiquier-ia', 1);
+      request.onsuccess = () => resolve(request.result);
+    });
+    await new Promise<void>((resolve) => {
+      const tx = db.transaction('games', 'readwrite');
+      const store = tx.objectStore('games');
+      store.put(stored({ id: 'old-schema', savedAt: 2, schemaVersion: SCHEMA_VERSION - 1 }));
+      store.put({ ...stored({ id: 'no-moves', savedAt: 3 }), result: { ...makeResult(), moves: [] } });
+      store.put({ id: 'garbage', savedAt: 4, schemaVersion: SCHEMA_VERSION });
+      tx.oncomplete = () => resolve();
+    });
+    db.close();
+    expect((await loadLatestGame())?.id).toBe('good');
+  });
+});
+
+describe('clearGames', () => {
+  it('removes everything', async () => {
+    await saveGame({ pgn: PGN, depth: 12, result: makeResult() });
+    await clearGames();
+    expect(await loadGame(PGN)).toBeNull();
+    expect(await loadLatestGame()).toBeNull();
+  });
+});
+
+describe('when IndexedDB is not available', () => {
+  beforeEach(() => {
+    Reflect.deleteProperty(globalThis, 'indexedDB');
+  });
+
+  it('never throws: nothing is saved and nothing is found', async () => {
+    await expect(saveGame({ pgn: PGN, depth: 12, result: makeResult() })).resolves.toBeUndefined();
+    await expect(loadGame(PGN)).resolves.toBeNull();
+    await expect(loadLatestGame()).resolves.toBeNull();
+    await expect(clearGames()).resolves.toBeUndefined();
+  });
+});

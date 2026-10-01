@@ -126,17 +126,20 @@ Mesures en production, partie réelle, réseau « 3G rapide » simulé (1,6 Mb/s
 - [x] **Découpage du bundle** : échiquier, graphique d'évaluation, comparaison de coups, liste de coups et bilan sont des chunks chargés à la demande (`React.lazy`), préchargés au repos et au lancement de l'analyse ; React et chess.js ont chacun un chunk stable (cache conservé entre déploiements).
 - Les graphiques sont déjà du SVG maison : il n'y a pas de bibliothèque de graphiques à différer.
 
-### 9. Persistance des parties analysées
+### 9. Persistance des parties analysées — fait
 
-Proposition 1. Une analyse prend de quelques secondes à plusieurs dizaines de secondes (selon la profondeur) et est perdue au rechargement de la page.
+Proposition 1. Une analyse prend de quelques secondes à plusieurs dizaines de secondes (selon la profondeur) et était perdue au rechargement de la page.
 
-- [ ] **Service `gameStore`** (IndexedDB, sans dépendance) : enregistre le PGN, la profondeur et le résultat complet de l'analyse (y compris les explications de l'entraîneur IA déjà demandées). Clé = empreinte du PGN ; 20 parties au plus (les plus anciennes sont supprimées) ; version de schéma pour ignorer les anciens formats ; sans effet si IndexedDB est indisponible (navigation privée, quota) : l'app fonctionne comme avant.
-- [ ] **Restauration au démarrage** : la dernière partie analysée est rouverte directement sur l'échiquier, avec la perspective (Blancs/Noirs) qu'elle avait.
-- [ ] **Ré-analyse instantanée** : analyser un PGN déjà enregistré avec une profondeur égale ou inférieure à celle enregistrée réutilise le résultat sans relancer Stockfish.
-- [ ] **Tests** (`fake-indexeddb`) : aller-retour, plafond, version de schéma, données corrompues, stockage indisponible, intégration dans `useGameAnalysis`.
-- Hors périmètre, volontairement : pas d'écran « mes parties » (l'interface vient d'être allégée) et pas de synchronisation entre appareils. Les données restent dans le navigateur ; l'effacer passe par les réglages du navigateur.
+- [x] **Service `gameStore`** (`src/services/gameStore.ts`, IndexedDB, sans dépendance) : enregistre le PGN, la profondeur et le résultat complet de l'analyse (explications de l'entraîneur IA et perspective Blancs/Noirs comprises). Clé = empreinte du PGN normalisé (retours à la ligne et espaces ignorés), avec comparaison du texte à la lecture ; 20 parties au plus (les plus anciennes sont supprimées) ; version de schéma (`SCHEMA_VERSION`) pour ignorer les anciens formats, et entrées illisibles ignorées ; sans effet si IndexedDB est indisponible (navigation privée, quota, blocage) : l'app fonctionne comme avant.
+- [x] **Restauration au démarrage** (`restoreLast`, appelée par `App`) : la dernière partie analysée est rouverte directement sur l'échiquier, au premier coup, avec sa perspective ; annonce « Dernière partie analysée rouverte » pour les lecteurs d'écran. Un indicateur de chargement remplace brièvement l'écran d'accueil pendant la lecture (abandon après 2 s si le stockage ne répond pas), et une analyse lancée entre-temps n'est jamais écrasée.
+- [x] **Ré-analyse instantanée** : analyser un PGN déjà enregistré avec une profondeur égale ou inférieure à celle enregistrée réutilise le résultat sans relancer Stockfish (pseudo et couleur courants appliqués) ; une profondeur supérieure relance l'analyse et remplace l'entrée.
+- [x] **Synchronisation** : chaque changement du résultat affiché (nouvelle analyse, nouvelle explication IA, changement de perspective) est réécrit, avec un délai de 250 ms pour regrouper les changements rapprochés ; un résultat tout juste restauré n'est pas réécrit.
+- [x] **Tests** (`fake-indexeddb`, 24 tests) : aller-retour, normalisation, collision de clé, plafond de 20, version de schéma, données corrompues, stockage indisponible ; dans `useGameAnalysis` : enregistrement, explications, réutilisation selon la profondeur, pseudo/couleur courants, restauration (une seule fois, sans réécriture, sans écraser une analyse en cours, abandon sur délai). Vérifiés par mutation : chacun des défauts réintroduits fait échouer un test. Cette vérification a révélé deux tests vides (leur jeu de données était refusé par le service), corrigés.
+- Vérifié dans le navigateur (partie d'exemple, profondeur 18) : analyse réelle 7,8 s ; après rechargement, plateau restauré en 0,67 s avec la perspective Noirs ; même PGN ré-analysé en 0,33 s ; sans IndexedDB, l'écran d'accueil et l'analyse fonctionnent normalement.
+- Piège de mesure relevé : la barre d'outils de l'échiquier s'affiche dès le début d'une analyse, pas à sa fin ; un test qui attend ce texte mesure l'apparition de l'écran. Il faut attendre l'annonce « Analyse terminée ».
+- Hors périmètre, volontairement : pas d'écran « mes parties » (l'interface vient d'être allégée) et pas de synchronisation entre appareils. Les données restent dans le navigateur ; les effacer passe par les réglages du navigateur.
 
-### 10. Retrait de l'aide des raccourcis
+### 10. Retrait de l'aide des raccourcis — fait
 
 Proposition 2. L'aide (fenêtre « Raccourcis clavier ») a été retirée à la demande dans la PR #4, puis réintroduite par le travail d'accessibilité (PR #9) : touche `?` **et** bouton (icône clavier) dans l'en-tête. Les raccourcis eux-mêmes restent actifs.
 
