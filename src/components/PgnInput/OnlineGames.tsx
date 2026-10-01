@@ -1,17 +1,20 @@
-import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { AlertCircle, CloudDownload, ListChecks, Search } from 'lucide-react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { AlertCircle, CheckCircle2, CloudDownload, ListChecks, Search } from 'lucide-react';
 import {
   ImportError,
+  OUTCOME_LABELS,
   SOURCE_LABELS,
   SPEED_LABELS,
   SPEED_OPTIONS,
   fetchGamesPage,
+  formatPlayedDate,
   type ImportCursor,
   type ImportSource,
   type ImportedGame,
   type SpeedFilter,
 } from '../../services/gameImport';
 import { MAX_BATCH_JOBS } from '../../services/batchAnalysis';
+import { MAX_FULL_GAMES, MAX_GAMES, gameId, listGameIds } from '../../services/gameStore';
 import { isAbortError } from '../../services/stockfishEngine';
 import { oneOf, usePersistentState } from '../../hooks/usePersistentState';
 
@@ -26,32 +29,26 @@ interface OnlineGamesProps {
   onAnalyzeBatch?: (games: ImportedGame[], username: string) => void;
   /** A batch is already running: another one cannot be started. */
   isBatchBusy?: boolean;
+  /** Changes when games were added to the history: the "already analysed" marks are read again. */
+  analyzedRevision?: number;
   /** Replaces the network call (tests). */
   fetchPage?: typeof fetchGamesPage;
+  /** Replaces the read of the stored game ids (tests). */
+  loadAnalyzedIds?: () => Promise<ReadonlySet<string>>;
 }
 
 const SOURCES: readonly ImportSource[] = ['chesscom', 'lichess'];
 const ALL_SPEEDS: readonly SpeedFilter[] = ['all', 'bullet', 'blitz', 'rapid', 'classical', 'daily'];
-/** How many of the latest games can be analysed at once (the history keeps `MAX_BATCH_JOBS`). */
-const BATCH_SIZES = [5, 10, MAX_BATCH_JOBS] as const;
+/** How many of the latest games can be analysed at once (at most `MAX_BATCH_JOBS`). */
+const BATCH_SIZES = [5, 10, 20, 50, MAX_BATCH_JOBS] as const;
 
-const OUTCOMES = {
-  win: { label: 'Victoire', className: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
-  loss: { label: 'Défaite', className: 'bg-rose-500/15 text-rose-300 border-rose-500/30' },
-  draw: { label: 'Nulle', className: 'bg-slate-500/15 text-slate-300 border-slate-500/30' },
+const OUTCOME_CLASSES = {
+  win: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+  loss: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
+  draw: 'bg-slate-500/15 text-slate-300 border-slate-500/30',
 } as const;
 
 export const gameKey = (game: Pick<ImportedGame, 'source' | 'id'>) => `${game.source}:${game.id}`;
-
-function formatDate(ms: number): string {
-  const date = new Date(ms);
-  const isThisYear = date.getFullYear() === new Date().getFullYear();
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: 'numeric',
-    month: 'short',
-    ...(isThisYear ? {} : { year: 'numeric' }),
-  }).format(date);
-}
 
 /** The recent games of a chess.com or Lichess account, to pick one without copying its PGN. */
 export const OnlineGames: React.FC<OnlineGamesProps> = ({
@@ -60,7 +57,9 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
   onSelect,
   onAnalyzeBatch,
   isBatchBusy = false,
+  analyzedRevision = 0,
   fetchPage = fetchGamesPage,
+  loadAnalyzedIds = listGameIds,
 }) => {
   const [source, setSource] = usePersistentState<ImportSource>('chess_import_source', 'chesscom', oneOf(SOURCES));
   // One pseudo per site (they are often different), the player's own pseudo as the starting point
@@ -86,6 +85,19 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
   const batchSelectId = useId();
 
   useEffect(() => () => controllerRef.current?.abort(), []);
+
+  // Which listed games are already in the history (read again when the history grows)
+  const [analyzedIds, setAnalyzedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const gameIds = useMemo(() => new Map(games.map((game) => [gameKey(game), gameId(game.pgn)])), [games]);
+  useEffect(() => {
+    if (games.length === 0) return;
+    let isCurrent = true;
+    void loadAnalyzedIds().then((ids) => isCurrent && setAnalyzedIds(ids));
+    return () => {
+      isCurrent = false;
+    };
+  }, [games.length, analyzedRevision, loadAnalyzedIds]);
+  const isAnalyzed = (game: ImportedGame) => analyzedIds.has(gameIds.get(gameKey(game)) ?? '');
 
   const reset = useCallback(() => {
     controllerRef.current?.abort();
@@ -150,6 +162,7 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
   const label = SOURCE_LABELS[source];
   // The list is newest first: the batch takes the first ones, and never more than what is shown
   const batchCount = Math.min(batchSize, games.length);
+  const batchAnalyzed = games.slice(0, batchCount).filter(isAnalyzed).length;
   const status = isLoading
     ? `Recherche des parties de ${username.trim()} sur ${label}…`
     : loadedTitle
@@ -257,7 +270,12 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
         <ul className="flex flex-col gap-1.5 max-h-72 overflow-y-auto pr-1">
           {games.map((game) => (
             <li key={gameKey(game)}>
-              <GameRow game={game} isSelected={gameKey(game) === selectedKey} onPick={() => pick(game)} />
+              <GameRow
+                game={game}
+                isSelected={gameKey(game) === selectedKey}
+                isAnalyzed={isAnalyzed(game)}
+                onPick={() => pick(game)}
+              />
             </li>
           ))}
           {cursor && (
@@ -305,8 +323,22 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
           </div>
           <p className="text-[10px] text-slate-400">
             En arrière-plan, la plus ancienne d'abord : vous pouvez continuer à utiliser l'application, et l'analyse
-            reprend si vous fermez l'onglet. « Mes parties » garde les {MAX_BATCH_JOBS} dernières parties analysées.
+            reprend si vous fermez l'onglet. « Mes parties » garde vos {MAX_GAMES} dernières parties ; les{' '}
+            {MAX_FULL_GAMES} plus récentes avec leur analyse complète, les autres en version allégée.
           </p>
+          {batchAnalyzed > 0 && (
+            <p className="text-[10px] text-slate-400">
+              {batchAnalyzed} déjà analysée{batchAnalyzed > 1 ? 's' : ''} :{' '}
+              {batchAnalyzed > 1 ? 'elles sont' : 'elle est'} sautée{batchAnalyzed > 1 ? 's' : ''} si l'analyse
+              enregistrée est au moins aussi profonde.
+            </p>
+          )}
+          {batchSize > games.length && cursor && (
+            <p className="text-[10px] text-slate-400">
+              Seules les {games.length} parties affichées sont prises : « Voir des parties plus anciennes » en charge
+              davantage.
+            </p>
+          )}
         </div>
       )}
       {games.length === 0 && cursor && !isLoading && (
@@ -322,22 +354,32 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
   );
 };
 
-function GameRow({ game, isSelected, onPick }: { game: ImportedGame; isSelected: boolean; onPick: () => void }) {
+function GameRow({
+  game,
+  isSelected,
+  isAnalyzed,
+  onPick,
+}: {
+  game: ImportedGame;
+  isSelected: boolean;
+  isAnalyzed: boolean;
+  onPick: () => void;
+}) {
   const isWhite = game.userColor === 'w';
   const opponent = isWhite ? game.black : game.white;
   const opponentRating = isWhite ? game.blackRating : game.whiteRating;
-  const outcome = OUTCOMES[game.outcome];
+  const outcomeLabel = OUTCOME_LABELS[game.outcome];
   const details = [
     [SPEED_LABELS[game.speed], game.timeControl].filter(Boolean).join(' '),
     `${Math.ceil(game.plies / 2)} coups`,
-    formatDate(game.playedAt),
+    formatPlayedDate(game.playedAt),
   ].join(' · ');
 
   return (
     <button
       type="button"
       aria-pressed={isSelected}
-      aria-label={`Charger la partie contre ${opponent} : ${outcome.label}, avec les ${isWhite ? 'Blancs' : 'Noirs'}, ${details}`}
+      aria-label={`Charger la partie contre ${opponent} : ${outcomeLabel}, avec les ${isWhite ? 'Blancs' : 'Noirs'}, ${details}${isAnalyzed ? ', déjà analysée' : ''}`}
       onClick={onPick}
       className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl border text-left transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
         isSelected
@@ -357,10 +399,19 @@ function GameRow({ game, isSelected, onPick }: { game: ImportedGame; isSelected:
         </span>
         <span className="text-[11px] text-slate-400 font-mono truncate">{details}</span>
       </span>
+      {isAnalyzed && (
+        <span
+          title="Déjà analysée : elle est dans « Mes parties »"
+          className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-300 shrink-0"
+        >
+          <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+          <span className="hidden sm:inline">Analysée</span>
+        </span>
+      )}
       <span
-        className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border ${outcome.className}`}
+        className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border ${OUTCOME_CLASSES[game.outcome]}`}
       >
-        {outcome.label}
+        {outcomeLabel}
       </span>
     </button>
   );

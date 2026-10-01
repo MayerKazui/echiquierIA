@@ -3,11 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameAnalysisResult, MoveAnalysis } from '../types/chess';
 import { computePlayerStats } from '../utils/moveAnalysis';
 import {
+  MAX_FULL_GAMES,
   MAX_GAMES,
   SCHEMA_VERSION,
   clearGames,
   deleteGame,
   gameId,
+  isFullGame,
+  listGameIds,
   listGames,
   loadGame,
   loadLatestGame,
@@ -122,14 +125,154 @@ describe('saveGame / loadGame', () => {
     expect(await loadGame(PGN)).toBeNull();
   });
 
-  it('keeps at most MAX_GAMES games and drops the oldest first', async () => {
-    const now = vi.spyOn(Date, 'now');
-    for (let i = 0; i < MAX_GAMES + 3; i++) {
-      now.mockReturnValue(1000 + i);
-      await saveGame({ pgn: `1. a3 *\n; game ${i}`, depth: 12, result: makeResult(String(i)) });
+  it('keeps the app limits: 500 games, the 50 latest complete', () => {
+    expect(MAX_GAMES).toBe(500);
+    expect(MAX_FULL_GAMES).toBe(50);
+  });
+
+  describe('a long history', () => {
+    const limits = { full: 3, total: 6 };
+    const pgnOf = (i: number) => `1. a3 *\n; game ${i}`;
+
+    /** Saves games 0..count-1, game i at time 1000 + i. */
+    async function saveMany(count: number, make: (i: number) => GameAnalysisResult = (i) => makeResult(String(i))) {
+      const now = vi.spyOn(Date, 'now');
+      for (let i = 0; i < count; i++) {
+        now.mockReturnValue(1000 + i);
+        await saveGame({ pgn: pgnOf(i), depth: 12, result: make(i) }, limits);
+      }
     }
-    for (let i = 0; i < 3; i++) expect(await loadGame(`1. a3 *\n; game ${i}`)).toBeNull();
-    for (let i = 3; i < MAX_GAMES + 3; i++) expect(await loadGame(`1. a3 *\n; game ${i}`)).not.toBeNull();
+
+    /** A game of two moves: a good one, then a blunder with the data a summary drops. */
+    function withBlunder(label: string): GameAnalysisResult {
+      const result = makeResult(label);
+      const good = { ...result.moves[0], fenAfter: 'after-good', pv: ['e5', 'Nf3'] };
+      const blunder = {
+        ...good,
+        ply: 1,
+        color: 'b',
+        san: 'a6',
+        fenBefore: 'before-blunder',
+        fenAfter: 'after-blunder',
+        classification: 'blunder',
+        centipawnLoss: 300,
+        evalAfter: 320,
+        bestMoveSan: 'Nc6',
+        aiExplanation: { concept: 'c', whyPlayedIsBad: 'w', whyBestIsBetter: 'b', plan: 'p' },
+      } as MoveAnalysis;
+      return { ...result, moves: [{ ...good, fenBefore: 'before-good' }, blunder] };
+    }
+
+    it('keeps the latest games complete, and the older ones as summaries', async () => {
+      await saveMany(5);
+      const games = await listGames();
+      expect(games.map((g) => g.pgn)).toEqual([4, 3, 2, 1, 0].map((i) => normalizePgn(pgnOf(i))));
+      expect(games.map(isFullGame)).toEqual([true, true, true, false, false]);
+      expect(games.map((g) => g.detail)).toEqual(['full', 'full', 'full', 'summary', 'summary']);
+    });
+
+    it('does not summarise anything while the history is short', async () => {
+      await saveMany(3);
+      expect((await listGames()).every(isFullGame)).toBe(true);
+    });
+
+    it('keeps the evaluations and the classification of a summary, but not the positions or the variations', async () => {
+      await saveMany(4, (i) => withBlunder(String(i)));
+      const old = await loadGame(pgnOf(0));
+      expect(old?.detail).toBe('summary');
+      const [good, blunder] = old!.result.moves;
+      expect(good).toMatchObject({ san: 'e4', classification: 'best', fenBefore: '', fenAfter: '', pv: [] });
+      expect(blunder).toMatchObject({ san: 'a6', classification: 'blunder', centipawnLoss: 300, evalAfter: 320 });
+      expect(blunder.bestMoveSan).toBe('Nc6');
+      expect(blunder.aiExplanation).toBeUndefined();
+      expect(blunder.fenAfter).toBe('');
+      expect(blunder.pv).toEqual([]);
+    });
+
+    it('keeps the position before a fault, to be able to replay it, and only there', async () => {
+      await saveMany(4, (i) => withBlunder(String(i)));
+      const [good, blunder] = (await loadGame(pgnOf(0)))!.result.moves;
+      expect(good.fenBefore).toBe('');
+      expect(blunder.fenBefore).toBe('before-blunder');
+    });
+
+    it('keeps the metadata, the side played and the statistics of a summary', async () => {
+      await saveMany(4, (i) => withBlunder(String(i)));
+      const old = (await loadGame(pgnOf(0)))!;
+      expect(old.result.metadata.white).toBe('0');
+      expect(old.result.userColor).toBe('w');
+      expect(old.result.statsBlack.blunders).toBe(1);
+      expect(old.depth).toBe(12);
+    });
+
+    it('does not touch the complete games', async () => {
+      await saveMany(5, (i) => withBlunder(String(i)));
+      const recent = (await loadGame(pgnOf(4)))!;
+      expect(recent.detail).toBe('full');
+      expect(recent.result.moves[1].pv).toEqual(['e5', 'Nf3']);
+      expect(recent.result.moves[1].aiExplanation?.concept).toBe('c');
+      expect(recent.result.moves[0].fenAfter).toBe('after-good');
+    });
+
+    it('drops the oldest games beyond the total, whatever their form', async () => {
+      await saveMany(9);
+      for (let i = 0; i < 3; i++) expect(await loadGame(pgnOf(i))).toBeNull();
+      for (let i = 3; i < 9; i++) expect(await loadGame(pgnOf(i))).not.toBeNull();
+      expect(await listGames()).toHaveLength(limits.total);
+    });
+
+    it('makes a game complete again when it is analysed anew, and puts it first', async () => {
+      await saveMany(6);
+      expect((await loadGame(pgnOf(0)))?.detail).toBe('summary');
+      vi.spyOn(Date, 'now').mockReturnValue(5000);
+      await saveGame({ pgn: pgnOf(0), depth: 16, result: makeResult('0') }, limits);
+      const games = await listGames();
+      expect(games[0].pgn).toBe(normalizePgn(pgnOf(0)));
+      expect(games[0]).toMatchObject({ detail: 'full', depth: 16 });
+      // The game that fell out of the complete ones is now the one reduced
+      expect(games.map((g) => g.detail)).toEqual(['full', 'full', 'full', 'summary', 'summary', 'summary']);
+    });
+
+    it('does not reopen a summary as the latest game', async () => {
+      await saveMany(5);
+      await deleteGame(gameId(pgnOf(4)));
+      await deleteGame(gameId(pgnOf(3)));
+      await deleteGame(gameId(pgnOf(2)));
+      expect((await listGames()).map((g) => g.detail)).toEqual(['summary', 'summary']);
+      expect(await loadLatestGame()).toBeNull();
+    });
+
+    it('rejects a record with an unknown level of detail', async () => {
+      await rawPut({ ...stored({ id: gameId(PGN), pgn: normalizePgn(PGN) }), detail: 'weird' });
+      expect(await loadGame(PGN)).toBeNull();
+    });
+  });
+
+  it('keeps the games saved by an earlier version (no level of detail) as complete ones', async () => {
+    await rawPut(stored({ id: gameId(PGN), pgn: normalizePgn(PGN) }));
+    const found = await loadGame(PGN);
+    expect(found).not.toBeNull();
+    expect(isFullGame(found!)).toBe(true);
+    expect((await loadLatestGame())?.pgn).toBe(normalizePgn(PGN));
+  });
+});
+
+describe('listGameIds', () => {
+  it('lists the id of every stored game, summaries included', async () => {
+    const limits = { full: 1, total: 5 };
+    await saveGame({ pgn: '1. a3 *', depth: 12, result: makeResult() }, limits);
+    await saveGame({ pgn: '1. b3 *', depth: 12, result: makeResult() }, limits);
+    await saveGame({ pgn: '1. c3 *', depth: 12, result: makeResult() }, limits);
+    expect(await listGameIds()).toEqual(new Set([gameId('1. a3 *'), gameId('1. b3 *'), gameId('1. c3 *')]));
+  });
+
+  it('is empty when nothing is stored', async () => {
+    expect((await listGameIds()).size).toBe(0);
+  });
+
+  it('is empty, without failing, when the storage is unavailable', async () => {
+    Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true, writable: true });
+    expect((await listGameIds()).size).toBe(0);
   });
 });
 

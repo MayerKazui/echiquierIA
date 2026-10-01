@@ -548,6 +548,7 @@ export default function App() {
                   onCancel={cancelAnalysis}
                   onAnalyzeBatch={runBatch}
                   isBatchBusy={batch.status === 'running' || batch.status === 'paused'}
+                  analyzedRevision={batch.done}
                 />
               </div>
             </div>
@@ -592,6 +593,7 @@ export default function App() {
             onCancel={cancelAnalysis}
             onAnalyzeBatch={runBatch}
             isBatchBusy={batch.status === 'running' || batch.status === 'paused'}
+            analyzedRevision={batch.done}
             onClose={() => setIsPgnModalOpen(false)}
           />
         </Modal>

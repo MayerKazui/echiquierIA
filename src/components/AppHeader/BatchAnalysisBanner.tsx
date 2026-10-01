@@ -23,7 +23,7 @@ const BUTTON =
  * the offer to resume a queue a previous visit left, and the summary once it is done.
  */
 export const BatchAnalysisBanner: React.FC<BatchAnalysisBannerProps> = ({ batch, onResume, onCancel, onDismiss }) => {
-  const { status, total, done, failed, current, fraction } = batch;
+  const { status, total, done, failed, failedLabels, current, fraction } = batch;
   if (status === 'idle') return null;
 
   const settled = done + failed;
@@ -38,6 +38,11 @@ export const BatchAnalysisBanner: React.FC<BatchAnalysisBannerProps> = ({ batch,
             Analyse en lot terminée : {games(done)} analysée{done > 1 ? 's' : ''}
             {failed > 0 && <span className="text-amber-300"> · {games(failed)} en échec</span>}.
             <span className="hidden sm:inline"> Elles sont dans « Mes parties ».</span>
+            {failedLabels.length > 0 && (
+              <span className="block text-[11px] font-normal text-amber-300/90">
+                Non analysée{failedLabels.length > 1 ? 's' : ''} : {failedLabels.join(' ; ')}.
+              </span>
+            )}
           </span>
         </p>
         <button
@@ -91,11 +96,16 @@ export const BatchAnalysisBanner: React.FC<BatchAnalysisBannerProps> = ({ batch,
             aria-hidden="true"
           />
         )}
-        <span className="truncate">
-          {isPaused
-            ? `Analyse en lot en pause pendant votre analyse : ${games(remaining)} restante${remaining > 1 ? 's' : ''}, elle reprend ensuite.`
-            : `Analyse en lot : partie ${Math.min(total, settled + 1)} sur ${total}`}
-          {!isPaused && current && <span className="hidden sm:inline"> · {current.label}</span>}
+        <span className="flex flex-col min-w-0">
+          <span className="truncate">
+            {isPaused
+              ? `Analyse en lot en pause pendant votre analyse : ${games(remaining)} restante${remaining > 1 ? 's' : ''}, elle reprend ensuite.`
+              : `Analyse en lot : partie ${Math.min(total, settled + 1)} sur ${total}`}
+            {failed > 0 && <span className="text-amber-300"> · {games(failed)} en échec</span>}
+          </span>
+          {!isPaused && current && (
+            <span className="truncate text-[11px] font-normal text-indigo-300/80">{current.label}</span>
+          )}
         </span>
       </p>
       <div className="flex items-center gap-3 flex-1 sm:flex-none justify-end">

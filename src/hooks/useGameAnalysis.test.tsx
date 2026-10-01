@@ -98,6 +98,20 @@ describe('analysing a game that was already analysed', () => {
     expect(second.result.current.pgn).toBe(PGN);
   });
 
+  it('analyses again a game that was reduced to a summary (its positions are gone), as complete', async () => {
+    const limits = { full: 1, total: 5 };
+    vi.spyOn(Date, 'now').mockReturnValue(1000);
+    await saveGame({ pgn: PGN, depth: 14, result: storedResult() }, limits);
+    vi.spyOn(Date, 'now').mockReturnValue(2000);
+    await saveGame({ pgn: '1. d4 *', depth: 14, result: storedResult() }, limits);
+    expect((await loadGame(PGN))?.detail).toBe('summary');
+
+    const { result } = render();
+    await act(() => result.current.analyze(PGN, 12));
+    expect(analyzeFullGame).toHaveBeenCalledOnce();
+    await waitFor(async () => expect((await loadGame(PGN))?.detail).toBe('full'));
+  });
+
   it('runs Stockfish again when a deeper analysis is requested, and keeps the deeper one', async () => {
     const first = render();
     await act(() => first.result.current.analyze(PGN, 10));

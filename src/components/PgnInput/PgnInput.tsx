@@ -28,6 +28,8 @@ interface PgnInputProps {
   /** Analyses the latest games of the online list in the background, at the chosen depth. */
   onAnalyzeBatch?: (games: ImportedGame[], username: string, depth: number) => void;
   isBatchBusy?: boolean;
+  /** Changes when games were added to the history by a background analysis. */
+  analyzedRevision?: number;
   onClose?: () => void;
 }
 
@@ -41,6 +43,7 @@ export const PgnInput: React.FC<PgnInputProps> = ({
   onCancel,
   onAnalyzeBatch,
   isBatchBusy = false,
+  analyzedRevision,
   onClose,
 }) => {
   const pgnFieldId = useId();
@@ -169,6 +172,7 @@ export const PgnInput: React.FC<PgnInputProps> = ({
           onSelect={handleSelectImported}
           onAnalyzeBatch={onAnalyzeBatch && ((games, username) => onAnalyzeBatch(games, username, selectedDepth))}
           isBatchBusy={isBatchBusy}
+          analyzedRevision={analyzedRevision}
         />
 
         {/* Preset Sample Games */}

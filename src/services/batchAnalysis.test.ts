@@ -57,17 +57,18 @@ describe('createSnapshot', () => {
     expect(snapshot).toMatchObject({ version: 1, depth: 14, userPseudo: 'Alice', doneIds: [], failedIds: [] });
   });
 
-  it('is bounded to what the history can keep', () => {
+  it('is bounded: the queue is kept in the browser with the PGN of each game', () => {
     const jobs = Array.from({ length: MAX_BATCH_JOBS + 5 }, (_, i) => job(`g${i}`));
     expect(createSnapshot(jobs, 12, 'Alice').jobs).toHaveLength(MAX_BATCH_JOBS);
   });
 });
 
 describe('jobsFromGames', () => {
+  const detail = { speed: 'blitz', timeControl: '5+3', playedAt: new Date(2020, 9, 3, 12).getTime() } as const;
   const listed = [
-    { source: 'chesscom', id: 'new', pgn: 'N', white: 'me', black: 'Opp1', userColor: 'w' },
-    { source: 'chesscom', id: 'mid', pgn: 'M', white: 'Opp2', black: 'me', userColor: 'b' },
-    { source: 'lichess', id: 'old', pgn: 'O', white: 'me', black: 'Opp3', userColor: 'w' },
+    { source: 'chesscom', id: 'new', pgn: 'N', white: 'me', black: 'Opp1', userColor: 'w', outcome: 'win', ...detail },
+    { source: 'chesscom', id: 'mid', pgn: 'M', white: 'Opp2', black: 'me', userColor: 'b', outcome: 'loss', ...detail },
+    { source: 'lichess', id: 'old', pgn: 'O', white: 'me', black: 'Opp3', userColor: 'w', outcome: 'draw', ...detail },
   ] as const;
 
   it('puts the oldest game first (the list is newest first)', () => {
@@ -75,7 +76,16 @@ describe('jobsFromGames', () => {
   });
 
   it('names each game after the opponent of the user, whichever side they played', () => {
-    expect(jobsFromGames([...listed]).map((j) => j.label)).toEqual(['contre Opp3', 'contre Opp2', 'contre Opp1']);
+    const opponents = jobsFromGames([...listed]).map((j) => j.label.split(' · ')[0]);
+    expect(opponents).toEqual(['contre Opp3', 'contre Opp2', 'contre Opp1']);
+  });
+
+  it('tells the result from the point of view of the user, the time control and the date', () => {
+    expect(jobsFromGames([...listed]).map((j) => j.label)).toEqual([
+      'contre Opp3 · Nulle · Blitz 5+3 · 3 oct. 2020',
+      'contre Opp2 · Défaite · Blitz 5+3 · 3 oct. 2020',
+      'contre Opp1 · Victoire · Blitz 5+3 · 3 oct. 2020',
+    ]);
   });
 
   it('identifies a game by its site and its id, so that two sites cannot clash', () => {

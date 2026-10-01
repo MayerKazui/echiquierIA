@@ -26,6 +26,8 @@ export interface BatchView {
   total: number;
   done: number;
   failed: number;
+  /** Labels of the games that could not be analysed. */
+  failedLabels: string[];
   /** The game being analysed (running only). */
   current: BatchJob | null;
   /** Part of the current game done, 0 to 1. */
@@ -180,6 +182,9 @@ export function useBatchAnalysis(foregroundBusy: boolean, deps: BatchDeps = defa
     total: snapshot?.jobs.length ?? 0,
     done: snapshot?.doneIds.length ?? 0,
     failed: snapshot?.failedIds.length ?? 0,
+    failedLabels: snapshot
+      ? snapshot.jobs.filter((job) => snapshot.failedIds.includes(job.id)).map((job) => job.label)
+      : [],
     current,
     fraction,
   };

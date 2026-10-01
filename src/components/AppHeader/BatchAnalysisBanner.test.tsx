@@ -10,6 +10,7 @@ const view = (over: Partial<BatchView> = {}): BatchView => ({
   total: 10,
   done: 3,
   failed: 1,
+  failedLabels: ['contre Opp2 · Défaite · Blitz 5+3 · 3 oct.'],
   current: { id: 'g5', pgn: '1. e4 *', label: 'contre Opp5' },
   fraction: 0.5,
   ...over,
@@ -33,6 +34,11 @@ describe('BatchAnalysisBanner', () => {
       // 3 done + 1 failed: the 5th game is being analysed
       expect(screen.getByRole('status').textContent).toContain('Analyse en lot : partie 5 sur 10');
       expect(screen.getByRole('status').textContent).toContain('contre Opp5');
+    });
+
+    it('keeps counting the games that failed while it goes on', () => {
+      renderBanner(view());
+      expect(screen.getByRole('status').textContent).toContain('1 partie en échec');
     });
 
     it('shows the overall progress, the games done plus the part of the current one', () => {
@@ -94,6 +100,18 @@ describe('BatchAnalysisBanner', () => {
       const text = screen.getByRole('status').textContent;
       expect(text).toContain('1 partie analysée');
       expect(text).toContain('1 partie en échec');
+    });
+
+    it('names the games that could not be analysed', () => {
+      renderBanner(view({ status: 'finished', total: 2, done: 1, failed: 1, current: null }));
+      expect(screen.getByRole('status').textContent).toContain(
+        'Non analysée : contre Opp2 · Défaite · Blitz 5+3 · 3 oct.'
+      );
+    });
+
+    it('does not list anything when every game was analysed', () => {
+      renderBanner(view({ status: 'finished', done: 10, failed: 0, failedLabels: [], current: null }));
+      expect(screen.getByRole('status').textContent).not.toContain('Non analysée');
     });
   });
 });

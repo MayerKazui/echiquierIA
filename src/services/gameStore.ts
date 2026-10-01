@@ -16,8 +16,15 @@ export interface StoredGame {
   depth: number;
   savedAt: number;
   schemaVersion: number;
+  /**
+   * `summary`: an old game, reduced to what the statistics need (see `toSummary`); it cannot be shown on the board
+   * again without analysing it anew. Absent or `full`: the complete analysis.
+   */
+  detail?: 'full' | 'summary';
   result: GameAnalysisResult;
 }
+
+export const isFullGame = (game: Pick<StoredGame, 'detail'>): boolean => game.detail !== 'summary';
 
 const DB_NAME = 'echiquier-ia';
 const STORE = 'games';
@@ -25,7 +32,12 @@ const SAVED_AT_INDEX = 'savedAt';
 /** Bump when `GameAnalysisResult` changes shape: older entries are then ignored (and replaced on the next save). */
 export const SCHEMA_VERSION = 1;
 /** Number of games kept; the least recently saved ones are dropped first. */
-export const MAX_GAMES = 20;
+export const MAX_GAMES = 500;
+/**
+ * Number of most recent games kept with their complete analysis (about 70 KB each). The older ones are reduced to a
+ * summary of about a quarter of that size, so that a long history stays light.
+ */
+export const MAX_FULL_GAMES = 50;
 
 /** Same game whatever the line endings or the spacing of the pasted text. */
 export function normalizePgn(pgn: string): string {
@@ -63,10 +75,32 @@ function isStoredGame(value: unknown): value is StoredGame {
   if (!isObject(result) || !isObject(result.metadata) || !isObject(result.statsWhite) || !isObject(result.statsBlack)) {
     return false;
   }
+  if (value.detail !== undefined && value.detail !== 'full' && value.detail !== 'summary') return false;
   const moves = result.moves;
   if (!Array.isArray(moves) || moves.length === 0) return false;
   const first: unknown = moves[0];
   return isObject(first) && typeof first.san === 'string' && typeof first.fenBefore === 'string';
+}
+
+const FAULTS: ReadonlySet<MoveAnalysis['classification']> = new Set(['mistake', 'blunder', 'missedWin']);
+
+/**
+ * An old game reduced to what the statistics need: each move keeps its evaluations, classification, clock and best
+ * move; the positions (the two FEN strings, kept only before a fault, to be able to replay it), the variation and
+ * the AI explanations are dropped.
+ */
+export function toSummary(game: StoredGame): StoredGame {
+  const moves = game.result.moves.map((move) => {
+    const light: MoveAnalysis = {
+      ...move,
+      fenBefore: FAULTS.has(move.classification) ? move.fenBefore : '',
+      fenAfter: '',
+      pv: [],
+    };
+    delete light.aiExplanation;
+    return light;
+  });
+  return { ...game, detail: 'summary', result: { ...game.result, moves } };
 }
 
 /**
@@ -145,14 +179,62 @@ async function inTransaction<T>(
   }
 }
 
-/** Saves (or replaces) an analysed game, then drops the oldest ones beyond `MAX_GAMES`. */
-export async function saveGame(game: { pgn: string; depth: number; result: GameAnalysisResult }): Promise<void> {
+/** Reduces to a summary the games that are older than the `keepFull` most recent ones, then calls `done`. */
+function compactOld(store: IDBObjectStore, keepFull: number, done: () => void): void {
+  const request = store.index(SAVED_AT_INDEX).openCursor(null, 'prev');
+  let skipped = false;
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return done();
+    if (!skipped) {
+      skipped = true;
+      cursor.advance(keepFull); // the most recent ones stay as they are
+      return;
+    }
+    // Every write goes through `saveGame`, so what is beyond the recent ones is already a summary from the first
+    // summary on: there is no need to read the whole history at each save
+    if (!isStoredGame(cursor.value) || !isFullGame(cursor.value)) return done();
+    cursor.update(toSummary(cursor.value));
+    cursor.continue();
+  };
+}
+
+/** Drops the `excess` least recently saved games. */
+function dropOldest(store: IDBObjectStore, excess: number): void {
+  let left = excess;
+  // Oldest first: the index is ordered by savedAt
+  const cursor = store.index(SAVED_AT_INDEX).openKeyCursor();
+  cursor.onsuccess = () => {
+    const current = cursor.result;
+    if (!current || left <= 0) return;
+    store.delete(current.primaryKey);
+    left -= 1;
+    current.continue();
+  };
+}
+
+/** How many games are kept complete, and how many in all (the defaults are the app's; tests use smaller ones). */
+export interface StoreLimits {
+  full: number;
+  total: number;
+}
+const DEFAULT_LIMITS: StoreLimits = { full: MAX_FULL_GAMES, total: MAX_GAMES };
+
+/**
+ * Saves (or replaces) an analysed game. Beyond the `MAX_FULL_GAMES` most recent ones the games are reduced to a
+ * summary, and beyond `MAX_GAMES` the oldest are dropped.
+ */
+export async function saveGame(
+  game: { pgn: string; depth: number; result: GameAnalysisResult },
+  limits: StoreLimits = DEFAULT_LIMITS
+): Promise<void> {
   const record: StoredGame = {
     id: gameId(game.pgn),
     pgn: normalizePgn(game.pgn),
     depth: game.depth,
     savedAt: Date.now(),
     schemaVersion: SCHEMA_VERSION,
+    detail: 'full',
     result: game.result,
   };
   try {
@@ -160,17 +242,11 @@ export async function saveGame(game: { pgn: string; depth: number; result: GameA
       store.put(record);
       const count = store.count();
       count.onsuccess = () => {
-        let excess = count.result - MAX_GAMES;
-        if (excess <= 0) return;
-        // Oldest first: the index is ordered by savedAt
-        const cursor = store.index(SAVED_AT_INDEX).openKeyCursor();
-        cursor.onsuccess = () => {
-          const current = cursor.result;
-          if (!current || excess <= 0) return;
-          store.delete(current.primaryKey);
-          excess -= 1;
-          current.continue();
-        };
+        const total = count.result;
+        if (total <= limits.full) return;
+        compactOld(store, limits.full, () => {
+          if (total > limits.total) dropOldest(store, total - limits.total);
+        });
       };
     });
   } catch (err) {
@@ -192,7 +268,7 @@ export async function loadGame(pgn: string): Promise<StoredGame | null> {
   }
 }
 
-/** The most recently saved game that is still readable, or null. */
+/** The most recently saved game that is still readable and complete (a summary cannot be shown), or null. */
 export async function loadLatestGame(): Promise<StoredGame | null> {
   try {
     return await inTransaction<StoredGame | null>('readonly', (store, done) => {
@@ -201,8 +277,8 @@ export async function loadLatestGame(): Promise<StoredGame | null> {
       cursor.onsuccess = () => {
         const current = cursor.result;
         if (!current) return;
-        if (isStoredGame(current.value)) done(withFreshStats(current.value));
-        else current.continue(); // Skip entries from an older schema or damaged ones
+        if (isStoredGame(current.value) && isFullGame(current.value)) done(withFreshStats(current.value));
+        else current.continue(); // Skip summaries, entries from an older schema and damaged ones
       };
     });
   } catch (err) {
@@ -239,6 +315,19 @@ export async function listGames(): Promise<StoredGame[]> {
   } catch (err) {
     console.warn('Could not list the analysed games:', err);
     return [];
+  }
+}
+
+/** Keys (`gameId`) of every stored game: cheap, nothing is read but the keys. Empty when storage is unavailable. */
+export async function listGameIds(): Promise<Set<string>> {
+  try {
+    return await inTransaction<Set<string>>('readonly', (store, done) => {
+      const request = store.getAllKeys();
+      request.onsuccess = () => done(new Set(request.result.map(String)));
+    });
+  } catch (err) {
+    console.warn('Could not list the analysed games:', err);
+    return new Set();
   }
 }
 

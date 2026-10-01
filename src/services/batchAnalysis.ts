@@ -1,7 +1,7 @@
 import type { GameAnalysisResult } from '../types/chess';
 import type { PlayerColor } from '../types/ui';
 import { buildGameResult } from './gameResult';
-import type { ImportedGame } from './gameImport';
+import { OUTCOME_LABELS, SPEED_LABELS, formatPlayedDate, type ImportedGame } from './gameImport';
 import { isAbortError, type GameAnalysisOutput } from './stockfishEngine';
 
 /**
@@ -13,7 +13,7 @@ import { isAbortError, type GameAnalysisOutput } from './stockfishEngine';
 export interface BatchJob {
   id: string;
   pgn: string;
-  /** For display: "contre Opponent · 3 oct.". */
+  /** For display: "contre Opponent · Défaite · Blitz 5+3 · 3 oct.". */
   label: string;
 }
 
@@ -28,8 +28,8 @@ export interface BatchSnapshot {
 }
 
 const STORAGE_KEY = 'chess_batch_analysis';
-/** A queue is bounded: the history keeps this many games, so more would only push out the first ones. */
-export const MAX_BATCH_JOBS = 20;
+/** A queue is bounded: it is kept in the browser with the PGN of each game, and a very long one is not meant. */
+export const MAX_BATCH_JOBS = 100;
 const MAX_PGN_LENGTH = 200_000;
 
 export const pendingJobs = (snapshot: BatchSnapshot): BatchJob[] => {
@@ -43,12 +43,22 @@ export const pendingJobs = (snapshot: BatchSnapshot): BatchJob[] => {
  * after a reload.
  */
 export function jobsFromGames(
-  games: Array<Pick<ImportedGame, 'source' | 'id' | 'pgn' | 'white' | 'black' | 'userColor'>>
+  games: Array<
+    Pick<
+      ImportedGame,
+      'source' | 'id' | 'pgn' | 'white' | 'black' | 'userColor' | 'outcome' | 'speed' | 'timeControl' | 'playedAt'
+    >
+  >
 ): BatchJob[] {
   return [...games].reverse().map((game) => ({
     id: `${game.source}:${game.id}`,
     pgn: game.pgn,
-    label: `contre ${game.userColor === 'w' ? game.black : game.white}`,
+    label: [
+      `contre ${game.userColor === 'w' ? game.black : game.white}`,
+      OUTCOME_LABELS[game.outcome],
+      [SPEED_LABELS[game.speed], game.timeControl].filter(Boolean).join(' '),
+      formatPlayedDate(game.playedAt),
+    ].join(' · '),
   }));
 }
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { GameAnalysisResult, MoveAnalysis } from '../types/chess';
 import { PlayerColor } from '../types/ui';
 import { isAbortError, stockfishService, type GameAnalysisOutput } from '../services/stockfishEngine';
-import { loadGame, loadLatestGame, saveGame } from '../services/gameStore';
+import { isFullGame, loadGame, loadLatestGame, saveGame } from '../services/gameStore';
 import { buildGameResult, detectUserColor } from '../services/gameResult';
 import { SAMPLE_GAMES } from '../utils/sampleGames';
 
@@ -118,7 +118,7 @@ export function useGameAnalysis(userPseudo: string, userColor: PlayerColor) {
         // Already analysed (at least as deep): no need to run Stockfish again
         const stored = await withTimeout(loadGame(pgnToAnalyze), null, STORAGE_TIMEOUT_MS);
         if (controller.signal.aborted) return { status: 'cancelled' };
-        if (stored && stored.depth >= requestedDepth) {
+        if (stored && isFullGame(stored) && stored.depth >= requestedDepth) {
           const reused: GameAnalysisResult = {
             ...stored.result,
             userColor: detectUserColor(stored.result.metadata, userPseudo, userColor),

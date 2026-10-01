@@ -122,6 +122,19 @@ export const SPEED_LABELS: Record<GameSpeed, string> = {
   daily: 'Quotidienne',
 };
 
+export const OUTCOME_LABELS: Record<GameOutcome, string> = { win: 'Victoire', loss: 'Défaite', draw: 'Nulle' };
+
+/** "3 oct." (with the year when it is not the current one). */
+export function formatPlayedDate(ms: number): string {
+  const date = new Date(ms);
+  const isThisYear = date.getFullYear() === new Date().getFullYear();
+  return new Intl.DateTimeFormat('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    ...(isThisYear ? {} : { year: 'numeric' }),
+  }).format(date);
+}
+
 /** "300+3" → "5+3", "600" → "10 min", "30" → "30 s", "1/259200" → "3 j/coup". */
 export function formatTimeControl(raw: string | undefined): string {
   if (!raw) return '';

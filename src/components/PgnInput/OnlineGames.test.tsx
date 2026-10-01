@@ -3,6 +3,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ImportError, type ImportPage, type ImportedGame, type fetchGamesPage } from '../../services/gameImport';
+import { gameId } from '../../services/gameStore';
 import { OnlineGames } from './OnlineGames';
 
 function game(over: Partial<ImportedGame> = {}): ImportedGame {
@@ -294,10 +295,114 @@ describe('OnlineGames', () => {
       expect((screen.getByRole('button', { name: 'Analyse en cours…' }) as HTMLButtonElement).disabled).toBe(true);
     });
 
-    it('mentions that the history keeps 20 games, and that the analysis goes on in the background', async () => {
+    it('mentions the limits of the history, and that the analysis goes on in the background', async () => {
       await searchWith(5);
-      expect(screen.getByText(/« Mes parties » garde les 20 dernières/)).toBeTruthy();
+      expect(screen.getByText(/« Mes parties » garde vos 500 dernières parties/)).toBeTruthy();
+      expect(screen.getByText(/50 plus récentes avec leur analyse complète/)).toBeTruthy();
       expect(screen.getByText(/En arrière-plan, la plus ancienne d'abord/)).toBeTruthy();
+    });
+
+    it('offers up to 100 games', async () => {
+      await searchWith(3);
+      const options = within(screen.getByRole('combobox', { name: 'Analyser les' })).getAllByRole('option');
+      expect(options.map((o) => o.textContent)).toEqual(['5', '10', '20', '50', '100']);
+    });
+
+    it('tells when the games asked for are more than the list shows and more can be loaded', async () => {
+      const onAnalyzeBatch = vi.fn();
+      renderGames({ onAnalyzeBatch }, [{ games: many(12), cursor: { source: 'chesscom', months: [], carry: [] } }]);
+      await search();
+      await screen.findByRole('button', { name: /^Analyser \d+ partie/ });
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Analyser les' }), '50');
+      expect(screen.getByText(/Seules les 12 parties affichées sont prises/)).toBeTruthy();
+    });
+
+    it('says nothing of the kind when the list is complete or the asked number fits', async () => {
+      await searchWith(12);
+      expect(screen.queryByText(/Seules les/)).toBeNull();
+    });
+  });
+
+  describe('the games already analysed', () => {
+    const listed = [
+      game({ id: 'a', pgn: '1. e4 e5' }),
+      game({ id: 'b', pgn: '1. d4 d5' }),
+      game({ id: 'c', pgn: '1. c4 c5' }),
+    ];
+    const known = (...pgns: string[]) => vi.fn(() => Promise.resolve(new Set(pgns.map(gameId))));
+
+    async function searchWithStored(loadAnalyzedIds: () => Promise<ReadonlySet<string>>, props = {}) {
+      renderGames({ loadAnalyzedIds, ...props }, [{ games: listed, cursor: null }]);
+      await search();
+      await screen.findAllByRole('listitem');
+    }
+
+    const row = (opponentIndex: number) => screen.getAllByRole('button', { name: /^Charger la partie/ })[opponentIndex];
+
+    it('marks them in the list, and only them', async () => {
+      await searchWithStored(known('1. d4 d5'));
+      await waitFor(() => expect(row(1).getAttribute('aria-label')).toMatch(/, déjà analysée$/));
+      expect(row(0).getAttribute('aria-label')).not.toMatch(/déjà analysée/);
+      expect(row(2).getAttribute('aria-label')).not.toMatch(/déjà analysée/);
+      expect(within(row(1)).getByText('Analysée')).toBeTruthy();
+      expect(within(row(0)).queryByText('Analysée')).toBeNull();
+    });
+
+    it('does not read the history before there is a list', () => {
+      const loadAnalyzedIds = known('1. d4 d5');
+      renderGames({ loadAnalyzedIds });
+      expect(loadAnalyzedIds).not.toHaveBeenCalled();
+    });
+
+    it('recognises a game whatever the spacing of its PGN', async () => {
+      await searchWithStored(known('  1.  d4   d5 '));
+      await waitFor(() => expect(within(row(1)).getByText('Analysée')).toBeTruthy());
+    });
+
+    it('reads the history again when games were added to it', async () => {
+      const loadAnalyzedIds = vi
+        .fn<() => Promise<ReadonlySet<string>>>()
+        .mockResolvedValueOnce(new Set())
+        .mockResolvedValue(new Set([gameId('1. c4 c5')]));
+      const fetchPage = vi.fn<FetchPage>(() => Promise.resolve({ games: listed, cursor: null }));
+      const props = { userPseudo: 'alice', selectedKey: null, onSelect: vi.fn(), fetchPage, loadAnalyzedIds };
+      const { rerender } = render(<OnlineGames {...props} analyzedRevision={0} />);
+      await search();
+      await screen.findAllByRole('listitem');
+      expect(screen.queryByText('Analysée')).toBeNull();
+
+      rerender(<OnlineGames {...props} analyzedRevision={1} />);
+      await waitFor(() => expect(within(row(2)).getByText('Analysée')).toBeTruthy());
+    });
+
+    it('marks nothing when the history cannot be read', async () => {
+      await searchWithStored(() => Promise.resolve(new Set()));
+      expect(screen.queryByText('Analysée')).toBeNull();
+    });
+
+    it('counts, for the batch, the analysed games among those that would be taken', async () => {
+      await searchWithStored(known('1. e4 e5', '1. c4 c5'), { onAnalyzeBatch: vi.fn() });
+      expect(await screen.findByText(/2 déjà analysées : elles sont sautées/)).toBeTruthy();
+    });
+
+    it('uses the singular for one game', async () => {
+      await searchWithStored(known('1. e4 e5'), { onAnalyzeBatch: vi.fn() });
+      expect(await screen.findByText(/1 déjà analysée : elle est sautée/)).toBeTruthy();
+    });
+
+    it('counts only the games the batch would take', async () => {
+      const many = Array.from({ length: 12 }, (_, i) => game({ id: `m${i}`, pgn: `1. a3 a6 ; ${i}` }));
+      // The 11th and the 12th are beyond the 10 of the default batch
+      const loadAnalyzedIds = known('1. a3 a6 ; 10', '1. a3 a6 ; 11', '1. a3 a6 ; 0');
+      renderGames({ loadAnalyzedIds, onAnalyzeBatch: vi.fn() }, [{ games: many, cursor: null }]);
+      await search();
+      expect(await screen.findByText(/1 déjà analysée : elle est sautée/)).toBeTruthy();
+    });
+
+    it('says nothing when none of them is analysed', async () => {
+      await searchWithStored(known(), { onAnalyzeBatch: vi.fn() });
+      await screen.findByRole('button', { name: 'Analyser 3 parties' });
+      expect(screen.queryByText(/déjà analysée/)).toBeNull();
     });
   });
 });
