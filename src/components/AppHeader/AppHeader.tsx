@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, Dumbbell, FileText, History, Volume2, VolumeX } from 'lucide-react';
+import { BarChart3, Download, Dumbbell, FileText, History, Volume2, VolumeX } from 'lucide-react';
 import { GameMetadata } from '../../types/chess';
 import { AppTab, PlayerColor } from '../../types/ui';
 import { ViewTabs } from './ViewTabs';
@@ -22,6 +22,8 @@ interface AppHeaderProps {
   onOpenHistory: () => void;
   onOpenProfile: () => void;
   onOpenTraining: () => void;
+  /** Installs the app: given only when the browser offers it. */
+  onInstall?: () => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -40,6 +42,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onOpenHistory,
   onOpenProfile,
   onOpenTraining,
+  onInstall,
 }) => (
   <header className="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-3 sm:px-4 lg:px-8 py-2 sm:py-3 w-full max-w-full">
     {/* One row on every screen: on a phone the labels give way to icons and the views move to the bottom bar */}
@@ -114,6 +117,18 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           <Dumbbell className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-400" />
           <span className="hidden lg:inline ml-1">S&apos;entraîner</span>
         </button>
+
+        {onInstall && (
+          <button
+            onClick={onInstall}
+            aria-label="Installer l'application"
+            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors cursor-pointer flex items-center"
+            title="Installer l'application sur cet appareil (elle fonctionne alors aussi hors ligne)"
+          >
+            <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-400" />
+            <span className="hidden xl:inline ml-1">Installer</span>
+          </button>
+        )}
 
         {/* Sound Mute/Unmute Button */}
         <button

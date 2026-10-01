@@ -35,8 +35,8 @@ jobs:
           BASE_PATH: /${{ github.event.repository.name }}/
           VITE_API_URL: ${{ vars.API_URL }}
 
-      - name: Check the engine is in the build
-        run: test -s dist/stockfish-19.js && test -s dist/stockfish-19.wasm && test -s dist/openings.json
+      - name: Check the engine and the offline files are in the build
+        run: test -s dist/stockfish-19.js && test -s dist/stockfish-19.wasm && test -s dist/openings.json && test -s dist/sw.js && test -s dist/manifest.webmanifest
 
       - uses: actions/upload-pages-artifact@v3
         with:
