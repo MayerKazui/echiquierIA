@@ -10,9 +10,13 @@ import { GameHistory } from './GameHistory';
 function result(white: string, black: string, extra: Partial<GameAnalysisResult['metadata']> = {}): GameAnalysisResult {
   return {
     metadata: { white, black, result: '1-0', opening: 'Sicilian Defense', eco: 'B20', ...extra },
-    moves: [{ san: 'e4', fenBefore: 'start', ply: 0 } as MoveAnalysis],
-    statsWhite: { accuracy: 91.4 } as GameAnalysisResult['statsWhite'],
-    statsBlack: { accuracy: 72 } as GameAnalysisResult['statsBlack'],
+    // The stored statistics are ignored: they are recomputed from the moves when a game is read
+    moves: [
+      { san: 'e4', fenBefore: 'start', ply: 0, color: 'w', evalBefore: 0, evalAfter: 0, centipawnLoss: 0 },
+      { san: 'e5', fenBefore: 'x', ply: 1, color: 'b', evalBefore: 0, evalAfter: 0, centipawnLoss: 0 },
+    ] as MoveAnalysis[],
+    statsWhite: { accuracy: 1 } as GameAnalysisResult['statsWhite'],
+    statsBlack: { accuracy: 1 } as GameAnalysisResult['statsBlack'],
     userColor: 'w',
     userPseudo: '',
   };
@@ -39,7 +43,7 @@ describe('GameHistory', () => {
     expect(within(rows[1]).getByText(/Anna/)).toBeTruthy();
     expect(within(rows[0]).getByText(/\[B20\] Sicilian Defense/)).toBeTruthy();
     expect(within(rows[0]).getByText(/profondeur 18/)).toBeTruthy();
-    expect(within(rows[0]).getByText(/précision 91 %/)).toBeTruthy();
+    expect(within(rows[0]).getByText(/précision 100 %/)).toBeTruthy();
   });
 
   it('opens a game with its stored PGN and depth', async () => {

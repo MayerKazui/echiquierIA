@@ -216,6 +216,13 @@ Deux limites notées à la section 12.
 - [x] Le défilement n'est progressif (« smooth ») que pour un pas de ±2 demi-coups fait par l'utilisateur ; il est **instantané** pendant la lecture automatique (l'animation était relancée à chaque pas, la liste courait après) et pour un saut (début, fin, erreur, clic sur le graphique). `prefers-reduced-motion` reste respecté. Le pas sur lequel la lecture s'arrête compte comme joué. Vérifié dans le navigateur : 40 pas manuels 26 progressifs / 0 instantané, sauts instantanés, lecture à ×4 : 43 défilements instantanés sur 43 (un seul était progressif avant la correction du dernier pas).
 - Tests : `moveListScrollBehavior` (5) et 8 pour la liste elle-même (`scrollTo` espionné) ; 5 mutations vérifiées (dont une qui survivait, ajoutée ensuite).
 
+## Précision : calcul corrigé (fait)
+
+- [x] **Cause** : la précision venait de la _moyenne des centipions perdus_, sans plafond (un mat compte 10 000 cp), avec un plancher à 25 %. Une ou deux gaffes vers un mat suffisaient à faire tomber un joueur à 25 %, quel que soit le reste de sa partie : deux joueurs aux fautes différentes affichaient le même 25 % (global et milieu de jeu), alors que l'ouverture montrait 88 à 97 %.
+- [x] **Correction** : précision par coup selon la probabilité de gain perdue (formule de Lichess, `moveAccuracy`), puis moyenne des coups (`accuracyFromMoves`), globale et par phase. Plus de plancher : une partie perdue peut descendre sous 25 %, une gaffe pèse au plus « toute la partie perdue ». Les parties déjà enregistrées voient leurs statistiques recalculées à la lecture (`gameStore`).
+- Les coups de livre comptent pour 100 % (comme avant, 0 cp perdu). Le _classement_ des coups (gaffe, erreur…) reste fondé sur les centipions : une « gaffe » peut survenir dans une position déjà gagnée sans changer grand-chose à la probabilité de gain, donc sans peser sur la précision.
+- Tests : `accuracyFromWinDrop`, `moveAccuracy`, `accuracyFromMoves`, phases et relecture du stockage ; 2 mutations vérifiées (couleur, plafond du ratio).
+
 ## Ordre suggéré
 
 1 (sécurité serveur) → 2 (Gemini) → 4 (tests sur la logique pure) → 3 (découpage de `App.tsx`), puis le reste.

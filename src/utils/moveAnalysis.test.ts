@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { MoveAnalysis, MoveClassification } from '../types/chess';
-import { accuracyFromCpLoss, calculateWinPercentage, classifyMove, computePlayerStats } from './moveAnalysis';
+import {
+  accuracyFromMoves,
+  accuracyFromWinDrop,
+  calculateWinPercentage,
+  classifyMove,
+  computePlayerStats,
+  moveAccuracy,
+} from './moveAnalysis';
 
 describe('calculateWinPercentage', () => {
   it('is 50% for an equal position', () => {
@@ -20,23 +27,73 @@ describe('calculateWinPercentage', () => {
   });
 });
 
-describe('accuracyFromCpLoss', () => {
-  it('caps a perfect game at 99.4', () => {
-    expect(accuracyFromCpLoss(0)).toBe(99.4);
+describe('accuracyFromWinDrop', () => {
+  it('is (almost) 100 when no win probability is lost', () => {
+    expect(accuracyFromWinDrop(0)).toBeCloseTo(100, 1);
+    expect(accuracyFromWinDrop(-5)).toBe(accuracyFromWinDrop(0));
   });
 
-  it('floors very bad games at 25', () => {
-    expect(accuracyFromCpLoss(2000)).toBe(25);
+  it('decreases as the drop grows and stays within 0-100', () => {
+    expect(accuracyFromWinDrop(5)).toBeGreaterThan(accuracyFromWinDrop(20));
+    expect(accuracyFromWinDrop(20)).toBeGreaterThan(accuracyFromWinDrop(60));
+    expect(accuracyFromWinDrop(100)).toBeGreaterThanOrEqual(0);
+    expect(accuracyFromWinDrop(100)).toBeLessThan(5);
+  });
+});
+
+describe('moveAccuracy', () => {
+  it('uses the Win% lost by the mover, whatever the colour', () => {
+    // White goes from +300 to -300; Black goes from -300 to +300: the same loss
+    const white = moveAccuracy({ color: 'w', evalBefore: 300, evalAfter: -300, centipawnLoss: 600 });
+    const black = moveAccuracy({ color: 'b', evalBefore: -300, evalAfter: 300, centipawnLoss: 600 });
+    expect(white).toBeCloseTo(black, 5);
+    expect(white).toBeLessThan(15);
   });
 
-  it('decreases as the average loss grows', () => {
-    expect(accuracyFromCpLoss(20)).toBeGreaterThan(accuracyFromCpLoss(60));
-    expect(accuracyFromCpLoss(60)).toBeGreaterThan(accuracyFromCpLoss(150));
+  it('is not affected by a mate score beyond what a Win% can express', () => {
+    const mate = moveAccuracy({ color: 'w', evalBefore: 500, evalAfter: -10000, centipawnLoss: 10500 });
+    const queen = moveAccuracy({ color: 'w', evalBefore: 500, evalAfter: -1000, centipawnLoss: 1500 });
+    expect(mate).toBeCloseTo(queen, 5);
   });
 
-  it('follows 100 * exp(-0.0038 * loss), rounded to one decimal', () => {
-    expect(accuracyFromCpLoss(50)).toBe(82.7);
-    expect(accuracyFromCpLoss(100)).toBe(68.4);
+  it('gives a move that improves the position full marks', () => {
+    expect(moveAccuracy({ color: 'w', evalBefore: 0, evalAfter: 200, centipawnLoss: 0 })).toBeCloseTo(100, 1);
+  });
+
+  it('falls back to the centipawn loss when evaluations are missing', () => {
+    const accurate = moveAccuracy({ color: 'w', centipawnLoss: 0 } as MoveAnalysis);
+    const poor = moveAccuracy({ color: 'w', centipawnLoss: 300 } as MoveAnalysis);
+    expect(accurate).toBeCloseTo(100, 1);
+    expect(poor).toBeLessThan(accurate);
+  });
+});
+
+describe('accuracyFromMoves', () => {
+  const played = (evalBefore: number, evalAfter: number): MoveAnalysis =>
+    ({ color: 'w', evalBefore, evalAfter, centipawnLoss: Math.max(0, evalBefore - evalAfter) }) as MoveAnalysis;
+
+  it('is 100 for no moves or a perfect game', () => {
+    expect(accuracyFromMoves([])).toBe(100);
+    expect(accuracyFromMoves([played(0, 0), played(0, 20)])).toBeGreaterThan(99.9);
+  });
+
+  it('is not floored: a lost game can go well under 25', () => {
+    const awful = Array.from({ length: 10 }, () => played(500, -500));
+    expect(accuracyFromMoves(awful)).toBeLessThan(10);
+  });
+
+  it('is not wiped out by a single blunder (even into a mate) among solid moves', () => {
+    const solid = Array.from({ length: 19 }, () => played(0, -5));
+    expect(accuracyFromMoves([...solid, played(300, -10000)])).toBeGreaterThan(85);
+  });
+
+  it('ranks players by the errors they made', () => {
+    const fewer = [...Array.from({ length: 18 }, () => played(0, 0)), played(0, -300), played(0, -300)];
+    const more = [
+      ...Array.from({ length: 14 }, () => played(0, 0)),
+      ...Array.from({ length: 6 }, () => played(0, -300)),
+    ];
+    expect(accuracyFromMoves(fewer)).toBeGreaterThan(accuracyFromMoves(more));
   });
 });
 
@@ -88,6 +145,16 @@ function move(partial: Partial<MoveAnalysis>): MoveAnalysis {
 }
 
 describe('computePlayerStats', () => {
+  it('does not give two players with different mistakes the same floored accuracy', () => {
+    const blunder = (ply: number, evalAfter: number) =>
+      move({ ply, color: 'w', classification: 'blunder', evalBefore: 300, evalAfter, centipawnLoss: 300 - evalAfter });
+    const solid = (ply: number) => move({ ply, color: 'w', evalBefore: 0, evalAfter: 0 });
+    const a = computePlayerStats([...[0, 2, 4, 6, 8, 10, 12, 14].map(solid), blunder(16, -10000), blunder(18, -10000)]);
+    const b = computePlayerStats([...[0, 2, 4, 6, 8, 10, 12, 14].map(solid), blunder(16, -10000), blunder(18, 0)]);
+    expect(a.accuracy).toBeLessThan(b.accuracy);
+    expect(a.accuracy).toBeGreaterThan(25);
+  });
+
   it('counts each classification and computes the average loss and accuracy', () => {
     const moves = [
       move({ ply: 0, classification: 'book' }),
@@ -115,7 +182,7 @@ describe('computePlayerStats', () => {
       blunders: 2, // blunders and missed wins are counted together
       avgCentipawnLoss: 100,
     });
-    expect(stats.accuracy).toBe(accuracyFromCpLoss(100));
+    expect(stats.accuracy).toBe(accuracyFromMoves(moves));
   });
 
   it('attributes mistakes and blunders to the opening, middlegame or endgame by ply', () => {
@@ -147,6 +214,6 @@ describe('computePlayerStats', () => {
     const stats = computePlayerStats([]);
     expect(stats.totalMoves).toBe(1);
     expect(stats.avgCentipawnLoss).toBe(0);
-    expect(stats.accuracy).toBe(99.4);
+    expect(stats.accuracy).toBe(100);
   });
 });

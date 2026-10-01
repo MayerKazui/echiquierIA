@@ -1,5 +1,5 @@
 import { MoveAnalysis } from '../types/chess';
-import { accuracyFromCpLoss } from './moveAnalysis';
+import { accuracyFromMoves } from './moveAnalysis';
 
 export interface PhaseStat {
   totalMoves: number;
@@ -21,11 +21,9 @@ export interface PhaseStats {
   endgame: PhaseStat;
 }
 
-/** Accuracy (25–99.4) derived from the average centipawn loss, or null without moves. */
+/** Accuracy (0-100) of the moves, or null without moves. */
 function accuracyOf(moves: MoveAnalysis[]): number | null {
-  if (moves.length === 0) return null;
-  const avgLoss = moves.reduce((acc, m) => acc + m.centipawnLoss, 0) / moves.length;
-  return accuracyFromCpLoss(avgLoss);
+  return moves.length === 0 ? null : accuracyFromMoves(moves);
 }
 
 const countBlunders = (moves: MoveAnalysis[]) =>

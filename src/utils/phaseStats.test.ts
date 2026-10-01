@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MoveAnalysis } from '../types/chess';
+import { accuracyFromMoves } from './moveAnalysis';
 import { computePhaseStats } from './phaseStats';
 
 function move(moveNumber: number, color: 'w' | 'b', classification: string, centipawnLoss = 0): MoveAnalysis {
@@ -44,12 +45,23 @@ describe('computePhaseStats', () => {
     });
   });
 
-  it('computes an accuracy from the average centipawn loss, or null without moves', () => {
-    const { opening, endgame } = computePhaseStats([move(1, 'w', 'good', 0), move(2, 'w', 'good', 100)]);
-    // average loss 50 -> 82.7
-    expect(opening.whiteAccuracy).toBe(82.7);
+  it('computes an accuracy from the Win% lost, or null without moves', () => {
+    const { opening, endgame } = computePhaseStats([
+      { ...move(1, 'w', 'good', 0), evalBefore: 0, evalAfter: 0 },
+      { ...move(2, 'w', 'good', 0), evalBefore: 0, evalAfter: -300 },
+    ]);
+    expect(opening.whiteAccuracy).toBeGreaterThan(30);
+    expect(opening.whiteAccuracy).toBeLessThan(70);
     expect(opening.blackAccuracy).toBeNull();
     expect(endgame.whiteAccuracy).toBeNull();
     expect(endgame.totalMoves).toBe(0);
+  });
+
+  it('matches the overall accuracy formula', () => {
+    const moves = [
+      { ...move(1, 'w', 'good', 0), evalBefore: 0, evalAfter: 0 },
+      { ...move(2, 'w', 'blunder', 500), evalBefore: 100, evalAfter: -400 },
+    ];
+    expect(computePhaseStats(moves).opening.whiteAccuracy).toBe(accuracyFromMoves(moves));
   });
 });
