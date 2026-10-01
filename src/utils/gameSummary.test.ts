@@ -42,7 +42,7 @@ describe('buildGameSummary', () => {
 
     expect(text).toContain('Alice (91.5%) vs Bob (78.2%)');
     expect(text).toContain('🏆 Résultat : 1-0');
-    expect(text).toContain('📖 Ouverture : Italian Game [C50]');
+    expect(text).toContain('📖 Ouverture : Partie italienne [C50]');
     expect(text).toContain('Durée : 12 coups');
     // best + brilliant, inaccuracies, mistakes, blunders, missed wins (counted apart)
     expect(text).toContain(

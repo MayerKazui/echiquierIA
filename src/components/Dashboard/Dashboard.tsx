@@ -7,6 +7,7 @@ import { PlayerRadarChart } from './PlayerRadarChart';
 import { PlayerAccuracyCard } from './PlayerAccuracyCard';
 import { PhaseBreakdown } from './PhaseBreakdown';
 import { MoveBreakdown } from './MoveBreakdown';
+import { toFrenchOpeningName } from '../../utils/openingNames';
 
 interface DashboardProps {
   analysis: GameAnalysisResult;
@@ -73,7 +74,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ analysis, userPseudo = '',
                 {metadata.eco}
               </span>
             )}
-            <span className="text-white font-semibold text-sm">{metadata.opening}</span>
+            <span className="text-white font-semibold text-sm">{toFrenchOpeningName(metadata.opening)}</span>
           </div>
         </div>
       )}

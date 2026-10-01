@@ -11,6 +11,7 @@ import {
   type StoredGame,
 } from '../../services/gameStore';
 import { DataBackup } from '../Backup/DataBackup';
+import { toFrenchOpeningName } from '../../utils/openingNames';
 
 interface GameHistoryProps {
   /** PGN of the game on screen, marked in the list. */
@@ -189,7 +190,7 @@ function GameRow({
             <BookOpen className="w-3 h-3 text-indigo-400 shrink-0" />
             <span className="truncate">
               {metadata.eco ? `[${metadata.eco}] ` : ''}
-              {metadata.opening}
+              {toFrenchOpeningName(metadata.opening)}
             </span>
           </span>
         )}

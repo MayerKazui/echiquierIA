@@ -11,6 +11,7 @@ import type { AnalysisProgress } from '../../hooks/useGameAnalysis';
 import { AnalysisProgressBar } from '../AppHeader/AnalysisProgressBar';
 import type { ImportedGame } from '../../services/gameImport';
 import { OnlineGames, gameKey } from './OnlineGames';
+import { toFrenchOpeningName } from '../../utils/openingNames';
 
 /** `identifyGameOpening` reads at most 35 plies: no need to replay more. */
 const MAX_OPENING_PLIES = 36;
@@ -212,7 +213,7 @@ export const PgnInput: React.FC<PgnInputProps> = ({
                   <BookOpen className="w-3 h-3 text-indigo-400 shrink-0" />
                   <span>
                     {detectedOpening.eco ? `[${detectedOpening.eco}] ` : ''}
-                    {detectedOpening.name}
+                    {toFrenchOpeningName(detectedOpening.name)}
                   </span>
                 </span>
               )}

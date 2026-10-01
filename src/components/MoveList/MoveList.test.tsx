@@ -195,3 +195,26 @@ describe('MoveList scrolling', () => {
     expect(lastBehavior()).toBe('smooth');
   });
 });
+
+describe('MoveList theoretical moves', () => {
+  it('names the opening of a book move in French, with its code', () => {
+    const moves = [
+      make(0, 'e4', 'book', { openingName: 'Italian Game: Giuoco Piano', eco: 'C50' }),
+      make(1, 'e5', 'book'),
+    ];
+    const { container } = render(
+      <MoveList
+        moves={moves}
+        currentPly={0}
+        onSelectPly={() => {}}
+        filterOnlyErrors={false}
+        onToggleFilter={() => {}}
+      />
+    );
+    const titles = Array.from(container.querySelectorAll('[title^="Coup théorique"]')).map((el) =>
+      el.getAttribute('title')
+    );
+    expect(titles).toContain('Coup théorique (Livre) : Partie italienne : Giuoco Piano [C50]');
+    expect(titles).toContain('Coup théorique (Livre)');
+  });
+});

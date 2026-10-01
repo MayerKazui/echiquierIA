@@ -19,6 +19,7 @@ import { MoveAnalysis, MoveClassification } from '../../types/chess';
 import { moveButtonLabel } from '../../utils/accessibility';
 import { toFrenchSan } from '../../utils/chessNotation';
 import { moveListScrollBehavior } from '../../utils/scrollBehavior';
+import { toFrenchOpeningName } from '../../utils/openingNames';
 
 interface MoveListProps {
   moves: MoveAnalysis[];
@@ -164,7 +165,7 @@ export const MoveList: React.FC<MoveListProps> = ({
           <span
             title={
               move?.openingName
-                ? `Coup théorique (Livre) : ${move.openingName}${move.eco ? ` [${move.eco}]` : ''}`
+                ? `Coup théorique (Livre) : ${toFrenchOpeningName(move.openingName)}${move.eco ? ` [${move.eco}]` : ''}`
                 : 'Coup théorique (Livre)'
             }
             className="flex items-center gap-0.5"

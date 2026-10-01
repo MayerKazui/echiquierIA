@@ -105,7 +105,7 @@ describe('GameHistory', () => {
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText(/Boris/)).toBeTruthy();
     expect(within(rows[1]).getByText(/Anna/)).toBeTruthy();
-    expect(within(rows[0]).getByText(/\[B20\] Sicilian Defense/)).toBeTruthy();
+    expect(within(rows[0]).getByText(/\[B20\] Défense sicilienne/)).toBeTruthy();
     expect(within(rows[0]).getByText(/profondeur 18/)).toBeTruthy();
     expect(within(rows[0]).getByText(/précision 100 %/)).toBeTruthy();
   });

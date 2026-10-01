@@ -79,4 +79,27 @@ describe('MoveComparison: French notation', () => {
     const { container } = renderMove(move({ classification: 'best', bestMoveSan: 'Qc5', centipawnLoss: 0 }));
     expect(container.textContent).toContain('Pourquoi Dc5 est le coup optimal');
   });
+
+  it('names the opening of a theoretical move in French', () => {
+    const { container } = renderMove(
+      move({ classification: 'book', openingName: 'Sicilian Defense: Dragon Variation', eco: 'B70' })
+    );
+    expect(container.textContent).toContain('Coup théorique (Défense sicilienne : variante Dragon)');
+    expect(container.textContent).not.toContain('Sicilian');
+  });
+
+  it('names the opening known for the position when the move has none', () => {
+    const { container } = render(
+      <MoveComparison
+        currentMove={move({ classification: 'book' })}
+        previousMove={null}
+        isPreviewingAlternative={false}
+        onTogglePreviewAlternative={() => {}}
+        onUpdateAiExplanation={() => {}}
+        sanHistory={[]}
+        openingName="Ruy Lopez: Berlin Defense"
+      />
+    );
+    expect(container.textContent).toContain('Coup théorique (Partie espagnole : défense de Berlin)');
+  });
 });
