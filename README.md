@@ -4,6 +4,7 @@ Analyse de parties d'échecs dans le navigateur : Stockfish 19 évalue chaque co
 coups brillants, trace la courbe d'évaluation et un « entraîneur IA » (Gemini) explique les moments clés en français.
 
 - Import d'un PGN (collé, fichier ou exemples) avec reconnaissance de l'ouverture (base lichess, ~3 800 lignes)
+- Import direct des dernières parties d'un compte **chess.com** ou **Lichess** (pseudo, filtre de cadence, parties plus anciennes à la demande) : le navigateur appelle leurs API publiques, sans passer par le serveur
 - Analyse Stockfish en parallèle dans des Web Workers, profondeur réglable (8 à 18) : les coups s'affichent dès qu'ils sont analysés et l'analyse peut être annulée
 - Les parties analysées (20 au plus) sont conservées dans le navigateur (IndexedDB) : la dernière se rouvre après un rechargement, « Mes parties » (en-tête) permet d'en rouvrir une autre sans relancer Stockfish, et ré-analyser un même PGN est instantané. Rien n'est envoyé à un serveur
 - Bilan par joueur : précision, phases de jeu, répartition des coups, gestion du temps si le PGN contient les pendules
@@ -65,7 +66,8 @@ src/
   App.tsx            composition de l'interface
   hooks/             état et logique de l'application (analyse, lecture, exploration, raccourcis…)
   components/        échiquier, graphiques, liste de coups, bilan, import PGN…
-  services/          stockfishEngine (pool de workers, cache), openingBook, gameStore (parties analysées, IndexedDB)
+  services/          stockfishEngine (pool de workers, cache), openingBook, gameStore (parties analysées, IndexedDB),
+                     gameImport (parties d'un compte chess.com / Lichess)
   utils/             logique pure testée : classification des coups, précision, PGN, pendules, notation…
   data/openings/     fichiers .tsv de lichess, source de public/openings.json
 vite/                plugin qui sert et empaquette le moteur Stockfish
@@ -95,7 +97,7 @@ reverse proxy, définissez `TRUST_PROXY` (automatique sur Cloud Run) et `APP_URL
 
 ### Interface sur GitHub Pages, API ailleurs
 
-GitHub Pages ne sert que des fichiers statiques : l'analyse (Stockfish dans le navigateur) y fonctionne entièrement, mais le coach IA (clé Gemini) et l'import vers Lichess ont besoin du serveur, qui reste par exemple sur Cloud Run. Le workflow `.github/workflows/pages.yml` publie `dist/` à chaque push sur `main`.
+GitHub Pages ne sert que des fichiers statiques : l'analyse (Stockfish dans le navigateur) et l'import des parties chess.com / Lichess (appels directs du navigateur) y fonctionnent entièrement, mais le coach IA (clé Gemini) et l'import vers Lichess ont besoin du serveur, qui reste par exemple sur Cloud Run. Le workflow `.github/workflows/pages.yml` publie `dist/` à chaque push sur `main`.
 
 1. **Pages** : dans les réglages du dépôt, _Pages_ > _Source_ : **GitHub Actions** (un dépôt public est nécessaire sur l'offre gratuite).
 2. **Adresse de l'API** : variable de dépôt `API_URL` (_Settings_ > _Secrets and variables_ > _Actions_ > _Variables_), par exemple `https://mon-service.europe-west2.run.app`, sans barre finale. Sans elle, l'interface appelle `/api/...` sur son propre site, qui n'existe pas sur Pages : le coach bascule sur ses explications locales et l'import Lichess ouvre la page « coller un PGN ».

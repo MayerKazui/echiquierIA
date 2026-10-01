@@ -2,15 +2,16 @@ import React from 'react';
 import { AnalysisProgress } from '../../hooks/useGameAnalysis';
 
 /** Progress bar of the running analysis (positions evaluated so far out of all the positions of the game). */
-export const AnalysisProgressBar: React.FC<{ progress: AnalysisProgress; className?: string }> = ({
+export const AnalysisProgressBar: React.FC<{ progress: AnalysisProgress; className?: string; label?: string }> = ({
   progress,
   className = 'w-full',
+  label = "Progression de l'analyse Stockfish",
 }) => {
   const ratio = Math.min(1, progress.current / Math.max(1, progress.total));
   return (
     <div
       role="progressbar"
-      aria-label="Progression de l'analyse Stockfish"
+      aria-label={label}
       aria-valuemin={0}
       aria-valuemax={progress.total}
       aria-valuenow={progress.current}

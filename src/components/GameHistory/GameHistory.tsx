@@ -1,6 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { BookOpen, Trash2, X } from 'lucide-react';
-import { MAX_GAMES, clearGames, deleteGame, gameId, listGames, type StoredGame } from '../../services/gameStore';
+import {
+  MAX_FULL_GAMES,
+  MAX_GAMES,
+  clearGames,
+  deleteGame,
+  gameId,
+  isFullGame,
+  listGames,
+  type StoredGame,
+} from '../../services/gameStore';
 
 interface GameHistoryProps {
   /** PGN of the game on screen, marked in the list. */
@@ -16,10 +25,14 @@ const DATE_FORMAT = new Intl.DateTimeFormat('fr-FR', {
   minute: '2-digit',
 });
 
+/** Rows shown at first; the rest comes by steps (the history can hold hundreds of games). */
+const PAGE_SIZE = 50;
+
 /** The analysed games kept in this browser: opening one does not run Stockfish again. */
 export const GameHistory: React.FC<GameHistoryProps> = ({ currentPgn, onOpen, onClose }) => {
   const [games, setGames] = useState<StoredGame[] | null>(null);
   const [isConfirmingClear, setIsConfirmingClear] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const currentId = currentPgn ? gameId(currentPgn) : null;
 
   useEffect(() => {
@@ -47,7 +60,9 @@ export const GameHistory: React.FC<GameHistoryProps> = ({ currentPgn, onOpen, on
         <div>
           <h2 className="text-base font-bold text-slate-100">Mes parties</h2>
           <p className="text-xs text-slate-400 mt-1">
-            Vos {MAX_GAMES} dernières parties analysées, conservées dans ce navigateur. Les rouvrir est instantané.
+            Vos {MAX_GAMES} dernières parties analysées, conservées dans ce navigateur. Les {MAX_FULL_GAMES} plus
+            récentes s'ouvrent instantanément ; les plus anciennes sont allégées (statistiques seulement) et se
+            réanalysent à l'ouverture.
           </p>
         </div>
         <button
@@ -69,7 +84,7 @@ export const GameHistory: React.FC<GameHistoryProps> = ({ currentPgn, onOpen, on
         </p>
       ) : (
         <ul className="flex flex-col gap-2 overflow-y-auto min-h-0 pr-1">
-          {games.map((game) => (
+          {games.slice(0, visibleCount).map((game) => (
             <li key={game.id}>
               <GameRow
                 game={game}
@@ -79,6 +94,16 @@ export const GameHistory: React.FC<GameHistoryProps> = ({ currentPgn, onOpen, on
               />
             </li>
           ))}
+          {games.length > visibleCount && (
+            <li>
+              <button
+                onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+                className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-indigo-300 hover:bg-slate-800/80 cursor-pointer"
+              >
+                Voir les {games.length - visibleCount} parties plus anciennes
+              </button>
+            </li>
+          )}
         </ul>
       )}
 
@@ -166,6 +191,9 @@ function GameRow({
           {DATE_FORMAT.format(game.savedAt)} · {moves.length} demi-coups · profondeur {game.depth}
           {accuracy !== undefined && ` · précision ${Math.round(accuracy)} %`}
         </span>
+        {!isFullGame(game) && (
+          <span className="text-[11px] text-amber-300/90">Version allégée : l'ouverture relance l'analyse.</span>
+        )}
       </button>
       <button
         onClick={onDelete}

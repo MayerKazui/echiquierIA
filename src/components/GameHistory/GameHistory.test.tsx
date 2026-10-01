@@ -34,6 +34,69 @@ beforeEach(async () => {
   vi.restoreAllMocks();
 });
 
+describe('GameHistory with a long history', () => {
+  const limits = { full: 1, total: 200 };
+
+  async function saveMany(count: number) {
+    const now = vi.spyOn(Date, 'now');
+    for (let i = 0; i < count; i++) {
+      now.mockReturnValue(10_000 + i);
+      await saveGame({ pgn: `[White "P${i}"]\n\n1. e4 *`, depth: 12, result: result(`P${i}`, 'X') }, limits);
+    }
+  }
+
+  it('marks the older games as light versions that analyse again when opened, and not the recent one', async () => {
+    await saveMany(3);
+    render(<GameHistory currentPgn="" onOpen={() => {}} onClose={() => {}} />);
+    const rows = await screen.findAllByRole('listitem');
+    // Newest first: the three games saved here, then the two of the beforeEach
+    expect(within(rows[0]).queryByText(/Version allégée/)).toBeNull();
+    expect(within(rows[1]).getByText(/Version allégée : l'ouverture relance l'analyse/)).toBeTruthy();
+    expect(within(rows[4]).getByText(/Version allégée/)).toBeTruthy();
+  });
+
+  it('opens a light version with its PGN, to be analysed again', async () => {
+    await saveMany(2);
+    const onOpen = vi.fn();
+    render(<GameHistory currentPgn="" onOpen={onOpen} onClose={() => {}} />);
+    await userEvent.click(await screen.findByRole('button', { name: /Ouvrir la partie P0 contre X/ }));
+    expect(onOpen.mock.calls[0][0]).toMatchObject({ detail: 'summary', pgn: expect.stringContaining('P0') });
+  });
+
+  it('shows the games by steps of 50 and says how many are left', async () => {
+    await saveMany(60);
+    render(<GameHistory currentPgn="" onOpen={() => {}} onClose={() => {}} />);
+    await screen.findAllByRole('listitem');
+    // 62 games stored: 50 rows and the button
+    expect(screen.getAllByRole('button', { name: /^Ouvrir la partie/ })).toHaveLength(50);
+    await userEvent.click(screen.getByRole('button', { name: 'Voir les 12 parties plus anciennes' }));
+    expect(screen.getAllByRole('button', { name: /^Ouvrir la partie/ })).toHaveLength(62);
+    expect(screen.queryByRole('button', { name: /plus anciennes/ })).toBeNull();
+  });
+
+  it('has no button for older games when there are exactly 50', async () => {
+    await saveMany(48); // plus the two of the beforeEach
+    render(<GameHistory currentPgn="" onOpen={() => {}} onClose={() => {}} />);
+    await screen.findAllByRole('listitem');
+    expect(screen.getAllByRole('button', { name: /^Ouvrir la partie/ })).toHaveLength(50);
+    expect(screen.queryByRole('button', { name: /plus anciennes/ })).toBeNull();
+  });
+
+  it('shows everything at once when the history is short', async () => {
+    await saveMany(2);
+    render(<GameHistory currentPgn="" onOpen={() => {}} onClose={() => {}} />);
+    await screen.findAllByRole('listitem');
+    expect(screen.queryByRole('button', { name: /plus anciennes/ })).toBeNull();
+  });
+
+  it('describes the real limits of the history', async () => {
+    render(<GameHistory currentPgn="" onOpen={() => {}} onClose={() => {}} />);
+    expect(screen.getByText(/Vos 500 dernières parties analysées/)).toBeTruthy();
+    expect(screen.getByText(/Les 50 plus récentes/)).toBeTruthy();
+    await screen.findAllByRole('listitem');
+  });
+});
+
 describe('GameHistory', () => {
   it('lists the stored games, the latest first, with their details', async () => {
     render(<GameHistory currentPgn="" onOpen={() => {}} onClose={() => {}} />);
