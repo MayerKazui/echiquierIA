@@ -19,6 +19,8 @@ interface BoardToolbarProps {
 
 const GROUP_CLASS = 'flex items-center rounded-lg bg-slate-950 border border-slate-800 p-0.5';
 const INACTIVE = 'text-slate-400 hover:text-slate-200';
+/** Larger touch targets on a phone */
+const GROUP_BUTTON = 'px-2 py-1.5 sm:px-1.5 sm:py-0.5';
 
 const HEATMAP_OPTIONS: Array<{
   mode: Exclude<HeatmapMode, 'none'>;
@@ -39,13 +41,21 @@ const HEATMAP_OPTIONS: Array<{
   },
   {
     mode: 'white',
-    label: <span>⚪ Blancs</span>,
+    label: (
+      <span>
+        ⚪<span className="hidden sm:inline"> Blancs</span>
+      </span>
+    ),
     title: 'Afficher uniquement les cases contrôlées par les Blancs',
     active: 'bg-indigo-600/30 text-indigo-300 font-bold border border-indigo-500/50',
   },
   {
     mode: 'black',
-    label: <span>⚫ Noirs</span>,
+    label: (
+      <span>
+        ⚫<span className="hidden sm:inline"> Noirs</span>
+      </span>
+    ),
     title: 'Afficher uniquement les cases contrôlées par les Noirs',
     active: 'bg-rose-600/30 text-rose-300 font-bold border border-rose-500/50',
   },
@@ -96,12 +106,16 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
   lichessOpened,
   onOpenLichess,
 }) => (
-  <div className="flex items-center justify-between gap-1.5 flex-wrap px-2 py-1.5 rounded-xl bg-slate-900/70 border border-slate-800/80 text-[11px]">
-    <div className="flex items-center gap-1 flex-wrap">
+  // One scrollable row on a phone, a wrapping bar from `sm` up
+  <div
+    data-no-swipe
+    className="flex items-center gap-1.5 overflow-x-auto sm:overflow-visible sm:flex-wrap sm:justify-between px-2 py-1.5 rounded-xl bg-slate-900/70 border border-slate-800/80 text-[11px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+  >
+    <div className="flex items-center gap-1 shrink-0 sm:flex-wrap">
       <button
         onClick={onToggleAnnotations}
         aria-pressed={showAnnotations}
-        className={`flex items-center gap-1 px-2 py-1 rounded-md font-medium border transition-colors cursor-pointer ${
+        className={`flex items-center gap-1 px-2 py-1.5 sm:py-1 rounded-md font-medium border transition-colors cursor-pointer shrink-0 ${
           showAnnotations
             ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30'
             : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
@@ -121,7 +135,7 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
       <div
         role="group"
         aria-label="Contrôle de l'espace"
-        className={GROUP_CLASS}
+        className={`${GROUP_CLASS} shrink-0`}
         title="Contrôle de l'espace / Rayon d'action (Touche H pour cycler)"
       >
         {HEATMAP_OPTIONS.map(({ mode, label, title, active }) => (
@@ -130,7 +144,7 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
             onClick={() => onHeatmapModeChange(heatmapMode === mode ? 'none' : mode)}
             aria-pressed={heatmapMode === mode}
             aria-label={title}
-            className={`px-1.5 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+            className={`${GROUP_BUTTON} rounded text-[10px] font-semibold flex items-center gap-1 transition-all cursor-pointer ${
               heatmapMode === mode ? active : INACTIVE
             }`}
             title={title}
@@ -151,14 +165,19 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
       </div>
 
       {/* Board Themes Selector */}
-      <div role="group" aria-label="Thème de l'échiquier" className={GROUP_CLASS} title="Thème visuel de l'échiquier">
+      <div
+        role="group"
+        aria-label="Thème de l'échiquier"
+        className={`${GROUP_CLASS} shrink-0`}
+        title="Thème visuel de l'échiquier"
+      >
         {THEME_OPTIONS.map(({ theme, label, title, swatch, active }) => (
           <button
             key={theme}
             onClick={() => onBoardThemeChange(theme)}
             aria-pressed={boardTheme === theme}
             aria-label={title}
-            className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer ${
+            className={`${GROUP_BUTTON} rounded text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer ${
               boardTheme === theme ? active : INACTIVE
             }`}
             title={title}
@@ -169,11 +188,11 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
         ))}
       </div>
 
-      {/* Board Size Selector */}
+      {/* Board Size Selector (the board takes the full width of a phone: no choice there) */}
       <div
         role="group"
         aria-label="Taille de l'échiquier"
-        className={GROUP_CLASS}
+        className={`${GROUP_CLASS} hidden sm:flex`}
         title="Ajuster la taille de l'échiquier (Normal 500px, Grand 640px, XL 760px)"
       >
         {SIZE_OPTIONS.map(({ size, label, title }) => (
@@ -194,12 +213,12 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
     </div>
 
     {/* Lichess Options */}
-    <div className={`${GROUP_CLASS} shrink-0 max-w-full`}>
+    <div className={`${GROUP_CLASS} shrink-0`}>
       <button
         onClick={onOpenLichess}
         aria-label="Ouvrir la partie sur Lichess"
         disabled={isImportingLichess}
-        className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium text-indigo-300 hover:text-white hover:bg-indigo-600/30 transition-colors cursor-pointer disabled:opacity-60"
+        className="flex items-center gap-1 px-2 py-1.5 sm:py-1 rounded text-[11px] font-medium text-indigo-300 hover:text-white hover:bg-indigo-600/30 transition-colors cursor-pointer disabled:opacity-60"
         title="Importer automatiquement et ouvrir la partie complète sur Lichess.org"
       >
         {isImportingLichess ? (
@@ -213,7 +232,10 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
             <span>Ouvert !</span>
           </span>
         ) : (
-          <span>Partie Lichess</span>
+          <span>
+            <span className="sm:hidden">Lichess</span>
+            <span className="hidden sm:inline">Partie Lichess</span>
+          </span>
         )}
       </button>
     </div>
