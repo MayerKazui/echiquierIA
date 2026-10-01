@@ -8,19 +8,14 @@ import {
   Pause,
   Play,
   RotateCcw,
-  Volume2,
-  VolumeX,
 } from 'lucide-react';
-import { MoveAnalysis } from '../../types/chess';
 import { PlaybackSpeed } from '../../types/ui';
 
 interface PlaybackControlsProps {
   currentPly: number;
   totalMoves: number;
-  activeMove: MoveAnalysis | null;
   isPlaying: boolean;
   playbackSpeed: PlaybackSpeed;
-  isMuted: boolean;
   criticalCount: number;
   currentErrorIndex: number | null;
   hasPrevError: boolean;
@@ -33,7 +28,6 @@ interface PlaybackControlsProps {
   onChangeSpeed: (speed: PlaybackSpeed) => void;
   onPrevError: () => void;
   onNextError: () => void;
-  onToggleSound: () => void;
   onFlip: () => void;
 }
 
@@ -49,14 +43,12 @@ const STEP_BUTTON =
 const ERROR_BUTTON =
   'flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-md bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 disabled:opacity-25 disabled:pointer-events-none transition-colors text-xs font-medium cursor-pointer';
 
-/** Step / auto-play controls, error-to-error jumpers, move counter, sound and flip buttons. */
+/** Step / auto-play controls, error-to-error jumpers, move counter and flip button. */
 export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   currentPly,
   totalMoves,
-  activeMove,
   isPlaying,
   playbackSpeed,
-  isMuted,
   criticalCount,
   currentErrorIndex,
   hasPrevError,
@@ -69,7 +61,6 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   onChangeSpeed,
   onPrevError,
   onNextError,
-  onToggleSound,
   onFlip,
 }) => {
   const atEnd = currentPly >= totalMoves - 1;
@@ -112,30 +103,17 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             <span className="text-[11px] hidden xs:inline">{isPlaying ? 'Pause' : 'Auto'}</span>
           </button>
 
-          {/* Playback Speed Selector */}
-          <div
-            className="flex items-center rounded-lg bg-slate-950 p-0.5 border border-slate-800 text-[10px]"
-            role="group"
-            aria-label="Vitesse de lecture automatique"
-            title="Vitesse de lecture automatique"
+          {/* Playback speed: one button that cycles through the speeds */}
+          <button
+            onClick={() =>
+              onChangeSpeed(SPEEDS[(SPEEDS.findIndex((s) => s.speed === playbackSpeed) + 1) % SPEEDS.length].speed)
+            }
+            className="px-2 py-1.5 sm:py-2 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono font-bold text-indigo-300 hover:text-white transition-colors cursor-pointer"
+            aria-label={`Vitesse de lecture : ${playbackSpeed}x. Changer la vitesse`}
+            title={`Vitesse de lecture ${playbackSpeed}x (${SPEEDS.find((s) => s.speed === playbackSpeed)?.perMove}/coup), cliquer pour changer`}
           >
-            {SPEEDS.map(({ speed, perMove }) => (
-              <button
-                key={speed}
-                onClick={() => onChangeSpeed(speed)}
-                className={`px-1.5 py-0.5 rounded font-mono font-bold transition-all cursor-pointer ${
-                  playbackSpeed === speed
-                    ? 'bg-indigo-600/40 text-indigo-300 border border-indigo-500/50'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                aria-pressed={playbackSpeed === speed}
-                aria-label={`Vitesse ${speed}x`}
-                title={`Vitesse ${speed}x (${perMove}/coup)`}
-              >
-                {speed}x
-              </button>
-            ))}
-          </div>
+            {playbackSpeed}x
+          </button>
 
           <button
             onClick={onNext}
@@ -166,8 +144,8 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             aria-label="Erreur précédente"
             title="Moment clé / Erreur précédente (Shift + Flèche Gauche)"
           >
+            <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
             <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="text-[11px]">Préc.</span>
           </button>
 
           {criticalCount > 0 && (
@@ -186,8 +164,8 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             aria-label="Erreur suivante"
             title="Moment clé / Erreur suivante (Shift + Flèche Droite)"
           >
-            <span className="text-[11px]">Suiv.</span>
             <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <ChevronRight className="w-3.5 h-3.5 shrink-0" />
           </button>
         </div>
       </div>
@@ -198,29 +176,9 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           <span className="text-slate-400 text-[11px]">
             {currentPly >= 0 ? `${currentPly + 1} / ${totalMoves}` : `0 / ${totalMoves}`}
           </span>
-          {activeMove && (
-            <span className="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-white font-bold text-xs">
-              {activeMove.moveNumber}
-              {activeMove.color === 'w' ? '.' : '...'} {activeMove.san}
-            </span>
-          )}
         </div>
 
         <div className="flex items-center gap-1">
-          <button
-            onClick={onToggleSound}
-            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-              !isMuted
-                ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30 hover:bg-indigo-600/30'
-                : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
-            }`}
-            aria-label="Son des coups"
-            aria-pressed={!isMuted}
-            title={isMuted ? 'Activer le son' : 'Couper le son'}
-          >
-            {!isMuted ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-          </button>
-
           <button
             onClick={onFlip}
             className="p-1.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 transition-colors cursor-pointer"

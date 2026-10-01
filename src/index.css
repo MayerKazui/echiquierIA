@@ -44,3 +44,12 @@ html {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Desktop game view: the board is sized from the height of the window so that the players, the board and
+ * the playback controls fit on screen together (and from the width, so that the side panel keeps room).
+ * 16.5rem = header + page padding + the two player bars + the playback controls + the gaps.
+ */
+.game-view {
+  --board: clamp(18rem, min(100dvh - 16.5rem, 100vw - 34rem), 56rem);
+}

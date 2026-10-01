@@ -173,7 +173,7 @@ export const MoveList: React.FC<MoveListProps> = ({
   };
 
   return (
-    <div className="bg-slate-900/80 border border-slate-800 rounded-2xl flex flex-col h-[480px] shadow-xl overflow-hidden">
+    <div className="bg-slate-900/80 border border-slate-800 rounded-2xl flex flex-col h-full shadow-xl overflow-hidden">
       {/* Top Filter & Header */}
       <div className="p-3 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/40 gap-2 flex-wrap">
         <div className="flex items-center gap-2">

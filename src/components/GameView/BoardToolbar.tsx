@@ -1,6 +1,6 @@
 import React from 'react';
 import { Check, Shield, Target } from 'lucide-react';
-import { BoardSize, BoardTheme, HeatmapMode } from '../../types/ui';
+import { BoardTheme, HeatmapMode } from '../../types/ui';
 
 interface BoardToolbarProps {
   showAnnotations: boolean;
@@ -10,8 +10,6 @@ interface BoardToolbarProps {
   onHeatmapModeChange: (mode: HeatmapMode) => void;
   boardTheme: BoardTheme;
   onBoardThemeChange: (theme: BoardTheme) => void;
-  boardSize: BoardSize;
-  onBoardSizeChange: (size: BoardSize) => void;
   isImportingLichess: boolean;
   lichessOpened: boolean;
   onOpenLichess: () => void;
@@ -85,13 +83,7 @@ const THEME_OPTIONS: Array<{ theme: BoardTheme; label: string; title: string; sw
   },
 ];
 
-const SIZE_OPTIONS: Array<{ size: BoardSize; label: string; title: string }> = [
-  { size: 'normal', label: 'Normal', title: 'Taille standard (500px)' },
-  { size: 'large', label: 'Grand', title: 'Grand échiquier (640px)' },
-  { size: 'xl', label: 'XL', title: 'Très grand échiquier (760px)' },
-];
-
-/** Annotations, space control, board theme/size and Lichess import buttons. */
+/** Annotations, space control, board theme and Lichess import buttons. */
 export const BoardToolbar: React.FC<BoardToolbarProps> = ({
   showAnnotations,
   threatCount,
@@ -100,8 +92,6 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
   onHeatmapModeChange,
   boardTheme,
   onBoardThemeChange,
-  boardSize,
-  onBoardSizeChange,
   isImportingLichess,
   lichessOpened,
   onOpenLichess,
@@ -184,29 +174,6 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
           >
             <span className={`w-2 h-2 rounded-full ${swatch}`} />
             <span className="hidden xs:inline">{label}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Board Size Selector (the board takes the full width of a phone: no choice there) */}
-      <div
-        role="group"
-        aria-label="Taille de l'échiquier"
-        className={`${GROUP_CLASS} hidden sm:flex`}
-        title="Ajuster la taille de l'échiquier (Normal 500px, Grand 640px, XL 760px)"
-      >
-        {SIZE_OPTIONS.map(({ size, label, title }) => (
-          <button
-            key={size}
-            onClick={() => onBoardSizeChange(size)}
-            aria-pressed={boardSize === size}
-            aria-label={title}
-            className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-all cursor-pointer ${
-              boardSize === size ? 'bg-indigo-600/30 text-indigo-300 font-bold border border-indigo-500/40' : INACTIVE
-            }`}
-            title={title}
-          >
-            {label}
           </button>
         ))}
       </div>

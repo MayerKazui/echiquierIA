@@ -25,7 +25,6 @@ interface ChessBoardProps {
   onSquareClick?: (square: string) => void;
   onPieceMove?: (from: string, to: string) => void;
   selectedSquare?: string | null;
-  maxWidthClass?: string;
   className?: string;
 }
 
@@ -75,7 +74,6 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   onSquareClick,
   onPieceMove,
   selectedSquare = null,
-  maxWidthClass,
   className,
 }) => {
   const effectiveHeatmapMode: HeatmapMode = heatmapMode ?? (showHeatmap ? 'both' : 'none');
@@ -208,9 +206,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
 
   return (
     <div
-      className={`relative w-full aspect-square select-none rounded-xl shadow-2xl border-2 sm:border-4 border-slate-800 bg-slate-900 mx-auto ${
-        maxWidthClass ?? 'max-w-[500px]'
-      } ${className ?? ''}`}
+      className={`relative w-full aspect-square select-none rounded-xl shadow-2xl border-2 sm:border-4 border-slate-800 bg-slate-900 mx-auto ${className ?? ''}`}
       onContextMenu={(e) => e.preventDefault()}
       onTouchEnd={handleTouchEnd}
     >

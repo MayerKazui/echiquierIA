@@ -469,149 +469,154 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
         </div>
       </div>
 
-      {/* Tactical Threats Breakdown Section (Based on Stockfish engine suggestions & played move) */}
-      <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-4 flex flex-col gap-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-rose-500/20 flex items-center justify-center text-rose-400">
-              <Target className="w-3.5 h-3.5" />
-            </div>
-            <div>
-              <span className="text-xs uppercase tracking-wider font-semibold text-slate-200">
-                Menaces tactiques & Cibles (Moteur)
-              </span>
-            </div>
-          </div>
-
-          {/* Threats Source Toggle: Engine Suggestion vs Played Move */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <div
-              role="group"
-              aria-label="Origine des menaces affichées"
-              className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-[11px]"
-            >
-              <button
-                onClick={() => onSelectThreatsMode?.('suggestion')}
-                aria-pressed={threatsMode === 'suggestion'}
-                className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer ${
-                  threatsMode === 'suggestion'
-                    ? 'bg-rose-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Menaces tactiques créées par la suggestion du moteur"
-              >
-                <span>Stockfish</span>
-                <span className="hidden xs:inline">
-                  ({toFrenchSan(currentMove.bestMoveSan || currentMove.bestMoveUci)})
-                </span>
-                {tacticalThreatsSuggestion.length > 0 && (
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
-                      threatsMode === 'suggestion' ? 'bg-white text-rose-600' : 'bg-rose-500/20 text-rose-300'
-                    }`}
-                  >
-                    {tacticalThreatsSuggestion.length}
-                  </span>
-                )}
-              </button>
-
-              <button
-                onClick={() => onSelectThreatsMode?.('played')}
-                aria-pressed={threatsMode === 'played'}
-                className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer ${
-                  threatsMode === 'played' ? 'bg-rose-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Menaces tactiques créées par votre coup joué"
-              >
-                <span>Coup joué</span>
-                <span className="hidden xs:inline">({toFrenchSan(currentMove.san)})</span>
-                {tacticalThreatsPlayed.length > 0 && (
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
-                      threatsMode === 'played' ? 'bg-white text-rose-600' : 'bg-rose-500/20 text-rose-300'
-                    }`}
-                  >
-                    {tacticalThreatsPlayed.length}
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {/* Quick Toggle On/Off for Board Annotations */}
-            <button
-              onClick={onToggleShowThreats}
-              aria-pressed={showThreats}
-              aria-label="Menaces sur l’échiquier"
-              className={`p-1.5 rounded-lg border text-xs transition-colors cursor-pointer ${
-                showThreats
-                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30'
-                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-              }`}
-              title={showThreats ? 'Masquer les menaces sur l’échiquier' : 'Afficher les menaces sur l’échiquier'}
-            >
-              <Eye className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Threats List */}
-        {(() => {
-          const currentThreats = threatsMode === 'suggestion' ? tacticalThreatsSuggestion : tacticalThreatsPlayed;
-          if (currentThreats.length === 0) {
-            return (
-              <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800 text-xs text-slate-400 flex items-center gap-2">
-                <span className="text-slate-400 text-base">🛡️</span>
-                <span>
-                  Aucune menace directe immédiate créée par ce coup (manœuvre de consolidation ou coup positionnel).
+      {/* Tactical Threats Breakdown Section (Based on Stockfish engine suggestions & played move).
+          Left out when neither the engine's move nor the played move creates a threat: no empty card. */}
+      {(tacticalThreatsSuggestion.length > 0 || tacticalThreatsPlayed.length > 0) && (
+        <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-md bg-rose-500/20 flex items-center justify-center text-rose-400">
+                <Target className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <span className="text-xs uppercase tracking-wider font-semibold text-slate-200">
+                  Menaces tactiques & Cibles (Moteur)
                 </span>
               </div>
-            );
-          }
+            </div>
 
-          return (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {currentThreats.map((threat) => (
-                <div
-                  key={threat.id}
-                  className={`p-2.5 rounded-lg border flex flex-col gap-1 transition-all ${
-                    threat.severity === 'high'
-                      ? 'bg-rose-950/20 border-rose-500/30 hover:border-rose-500/50'
-                      : 'bg-amber-950/20 border-amber-500/30 hover:border-amber-500/50'
+            {/* Threats Source Toggle: Engine Suggestion vs Played Move */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <div
+                role="group"
+                aria-label="Origine des menaces affichées"
+                className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-[11px]"
+              >
+                <button
+                  onClick={() => onSelectThreatsMode?.('suggestion')}
+                  aria-pressed={threatsMode === 'suggestion'}
+                  className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer ${
+                    threatsMode === 'suggestion'
+                      ? 'bg-rose-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
                   }`}
+                  title="Menaces tactiques créées par la suggestion du moteur"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm">
-                        {threat.type === 'check'
-                          ? '⚡'
-                          : threat.type === 'hanging'
-                            ? '🛡️'
-                            : threat.type === 'pin'
-                              ? '🧷'
-                              : threat.type === 'fork'
-                                ? '🔱'
-                                : '⚔️'}
-                      </span>
-                      <span className="font-semibold text-xs text-slate-200">{threat.label}</span>
-                    </div>
+                  <span>Stockfish</span>
+                  <span className="hidden xs:inline">
+                    ({toFrenchSan(currentMove.bestMoveSan || currentMove.bestMoveUci)})
+                  </span>
+                  {tacticalThreatsSuggestion.length > 0 && (
                     <span
-                      className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider ${
-                        threat.severity === 'high'
-                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                        threatsMode === 'suggestion' ? 'bg-white text-rose-600' : 'bg-rose-500/20 text-rose-300'
                       }`}
                     >
-                      {threat.severity === 'high' ? 'Critique' : 'Pression'}
+                      {tacticalThreatsSuggestion.length}
                     </span>
-                  </div>
+                  )}
+                </button>
 
-                  <p className="text-[11px] text-slate-400 leading-snug">{threat.description}</p>
-                </div>
-              ))}
+                <button
+                  onClick={() => onSelectThreatsMode?.('played')}
+                  aria-pressed={threatsMode === 'played'}
+                  className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer ${
+                    threatsMode === 'played'
+                      ? 'bg-rose-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Menaces tactiques créées par votre coup joué"
+                >
+                  <span>Coup joué</span>
+                  <span className="hidden xs:inline">({toFrenchSan(currentMove.san)})</span>
+                  {tacticalThreatsPlayed.length > 0 && (
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                        threatsMode === 'played' ? 'bg-white text-rose-600' : 'bg-rose-500/20 text-rose-300'
+                      }`}
+                    >
+                      {tacticalThreatsPlayed.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {/* Quick Toggle On/Off for Board Annotations */}
+              <button
+                onClick={onToggleShowThreats}
+                aria-pressed={showThreats}
+                aria-label="Menaces sur l’échiquier"
+                className={`p-1.5 rounded-lg border text-xs transition-colors cursor-pointer ${
+                  showThreats
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30'
+                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                }`}
+                title={showThreats ? 'Masquer les menaces sur l’échiquier' : 'Afficher les menaces sur l’échiquier'}
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </button>
             </div>
-          );
-        })()}
-      </div>
+          </div>
+
+          {/* Threats List */}
+          {(() => {
+            const currentThreats = threatsMode === 'suggestion' ? tacticalThreatsSuggestion : tacticalThreatsPlayed;
+            if (currentThreats.length === 0) {
+              return (
+                <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800 text-xs text-slate-400 flex items-center gap-2">
+                  <span className="text-slate-400 text-base">🛡️</span>
+                  <span>
+                    Aucune menace directe immédiate créée par ce coup (manœuvre de consolidation ou coup positionnel).
+                  </span>
+                </div>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {currentThreats.map((threat) => (
+                  <div
+                    key={threat.id}
+                    className={`p-2.5 rounded-lg border flex flex-col gap-1 transition-all ${
+                      threat.severity === 'high'
+                        ? 'bg-rose-950/20 border-rose-500/30 hover:border-rose-500/50'
+                        : 'bg-amber-950/20 border-amber-500/30 hover:border-amber-500/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">
+                          {threat.type === 'check'
+                            ? '⚡'
+                            : threat.type === 'hanging'
+                              ? '🛡️'
+                              : threat.type === 'pin'
+                                ? '🧷'
+                                : threat.type === 'fork'
+                                  ? '🔱'
+                                  : '⚔️'}
+                        </span>
+                        <span className="font-semibold text-xs text-slate-200">{threat.label}</span>
+                      </div>
+                      <span
+                        className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider ${
+                          threat.severity === 'high'
+                            ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        }`}
+                      >
+                        {threat.severity === 'high' ? 'Critique' : 'Pression'}
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 leading-snug">{threat.description}</p>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Pedagogical AI Coach Section */}
       <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 sm:p-4 flex flex-col gap-3">
@@ -719,14 +724,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
               </div>
             )}
           </div>
-        ) : (
-          !loadingAi && (
-            <div className="text-xs text-slate-400 bg-slate-900/40 p-3 rounded-lg border border-slate-800/60">
-              Cliquez sur <strong className="text-slate-200">« Expliquer le plan tactique »</strong> pour comprendre en
-              français les motifs tactiques, les faiblesses créées et le plan stratégique suggéré par l'IA.
-            </div>
-          )
-        )}
+        ) : null}
       </div>
     </div>
   );
