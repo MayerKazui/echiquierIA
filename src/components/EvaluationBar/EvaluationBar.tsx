@@ -58,6 +58,8 @@ export const EvaluationBar: React.FC<EvaluationBarProps> = ({ evalCp, mate, isFl
 
   return (
     <div
+      role="img"
+      aria-label={`Évaluation : ${label}, soit ${Math.round(whitePercent)} % de chances pour les Blancs`}
       className="relative w-5 sm:w-7 md:w-8 shrink-0 self-stretch min-h-[220px] sm:min-h-[320px] md:min-h-[380px] bg-slate-900 rounded-lg overflow-hidden border border-slate-700/60 shadow-inner flex flex-col justify-between select-none"
       title={`Évaluation : ${label} (${whitePercent.toFixed(1)}% pour les Blancs)`}
     >

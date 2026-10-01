@@ -41,7 +41,10 @@ const Tint: React.FC<{ bg: string; opacity: number; badge: string; label: React.
 }) => (
   <>
     <div className={`absolute inset-0 pointer-events-none transition-all duration-200 z-5 ${bg}`} style={{ opacity }} />
-    <div className="absolute bottom-0.5 left-0.5 sm:bottom-1 sm:left-1 pointer-events-none z-25 flex items-center justify-center">
+    <div
+      aria-hidden="true"
+      className="absolute bottom-0.5 left-0.5 sm:bottom-1 sm:left-1 pointer-events-none z-25 flex items-center justify-center"
+    >
       <span className={`${BADGE_BASE} ${badge}`}>{label}</span>
     </div>
   </>

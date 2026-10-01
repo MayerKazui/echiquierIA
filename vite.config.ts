@@ -7,6 +7,19 @@ import { defineConfig } from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss(), stockfishEngine()],
+    build: {
+      rolldownOptions: {
+        output: {
+          // Third-party code changes rarely: a separate chunk stays in the browser cache across deployments
+          codeSplitting: {
+            groups: [
+              { name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+              { name: 'chess', test: /node_modules[\\/]chess\.js[\\/]/ },
+            ],
+          },
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, '.'),

@@ -14,7 +14,10 @@ interface SandboxMove {
  * Free exploration ("Et si j'avais joué... ?"): the user plays moves on the board from the
  * displayed position. `baseFen` is the position shown when no exploration is in progress.
  */
-export function useSandbox(baseFen: string, onEnter?: () => void) {
+export function useSandbox(
+  baseFen: string,
+  { onEnter, onMove }: { onEnter?: () => void; onMove?: (san: string) => void } = {}
+) {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [isSandboxMode, setIsSandboxMode] = useState(false);
   const [history, setHistory] = useState<SandboxMove[]>([]);
@@ -59,12 +62,13 @@ export function useSandbox(baseFen: string, onEnter?: () => void) {
         setHistory((prev) => [...prev, { san: move.san, from: move.from, to: move.to, fen: chess.fen() }]);
         setIsSandboxMode(true);
         onEnter?.();
+        onMove?.(move.san);
         return true;
       } catch {
         return false; // Illegal move ignored
       }
     },
-    [loadActivePosition, onEnter]
+    [loadActivePosition, onEnter, onMove]
   );
 
   // Click-to-move: select a piece of the side to move, then click its destination

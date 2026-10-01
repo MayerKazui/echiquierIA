@@ -260,9 +260,14 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
         </div>
 
         {/* View Perspective Selector */}
-        <div className="flex items-center rounded-xl bg-slate-950 p-1 border border-slate-800 text-xs">
+        <div
+          role="group"
+          aria-label="Profil affiché"
+          className="flex items-center rounded-xl bg-slate-950 p-1 border border-slate-800 text-xs"
+        >
           <button
             onClick={() => setActiveView('user')}
+            aria-pressed={activeView === 'user'}
             className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
               activeView === 'user'
                 ? 'bg-indigo-600 text-white font-bold shadow-sm'
@@ -273,6 +278,7 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
           </button>
           <button
             onClick={() => setActiveView('white')}
+            aria-pressed={activeView === 'white'}
             className={`px-2 py-1 rounded-lg font-medium transition-all cursor-pointer ${
               activeView === 'white'
                 ? 'bg-indigo-600 text-white font-bold shadow-sm'
@@ -283,6 +289,7 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
           </button>
           <button
             onClick={() => setActiveView('black')}
+            aria-pressed={activeView === 'black'}
             className={`px-2 py-1 rounded-lg font-medium transition-all cursor-pointer ${
               activeView === 'black'
                 ? 'bg-indigo-600 text-white font-bold shadow-sm'
@@ -293,6 +300,7 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
           </button>
           <button
             onClick={() => setActiveView('both')}
+            aria-pressed={activeView === 'both'}
             className={`px-2.5 py-1 rounded-lg font-medium transition-all cursor-pointer ${
               activeView === 'both'
                 ? 'bg-gradient-to-r from-blue-600 to-rose-600 text-white font-bold shadow-sm'
@@ -324,7 +332,14 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
           )}
 
           <div className="relative w-full max-w-[320px] aspect-square flex items-center justify-center">
-            <svg viewBox="0 0 300 290" className="w-full h-full select-none overflow-visible">
+            <svg
+              role="img"
+              aria-label={`Radar des cinq compétences de ${activeProfile.playerName} : ${activeProfile.dimensions
+                .map((dim) => `${dim.name} ${dim.score} sur 100`)
+                .join(', ')}`}
+              viewBox="0 0 300 290"
+              className="w-full h-full select-none overflow-visible"
+            >
               <defs>
                 <radialGradient id="radarBgGradient" cx="50%" cy="50%" r="50%">
                   <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.12" />
@@ -517,7 +532,7 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
                     <span>{dim.name}</span>
                   </div>
                   <span className="font-mono font-bold text-slate-100 text-[11px]">
-                    {dim.score} <span className="text-slate-500 font-normal">/ 100</span>
+                    {dim.score} <span className="text-slate-400 font-normal">/ 100</span>
                   </span>
                 </div>
                 <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-slate-700/60">

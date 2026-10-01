@@ -6,6 +6,7 @@ import { HeatmapSquareOverlay, heatmapSquareTitle } from './HeatmapOverlay';
 import { ThreatBadge, ThreatTarget, ThreatTooltip } from './ThreatMarkers';
 import { getSquareStyle } from './boardTheme';
 import { useBoardDrawing } from './useBoardDrawing';
+import { nextSquare, squareLabel, type BoardKey } from '../../utils/accessibility';
 import { TacticalThreat } from '../../utils/tacticalThreats';
 import { computeBoardHeatmap } from '../../utils/chessHeatmap';
 import { BoardTheme, HeatmapMode } from '../../types/ui';
@@ -151,6 +152,27 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     rankRowIdx: number;
   } | null>(null);
 
+  // Keyboard navigation: roving tabindex, one square of the grid is in the tab order at a time
+  const [focusedSquare, setFocusedSquare] = useState<string>('e4');
+  const cellRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // A click or a tap gives the square the focus; the grid must keep the arrow keys only when the focus
+  // came from the keyboard, otherwise the arrows stop navigating the game after any click on the board.
+  const pointerInteraction = useRef(false);
+
+  const BOARD_KEYS: readonly string[] = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+  const handleGridKeyDown = (e: React.KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (BOARD_KEYS.includes(e.key) && !e.shiftKey) {
+      e.preventDefault();
+      const next = nextSquare(focusedSquare, e.key as BoardKey, isFlipped);
+      setFocusedSquare(next);
+      cellRefs.current[next]?.focus();
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onSquareClick?.(focusedSquare);
+    }
+  };
+
   // Drag and drop / touch drag
   const [draggedSquare, setDraggedSquare] = useState<string | null>(null);
   const touchOriginRef = useRef<string | null>(null);
@@ -193,174 +215,213 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
       onTouchEnd={handleTouchEnd}
     >
       {/* 8x8 Board Grid */}
-      <div className="grid grid-cols-8 grid-rows-8 w-full h-full rounded-lg overflow-hidden">
-        {ranks.map((rank, rankRowIdx) =>
-          files.map((file, fileColIdx) => {
-            const squareName = `${file}${rank}` as Square;
-            const fileIdx = file.charCodeAt(0) - 'a'.charCodeAt(0);
-            const rankIdx = 8 - rank;
-            const isLight = (fileIdx + rankIdx) % 2 === 0;
-            const piece = board[rankIdx]?.[fileIdx];
+      <div
+        role="grid"
+        aria-label={`Échiquier, trait aux ${chess.turn() === 'w' ? 'Blancs' : 'Noirs'}. Flèches pour se déplacer, Entrée pour sélectionner ou jouer.`}
+        aria-rowcount={8}
+        aria-colcount={8}
+        onKeyDown={handleGridKeyDown}
+        onPointerDownCapture={() => {
+          pointerInteraction.current = true;
+        }}
+        onPointerUpCapture={() => {
+          pointerInteraction.current = false;
+        }}
+        onPointerCancelCapture={() => {
+          pointerInteraction.current = false;
+        }}
+        className="grid grid-cols-8 grid-rows-8 w-full h-full rounded-lg overflow-hidden"
+      >
+        {ranks.map((rank, rankRowIdx) => (
+          <div key={rank} role="row" aria-rowindex={rankRowIdx + 1} className="contents">
+            {files.map((file, fileColIdx) => {
+              const squareName = `${file}${rank}` as Square;
+              const fileIdx = file.charCodeAt(0) - 'a'.charCodeAt(0);
+              const rankIdx = 8 - rank;
+              const isLight = (fileIdx + rankIdx) % 2 === 0;
+              const piece = board[rankIdx]?.[fileIdx];
 
-            const isLastMoveTo = lastMove?.to === squareName;
-            const isLastMove = lastMove?.from === squareName || isLastMoveTo;
-            const isSelected = selectedSquare === squareName;
+              const isLastMoveTo = lastMove?.to === squareName;
+              const isLastMove = lastMove?.from === squareName || isLastMoveTo;
+              const isSelected = selectedSquare === squareName;
 
-            const primaryThreat = threatsByTargetSquare[squareName]?.[0];
-            const hasHighThreat = threatsByTargetSquare[squareName]?.some((t) => t.severity === 'high');
+              const primaryThreat = threatsByTargetSquare[squareName]?.[0];
+              const hasHighThreat = threatsByTargetSquare[squareName]?.some((t) => t.severity === 'high');
 
-            const { squareBg, coordTextColor } = getSquareStyle(boardTheme, isLight, isLastMove);
+              const { squareBg, coordTextColor } = getSquareStyle(boardTheme, isLight, isLastMove);
 
-            // Move animation: the moved piece slides from its origin square
-            const moveAnimationFrom: string | null =
-              isLastMoveTo && lastMove?.from
-                ? lastMove.from
-                : (CASTLING_ROOK_FROM[`${lastMove?.from}-${lastMove?.to}-${squareName}`] ?? null);
+              // Move animation: the moved piece slides from its origin square
+              const moveAnimationFrom: string | null =
+                isLastMoveTo && lastMove?.from
+                  ? lastMove.from
+                  : (CASTLING_ROOK_FROM[`${lastMove?.from}-${lastMove?.to}-${squareName}`] ?? null);
 
-            let animationStyle: React.CSSProperties = {};
-            if (moveAnimationFrom && moveAnimationFrom.length === 2) {
-              const fromCol = files.indexOf(moveAnimationFrom[0]);
-              const fromRow = ranks.indexOf(parseInt(moveAnimationFrom[1], 10));
-              if (fromCol !== -1 && fromRow !== -1) {
-                animationStyle = {
-                  '--delta-x': `${(fromCol - fileColIdx) * 100}%`,
-                  '--delta-y': `${(fromRow - rankRowIdx) * 100}%`,
-                } as React.CSSProperties;
-              }
-            }
-
-            const canDragPiece = Boolean(piece && piece.color === chess.turn());
-
-            return (
-              <div
-                key={squareName}
-                data-square={squareName}
-                title={
-                  isHeatmapActive && heatmap
-                    ? heatmapSquareTitle(
-                        squareName,
-                        effectiveHeatmapMode as Exclude<HeatmapMode, 'none'>,
-                        heatmap.squares[squareName]
-                      )
-                    : undefined
+              let animationStyle: React.CSSProperties = {};
+              if (moveAnimationFrom && moveAnimationFrom.length === 2) {
+                const fromCol = files.indexOf(moveAnimationFrom[0]);
+                const fromRow = ranks.indexOf(parseInt(moveAnimationFrom[1], 10));
+                if (fromCol !== -1 && fromRow !== -1) {
+                  animationStyle = {
+                    '--delta-x': `${(fromCol - fileColIdx) * 100}%`,
+                    '--delta-y': `${(fromRow - rankRowIdx) * 100}%`,
+                  } as React.CSSProperties;
                 }
-                className={`relative flex items-center justify-center cursor-pointer transition-colors duration-100 ${
-                  isSelected ? 'bg-amber-300/85 ring-2 ring-inset ring-amber-500' : squareBg
-                }`}
-                onClick={() => onSquareClick?.(squareName)}
-                onMouseDown={(e) => drawing.onSquareMouseDown(squareName, e)}
-                onMouseEnter={() => drawing.onSquareMouseEnter(squareName)}
-                onMouseUp={(e) => drawing.onSquareMouseUp(squareName, e)}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = 'move';
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const fromSquare = e.dataTransfer.getData('text/plain') || draggedSquare;
-                  setDraggedSquare(null);
-                  if (fromSquare && fromSquare !== squareName) movePiece(fromSquare, squareName);
-                }}
-                onTouchStart={() => handleTouchStart(squareName)}
-              >
-                {/* King in check red ring */}
-                {checkSquare === squareName && (
-                  <div className="absolute inset-0 bg-rose-500/40 rounded-sm animate-pulse z-0" />
-                )}
+              }
 
-                {/* Heatmap space control overlay */}
-                {isHeatmapActive && heatmap && (
-                  <HeatmapSquareOverlay
-                    ctrl={heatmap.squares[squareName]}
-                    mode={effectiveHeatmapMode as Exclude<HeatmapMode, 'none'>}
-                  />
-                )}
+              const canDragPiece = Boolean(piece && piece.color === chess.turn());
 
-                {/* User custom highlight circle (right-click toggle) */}
-                {drawing.userHighlights.includes(squareName) && (
-                  <div className="absolute inset-1 rounded-full border-3 sm:border-4 border-emerald-400/90 bg-emerald-400/25 pointer-events-none z-10 shadow-sm" />
-                )}
+              return (
+                <div
+                  key={squareName}
+                  data-square={squareName}
+                  ref={(el) => {
+                    cellRefs.current[squareName] = el;
+                  }}
+                  role="gridcell"
+                  aria-colindex={fileColIdx + 1}
+                  aria-selected={isSelected}
+                  aria-label={squareLabel(squareName, piece, {
+                    selected: isSelected,
+                    legalDestination: legalDestinations.includes(squareName),
+                    threat: primaryThreat?.label,
+                  })}
+                  tabIndex={squareName === focusedSquare ? 0 : -1}
+                  onFocus={(e) => {
+                    setFocusedSquare(squareName);
+                    if (pointerInteraction.current) e.currentTarget.blur(); // focus from the mouse: not the keyboard
+                  }}
+                  title={
+                    isHeatmapActive && heatmap
+                      ? heatmapSquareTitle(
+                          squareName,
+                          effectiveHeatmapMode as Exclude<HeatmapMode, 'none'>,
+                          heatmap.squares[squareName]
+                        )
+                      : undefined
+                  }
+                  className={`relative flex items-center justify-center cursor-pointer transition-colors duration-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-indigo-500 ${
+                    isSelected ? 'bg-amber-300/85 ring-2 ring-inset ring-amber-500' : squareBg
+                  }`}
+                  onClick={() => onSquareClick?.(squareName)}
+                  onMouseDown={(e) => drawing.onSquareMouseDown(squareName, e)}
+                  onMouseEnter={() => drawing.onSquareMouseEnter(squareName)}
+                  onMouseUp={(e) => drawing.onSquareMouseUp(squareName, e)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const fromSquare = e.dataTransfer.getData('text/plain') || draggedSquare;
+                    setDraggedSquare(null);
+                    if (fromSquare && fromSquare !== squareName) movePiece(fromSquare, squareName);
+                  }}
+                  onTouchStart={() => handleTouchStart(squareName)}
+                >
+                  {/* King in check red ring */}
+                  {checkSquare === squareName && (
+                    <div className="absolute inset-0 bg-rose-500/40 rounded-sm animate-pulse z-0" />
+                  )}
 
-                {/* Best move destination indicator (dashed circle) */}
-                {bestMove && bestMove.to === squareName && (
-                  <div
-                    className={`absolute inset-1.5 rounded-full border-2 border-dashed ${
-                      isPlayedMoveOptimal ? 'border-cyan-400/90' : 'border-emerald-400/90'
-                    } pointer-events-none z-10`}
-                  />
-                )}
+                  {/* Heatmap space control overlay */}
+                  {isHeatmapActive && heatmap && (
+                    <HeatmapSquareOverlay
+                      ctrl={heatmap.squares[squareName]}
+                      mode={effectiveHeatmapMode as Exclude<HeatmapMode, 'none'>}
+                    />
+                  )}
 
-                {/* Legal move dots & capture rings (sandbox / interactive mode) */}
-                {legalDestinations.includes(squareName) && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-15">
-                    {piece ? (
-                      <div className="w-[82%] h-[82%] rounded-full border-4 border-slate-900/40 ring-2 ring-amber-400/70" />
-                    ) : (
-                      <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-slate-900/35 ring-1 ring-white/30 shadow-sm" />
-                    )}
-                  </div>
-                )}
+                  {/* User custom highlight circle (right-click toggle) */}
+                  {drawing.userHighlights.includes(squareName) && (
+                    <div className="absolute inset-1 rounded-full border-3 sm:border-4 border-emerald-400/90 bg-emerald-400/25 pointer-events-none z-10 shadow-sm" />
+                  )}
 
-                {/* Tactical target crosshair + badge (top-right) */}
-                {primaryThreat && <ThreatTarget hasHighThreat={Boolean(hasHighThreat)} />}
-                {primaryThreat && (
-                  <ThreatBadge
-                    threat={primaryThreat}
-                    onToggle={() =>
-                      setHoveredThreat((prev) =>
-                        prev?.threat.id === primaryThreat.id ? null : { threat: primaryThreat, fileColIdx, rankRowIdx }
-                      )
-                    }
-                    onHover={() => setHoveredThreat({ threat: primaryThreat, fileColIdx, rankRowIdx })}
-                    onLeave={() => setHoveredThreat(null)}
-                  />
-                )}
+                  {/* Best move destination indicator (dashed circle) */}
+                  {bestMove && bestMove.to === squareName && (
+                    <div
+                      className={`absolute inset-1.5 rounded-full border-2 border-dashed ${
+                        isPlayedMoveOptimal ? 'border-cyan-400/90' : 'border-emerald-400/90'
+                      } pointer-events-none z-10`}
+                    />
+                  )}
 
-                {/* Rank notation (left edge) and file notation (bottom edge) */}
-                {file === files[0] && (
-                  <span
-                    className={`absolute top-0.5 left-1 text-[10px] font-bold pointer-events-none select-none ${coordTextColor}`}
-                  >
-                    {rank}
-                  </span>
-                )}
-                {rank === ranks[7] && (
-                  <span
-                    className={`absolute bottom-0.5 right-1 text-[10px] font-bold pointer-events-none select-none ${coordTextColor}`}
-                  >
-                    {file}
-                  </span>
-                )}
+                  {/* Legal move dots & capture rings (sandbox / interactive mode) */}
+                  {legalDestinations.includes(squareName) && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-15">
+                      {piece ? (
+                        <div className="w-[82%] h-[82%] rounded-full border-4 border-slate-900/40 ring-2 ring-amber-400/70" />
+                      ) : (
+                        <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-slate-900/35 ring-1 ring-white/30 shadow-sm" />
+                      )}
+                    </div>
+                  )}
 
-                {/* Chess piece (draggable for free exploration & click-to-move) */}
-                {piece && (
-                  <div
-                    key={`${squareName}-${lastMove?.from}-${lastMove?.to}`}
-                    draggable={canDragPiece}
-                    onDragStart={(e) => {
-                      if (!canDragPiece) return;
-                      e.dataTransfer.setData('text/plain', squareName);
-                      e.dataTransfer.effectAllowed = 'move';
-                      setDraggedSquare(squareName);
-                      onSquareClick?.(squareName);
-                    }}
-                    onDragEnd={() => setDraggedSquare(null)}
-                    className={`relative w-[84%] h-[84%] z-10 select-none ${
-                      canDragPiece
-                        ? 'cursor-grab active:cursor-grabbing hover:scale-105 transition-transform'
-                        : 'pointer-events-none'
-                    } ${draggedSquare === squareName ? 'opacity-40' : 'opacity-100'} ${
-                      moveAnimationFrom ? 'animate-piece-slide' : ''
-                    }`}
-                    style={animationStyle}
-                  >
-                    <ChessPiece type={piece.type} color={piece.color} />
-                  </div>
-                )}
-              </div>
-            );
-          })
-        )}
+                  {/* Tactical target crosshair + badge (top-right) */}
+                  {primaryThreat && <ThreatTarget hasHighThreat={Boolean(hasHighThreat)} />}
+                  {primaryThreat && (
+                    <ThreatBadge
+                      threat={primaryThreat}
+                      onToggle={() =>
+                        setHoveredThreat((prev) =>
+                          prev?.threat.id === primaryThreat.id
+                            ? null
+                            : { threat: primaryThreat, fileColIdx, rankRowIdx }
+                        )
+                      }
+                      onHover={() => setHoveredThreat({ threat: primaryThreat, fileColIdx, rankRowIdx })}
+                      onLeave={() => setHoveredThreat(null)}
+                    />
+                  )}
+
+                  {/* Rank notation (left edge) and file notation (bottom edge) */}
+                  {file === files[0] && (
+                    <span
+                      aria-hidden="true"
+                      className={`absolute top-0.5 left-1 text-[10px] font-bold pointer-events-none select-none ${coordTextColor}`}
+                    >
+                      {rank}
+                    </span>
+                  )}
+                  {rank === ranks[7] && (
+                    <span
+                      aria-hidden="true"
+                      className={`absolute bottom-0.5 right-1 text-[10px] font-bold pointer-events-none select-none ${coordTextColor}`}
+                    >
+                      {file}
+                    </span>
+                  )}
+
+                  {/* Chess piece (draggable for free exploration & click-to-move) */}
+                  {piece && (
+                    <div
+                      key={`${squareName}-${lastMove?.from}-${lastMove?.to}`}
+                      aria-hidden="true"
+                      draggable={canDragPiece}
+                      onDragStart={(e) => {
+                        if (!canDragPiece) return;
+                        e.dataTransfer.setData('text/plain', squareName);
+                        e.dataTransfer.effectAllowed = 'move';
+                        setDraggedSquare(squareName);
+                        onSquareClick?.(squareName);
+                      }}
+                      onDragEnd={() => setDraggedSquare(null)}
+                      className={`relative w-[84%] h-[84%] z-10 select-none ${
+                        canDragPiece
+                          ? 'cursor-grab active:cursor-grabbing hover:scale-105 transition-transform'
+                          : 'pointer-events-none'
+                      } ${draggedSquare === squareName ? 'opacity-40' : 'opacity-100'} ${
+                        moveAnimationFrom ? 'animate-piece-slide' : ''
+                      }`}
+                      style={animationStyle}
+                    >
+                      <ChessPiece type={piece.type} color={piece.color} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       <ArrowsOverlay

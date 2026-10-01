@@ -32,6 +32,7 @@ interface ThreatBadgeProps {
 /** Small icon in the top-right corner of a threatened square (hover or click for the tooltip). */
 export const ThreatBadge: React.FC<ThreatBadgeProps> = ({ threat, onToggle, onHover, onLeave }) => (
   <div
+    aria-hidden="true"
     className="absolute top-0.5 right-0.5 z-30 pointer-events-auto"
     onClick={(e) => {
       e.stopPropagation();

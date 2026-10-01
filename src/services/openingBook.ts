@@ -332,7 +332,7 @@ export function normalizeFen(fen: string): string {
 }
 
 /** Shape of an entry of public/openings.json (see scripts/openingsDataset.ts). */
-type DatasetEntry = [
+export type DatasetEntry = [
   bestMoveSan: string,
   bestMoveUci: string,
   eco: string,
@@ -522,10 +522,21 @@ function initOpeningBook() {
 
 let datasetLoadPromise: Promise<void> | null = null;
 
+/** Where the full dataset comes from: the file served next to the app. */
+async function fetchOpenings(): Promise<Record<string, DatasetEntry>> {
+  const res = await fetch('/openings.json');
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 /**
- * Ensures the full 7,800+ theoretical openings database is loaded into memory.
+ * Loads the full 7,800+ theoretical openings database into memory (once). It is about 1 MB, so it is not
+ * part of the bundle: the page prefetches it when idle, and an analysis waits for it if it is not there yet.
+ * `load` replaces the download (tests read the file from disk). A failed load is retried on the next call.
  */
-export async function ensureOpeningBookLoaded(): Promise<void> {
+export async function ensureOpeningBookLoaded(
+  load: () => Promise<Record<string, DatasetEntry>> = fetchOpenings
+): Promise<void> {
   if (!isBookInitialized) {
     initOpeningBook();
   }
@@ -537,18 +548,7 @@ export async function ensureOpeningBookLoaded(): Promise<void> {
   if (!datasetLoadPromise) {
     datasetLoadPromise = (async () => {
       try {
-        let data: Record<string, DatasetEntry>;
-        if (typeof window !== 'undefined') {
-          const res = await fetch('/openings.json');
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          data = await res.json();
-        } else {
-          const fs = await import('fs');
-          const path = await import('path');
-          const filePath = path.resolve(process.cwd(), 'public/openings.json');
-          const fileContent = await fs.promises.readFile(filePath, 'utf-8');
-          data = JSON.parse(fileContent);
-        }
+        const data = await load();
 
         for (const [normFen, [bestMoveSan, bestMoveUci, eco, name, pv, nextSans]] of Object.entries(data)) {
           let entry = bookCache.get(normFen);
@@ -587,6 +587,7 @@ export async function ensureOpeningBookLoaded(): Promise<void> {
         isFullDatasetLoaded = true;
       } catch (err) {
         console.warn('Could not load complete openings dataset:', err);
+        datasetLoadPromise = null; // let a later call try again (e.g. after a network hiccup)
       }
     })();
   }

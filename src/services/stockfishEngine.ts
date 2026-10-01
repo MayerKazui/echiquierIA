@@ -99,8 +99,20 @@ export class StockfishService {
   private taskQueue: QueuedTask[] = [];
   private cache: LruCache<string, CachedEvaluation>;
 
+  private started = false;
+
   constructor(private readonly options: StockfishServiceOptions = {}) {
     this.cache = new LruCache(options.cacheCapacity ?? CACHE_CAPACITY);
+  }
+
+  /**
+   * Starts the workers (each one downloads the ~1.8 MB engine). Nothing starts at import time, so the page
+   * is not slowed down at load: the app calls this when the browser is idle, and the first search that needs
+   * the engine calls it too. Calling it again does nothing.
+   */
+  public warmUp() {
+    if (this.started) return;
+    this.started = true;
     this.initWorkers();
   }
 
@@ -414,6 +426,7 @@ export class StockfishService {
       const effectiveDepth = legalMoves.length === 1 ? Math.min(4, depth) : depth;
 
       // 6. Queue to parallel worker pool (never rejects, always resolves with heuristic on failure)
+      this.warmUp();
       return new Promise<EngineEvaluation>((resolve) => {
         this.taskQueue.push({
           fen,

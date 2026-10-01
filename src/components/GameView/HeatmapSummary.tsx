@@ -98,6 +98,7 @@ export const HeatmapSummary: React.FC<HeatmapSummaryProps> = ({ mode, data, onMo
           <button
             key={optionMode}
             onClick={() => onModeChange(optionMode)}
+            aria-pressed={mode === optionMode}
             className={`px-1.5 py-0.5 rounded cursor-pointer ${
               mode === optionMode ? active : 'text-slate-400 hover:text-white'
             }`}
@@ -107,7 +108,8 @@ export const HeatmapSummary: React.FC<HeatmapSummaryProps> = ({ mode, data, onMo
         ))}
         <button
           onClick={() => onModeChange('none')}
-          className="px-1 py-0.5 text-slate-500 hover:text-rose-400 cursor-pointer ml-0.5"
+          aria-label="Masquer le contrôle de l'espace"
+          className="px-1 py-0.5 text-slate-400 hover:text-rose-400 cursor-pointer ml-0.5"
           title="Masquer le contrôle"
         >
           ✕
