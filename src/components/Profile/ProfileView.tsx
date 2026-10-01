@@ -122,7 +122,7 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
     <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2.5">
       <p className="text-[11px] text-slate-400">{label}</p>
       <p className="text-lg font-bold text-slate-100 font-mono">{value}</p>
-      {hint && <p className="text-[11px] text-slate-500">{hint}</p>}
+      {hint && <p className="text-[11px] text-slate-400">{hint}</p>}
     </div>
   );
 }
@@ -299,7 +299,7 @@ export const ProfileView: React.FC<{ profile: Profile }> = ({ profile }) => {
                   isThin={time.comfortable.moves < MIN_BUCKET_MOVES}
                 />
               </ul>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-400">
                 « Peu de temps » : moins d&apos;un dixième de la cadence (entre 10 s et 2 min). {time.gamesWithClocks}{' '}
                 partie
                 {time.gamesWithClocks > 1 ? 's' : ''} avec pendule.

@@ -44,7 +44,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({ games }) => {
         {[low, (low + high) / 2, high].map((tick) => (
           <g key={tick}>
             <line x1={PAD.left} x2={WIDTH - PAD.right} y1={y(tick)} y2={y(tick)} className="stroke-slate-800" />
-            <text x={PAD.left - 6} y={y(tick) + 3} textAnchor="end" className="fill-slate-500 text-[10px]">
+            <text x={PAD.left - 6} y={y(tick) + 3} textAnchor="end" className="fill-slate-400 text-[10px]">
               {number.format(tick)}
             </text>
           </g>
@@ -62,10 +62,10 @@ export const TrendChart: React.FC<TrendChartProps> = ({ games }) => {
             <title>{`Contre ${g.opponent}, ${formatPlayedDate(g.date)} : ${number.format(g.accuracy)} %`}</title>
           </circle>
         ))}
-        <text x={PAD.left} y={HEIGHT - 6} className="fill-slate-500 text-[10px]">
+        <text x={PAD.left} y={HEIGHT - 6} className="fill-slate-400 text-[10px]">
           {formatPlayedDate(first.date)}
         </text>
-        <text x={WIDTH - PAD.right} y={HEIGHT - 6} textAnchor="end" className="fill-slate-500 text-[10px]">
+        <text x={WIDTH - PAD.right} y={HEIGHT - 6} textAnchor="end" className="fill-slate-400 text-[10px]">
           {formatPlayedDate(last.date)}
         </text>
       </svg>

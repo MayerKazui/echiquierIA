@@ -106,6 +106,24 @@ describe('ProfileView', () => {
       expect(within(rows[1]).queryByText('À travailler')).toBeNull();
     });
 
+    it('draws the bar of the phase to work on in another colour', async () => {
+      await show(games(8, [62, 66]));
+      const rows = within(within(section('Par phase de la partie')).getByRole('list')).getAllByRole('listitem');
+      const bar = (row: HTMLElement) => row.querySelector('[aria-hidden="true"] > div')!.className;
+      expect(bar(rows[2])).toContain('bg-amber-500');
+      expect(bar(rows[0])).toContain('bg-indigo-500');
+    });
+
+    it('does not warn for 30 moves, and warns for 29', async () => {
+      await show([game({ plies: 60 })]); // 30 moves of Alice
+      expect(screen.getByText('Avec les Blancs').closest('li')!.textContent).not.toContain('peu de coups');
+    });
+
+    it('warns for 29 moves', async () => {
+      await show([game({ plies: 58 })]);
+      expect(screen.getByText('Avec les Blancs').closest('li')!.textContent).toContain('peu de coups');
+    });
+
     it('warns when a phase has few moves', async () => {
       await show(games(1));
       const rows = within(within(section('Par phase de la partie')).getByRole('list')).getAllByRole('listitem');
@@ -283,6 +301,22 @@ describe('ProfileView', () => {
       }));
       await show([...early, ...late]);
       expect(section('Évolution').textContent).toMatch(/erreurs par partie \([−-]2\)/);
+    });
+
+    it('shows a small change in the faults, a quarter of a fault being a change', async () => {
+      // One extra fault among the 4 previous games, none among the last 4
+      const early = games(4).map((g, i) =>
+        i === 0
+          ? { ...g, result: { ...g.result, moves: g.result.moves.map((m) => (m.ply === 60 ? blunder(60) : m)) } }
+          : g
+      );
+      const late = games(4).map((g, i) => ({
+        ...g,
+        id: `late${i}`,
+        result: { ...g.result, metadata: { ...g.result.metadata, date: `2024.04.0${i + 1}` } },
+      }));
+      await show([...early, ...late]);
+      expect(section('Évolution').textContent).toMatch(/erreurs par partie \([−-]0,3\)/);
     });
 
     it('says how many games are needed when there are too few', async () => {

@@ -68,7 +68,12 @@ export const WeaknessProfile: React.FC<WeaknessProfileProps> = ({ onClose, onImp
         </div>
       )}
 
-      <div className="overflow-y-auto min-h-0 pr-1 flex flex-col gap-4">
+      <div
+        role="region"
+        aria-label="Contenu du profil"
+        tabIndex={0}
+        className="overflow-y-auto min-h-0 pr-1 flex flex-col gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-lg"
+      >
         {state.status === 'loading' && (
           <p role="status" className="text-sm text-slate-400 py-8 text-center">
             Calcul du profil…
@@ -94,7 +99,7 @@ export const WeaknessProfile: React.FC<WeaknessProfileProps> = ({ onClose, onImp
         {state.status === 'ready' && state.profile.counted > 0 && (
           <>
             <ProfileView profile={state.profile} />
-            <p className="text-[11px] text-slate-500 border-t border-slate-800/80 pt-3">
+            <p className="text-[11px] text-slate-400 border-t border-slate-800/80 pt-3">
               {state.profile.counted} partie{state.profile.counted > 1 ? 's' : ''} comptée
               {state.profile.counted > 1 ? 's' : ''} sur {state.stored} enregistrée{state.stored > 1 ? 's' : ''} dans ce
               navigateur.

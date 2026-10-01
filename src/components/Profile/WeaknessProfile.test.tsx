@@ -44,6 +44,12 @@ describe('WeaknessProfile', () => {
   });
 
   describe('without games', () => {
+    it('does not offer to choose the games used, there are none', async () => {
+      renderProfile();
+      await screen.findByText('Aucune partie enregistrée');
+      expect(screen.queryByRole('button', { name: 'Toutes' })).toBeNull();
+    });
+
     it('offers to import some', async () => {
       const { onImport } = renderProfile();
       expect(await screen.findByText('Aucune partie enregistrée')).toBeTruthy();
@@ -89,6 +95,19 @@ describe('WeaknessProfile', () => {
       renderProfile();
       expect(await screen.findByText(/6 parties comptées sur 8 enregistrées dans ce navigateur\./)).toBeTruthy();
       expect(screen.getByText(/2 parties sont laissées de côté : votre pseudo n'y figure pas/)).toBeTruthy();
+    });
+
+    it('does not talk about the games left aside when only the latest are used', async () => {
+      await store(6);
+      await saveGame({
+        pgn: '1. d4 *\n; other',
+        depth: 12,
+        result: game({ white: 'Carl', black: 'Dora', moves: Array.from({ length: 40 }, (_, ply) => mv(ply)) }).result,
+      });
+      localStorage.setItem('chess_profile_window', '20');
+      renderProfile();
+      await screen.findByText(/6 parties comptées sur 7 enregistrées/);
+      expect(screen.queryByText(/laissée de côté|laissées de côté/)).toBeNull();
     });
 
     it('says "est laissée" for a single game left aside', async () => {
