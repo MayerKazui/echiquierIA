@@ -145,6 +145,33 @@ Proposition 2. L'aide (fenêtre « Raccourcis clavier ») a été retirée à la
 
 - [x] Retiré : `KeyboardHelp`, le bouton de l'en-tête, la touche `?` (`onHelp`), l'état `isHelpOpen`, les tests correspondants et la mention dans le README. Les raccourcis (flèches, `Maj+←/→`, Espace, `F`, `E`, `M`, `A`, `H`, Échap) restent actifs et accessibles ; seule leur liste n'est plus affichée dans l'appli.
 
+### 11. Mobile et écran d'analyse — fait
+
+Points 3 et 4 de la liste de priorités reçue (voir « Reste de la liste » plus bas).
+
+**Écran d'analyse (point 4)**
+
+- [x] **Annulation** : `analyzeFullGame` et `evaluatePosition` acceptent un `AbortSignal`. Les positions en attente sont retirées de la file, les recherches en cours reçoivent `stop` et leur worker reste occupé jusqu'à son `bestmove` (le `bestmove` périmé ne peut donc pas être pris pour la position suivante), et rien n'est mis en cache. `useGameAnalysis.analyze` rend `{ status: 'done' | 'cancelled' | 'failed' }` ; une annulation laisse la partie précédente et le stockage intacts. Une nouvelle analyse remplace celle qui tourne, et quitter la page l'annule.
+- [x] **Affichage progressif** : le moteur envoie les coups déjà analysés (préfixe de la partie, dès que les deux positions d'un coup sont évaluées, au plus un envoi toutes les 200 ms, avec un envoi différé pour que le dernier lot ne soit pas perdu). `useGameAnalysis` expose `partial` ; l'échiquier s'ouvre dès 8 demi-coups (`PROGRESSIVE_MIN_PLIES`) et la suite arrive au fur et à mesure. L'onglet « Bilan », les explications IA et l'enregistrement attendent la fin ; « Partie Lichess » utilise le PGN de la partie affichée.
+- [x] **Progression dans le formulaire** : l'écran d'accueil et la fenêtre « Autre PGN » restent ouverts pendant l'analyse, avec barre de progression, positions évaluées et bouton « Annuler l'analyse » (les champs sont verrouillés). La fenêtre se referme quand les premiers coups s'affichent ; ensuite une bannière (progression + « Annuler ») prend le relais. Annuler depuis la bannière revient à la partie précédente.
+- Vérifié dans le navigateur (partie de 82 demi-coups, profondeur 18) : formulaire avec progression, plateau dès 8 demi-coups puis jusqu'à 82, « Bilan » désactivé puis réactivé, annulation depuis le formulaire (formulaire éditable, annonce « Analyse annulée ») et depuis la bannière (partie précédente restaurée).
+- Tests : 13 nouveaux pour le moteur (faux worker UCI) et 10 pour le hook ; vérifiés par mutation (15 défauts réintroduits : tous détectés). Cette vérification a trouvé un vrai défaut, corrigé : un résultat partiel pouvait encore être envoyé juste après une annulation. `isAbortError` ne s'appuie plus sur `instanceof Error` (faux pour `DOMException` sous jsdom).
+
+**Mobile (point 3)**
+
+- [x] **En-tête compacté** : une seule rangée sur téléphone (pseudo et perspective en icônes, son, « Autre PGN ») ; le doublon des deux boutons « son » est supprimé. **51 px** de haut au lieu de 2 rangées.
+- [x] **Barre d'outils compactée** : une seule rangée défilante au lieu de trois, sans le choix de taille de l'échiquier (inutile quand il prend toute la largeur) ; zones de toucher agrandies. Le début de l'échiquier passe d'environ 330 px à **228 px** du haut sur un écran de 844 px.
+- [x] **Navigation collée en bas** (`BottomNav`) : « Échiquier » / « Bilan » en bas de l'écran, avec la zone de sécurité des iPhone (`viewport-fit=cover`) ; les onglets de l'en-tête (`ViewTabs`) ne restent que sur les écrans plus larges.
+- [x] **Balayage** (`useSwipe`, événements pointer, tactile uniquement) : vers la gauche = coup suivant, vers la droite = coup précédent. Il s'applique à la vue de jeu **hors échiquier** : sur tactile, glisser une pièce d'une case à une autre joue un coup, un balayage sur le plateau pourrait donc jouer une pièce. Sont aussi exclus les bandes défilantes (`data-no-swipe` : barre d'outils, « Tournants clés »), les champs et les dialogues. Seuils : 60 px, mouvement plutôt horizontal (×1,5), moins de 600 ms ; désactivé pendant l'exploration libre.
+- Vérifié avec de vrais gestes tactiles (Chrome émulé, 390 × 844) : balayage gauche puis droite sur la barre joueur (coup 1 → 2 → 1), sans effet sur le plateau, barre d'outils qui défile, navigation basse, aucun débordement horizontal ; le bureau est inchangé. Tests : 12 pour `useSwipe` (9 mutations détectées) et 3 pour `BottomNav`.
+- Limite : vérifié sur Chrome émulé, pas sur un vrai téléphone (iOS Safari notamment : zone de sécurité, comportement du balayage).
+
+### Reste de la liste de priorités reçue
+
+- [ ] **Points 1 et 2 : mise en page** : échiquier calé sur la hauteur de l'écran, liste de coups remontée, contrôles toujours visibles.
+- [ ] **Point 5 : historique des parties** : la persistance (point 9) conserve 20 parties mais n'a pas d'écran pour les rouvrir.
+- [ ] **Polish** : animation inversée et captures, glisser avec événements pointer, `prompt()` remplacé (le pseudo l'utilise encore), doublons retirés (deux boutons « son » fusionnés dans l'en-tête, il reste celui des contrôles de lecture), noms d'ouverture harmonisés.
+
 ## Ordre suggéré
 
 1 (sécurité serveur) → 2 (Gemini) → 4 (tests sur la logique pure) → 3 (découpage de `App.tsx`), puis le reste.
