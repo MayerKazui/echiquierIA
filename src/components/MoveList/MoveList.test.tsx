@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MoveAnalysis } from '../../types/chess';
 import { MoveList } from './MoveList';
 
@@ -86,5 +86,112 @@ describe('MoveList accessibility', () => {
     for (const name of ['Début de la partie', 'Coup précédent', 'Coup suivant', 'Fin de la partie']) {
       expect(screen.getByRole('button', { name })).toBeTruthy();
     }
+  });
+});
+
+describe('MoveList scrolling', () => {
+  const scrollTo = vi.fn();
+  const originals: Record<string, PropertyDescriptor | undefined> = {};
+
+  beforeEach(() => {
+    scrollTo.mockClear();
+    HTMLElement.prototype.scrollTo = scrollTo as unknown as typeof HTMLElement.prototype.scrollTo;
+    // jsdom has no layout: the active row is always below the visible part of the list
+    for (const [name, value] of [
+      ['offsetTop', 1000],
+      ['offsetHeight', 20],
+      ['clientHeight', 100],
+    ] as const) {
+      originals[name] = Object.getOwnPropertyDescriptor(HTMLElement.prototype, name);
+      Object.defineProperty(HTMLElement.prototype, name, { configurable: true, get: () => value });
+    }
+  });
+
+  afterEach(() => {
+    for (const [name, descriptor] of Object.entries(originals)) {
+      if (descriptor) Object.defineProperty(HTMLElement.prototype, name, descriptor);
+      else Reflect.deleteProperty(HTMLElement.prototype, name);
+    }
+    Reflect.deleteProperty(window, 'matchMedia');
+  });
+
+  const list = (currentPly: number, isPlaying = false) => (
+    <MoveList
+      moves={MOVES}
+      currentPly={currentPly}
+      onSelectPly={() => {}}
+      filterOnlyErrors={false}
+      onToggleFilter={() => {}}
+      isPlaying={isPlaying}
+    />
+  );
+  const lastBehavior = () => scrollTo.mock.lastCall?.[0].behavior;
+
+  it('animates the scroll for a single step, when auto-play is not running', () => {
+    const { rerender } = render(list(2));
+    scrollTo.mockClear();
+    rerender(list(3));
+    expect(scrollTo).toHaveBeenCalledOnce();
+    expect(lastBehavior()).toBe('smooth');
+  });
+
+  it('judges each step from the previous one, not from where the list started', () => {
+    const { rerender } = render(list(0));
+    for (const ply of [1, 2, 3, 4, 5]) {
+      scrollTo.mockClear();
+      rerender(list(ply));
+      expect(lastBehavior()).toBe('smooth'); // always one ply further, however far from the first one
+    }
+  });
+
+  it('scrolls at once while auto-play is running', () => {
+    const { rerender } = render(list(2, true));
+    scrollTo.mockClear();
+    rerender(list(3, true));
+    expect(lastBehavior()).toBe('auto');
+  });
+
+  it('scrolls at once on a jump', () => {
+    const { rerender } = render(list(5));
+    scrollTo.mockClear();
+    rerender(list(0));
+    expect(lastBehavior()).toBe('auto');
+  });
+
+  it('scrolls at once when the user asked for reduced motion', () => {
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('reduce'),
+    })) as unknown as typeof window.matchMedia;
+    const { rerender } = render(list(2));
+    scrollTo.mockClear();
+    rerender(list(3));
+    expect(lastBehavior()).toBe('auto');
+  });
+
+  it('does not scroll when only the auto-play state changes', () => {
+    const { rerender } = render(list(2));
+    scrollTo.mockClear();
+    rerender(list(2, true));
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('treats the step on which auto-play stops as played, and animates the next step the user takes', () => {
+    const { rerender } = render(list(2, true));
+    rerender(list(3, true));
+    scrollTo.mockClear();
+    rerender(list(4, false)); // the last step of auto-play (the stop arrives in the same render)
+    expect(lastBehavior()).toBe('auto');
+
+    scrollTo.mockClear();
+    rerender(list(5, false)); // a step by the user
+    expect(lastBehavior()).toBe('smooth');
+  });
+
+  it('does not keep the playing state after an unrelated render', () => {
+    const { rerender } = render(list(2, true));
+    rerender(list(2, false)); // stopped without moving
+    scrollTo.mockClear();
+    rerender(list(3, false));
+    expect(lastBehavior()).toBe('smooth');
   });
 });

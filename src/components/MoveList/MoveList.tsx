@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect, useState } from 'react';
+import React, { useMemo, useRef, useEffect, useLayoutEffect, useState } from 'react';
 import {
   AlertTriangle,
   BookOpen,
@@ -18,6 +18,7 @@ import {
 import { MoveAnalysis, MoveClassification } from '../../types/chess';
 import { moveButtonLabel } from '../../utils/accessibility';
 import { toFrenchSan } from '../../utils/chessNotation';
+import { moveListScrollBehavior } from '../../utils/scrollBehavior';
 
 interface MoveListProps {
   moves: MoveAnalysis[];
@@ -25,6 +26,8 @@ interface MoveListProps {
   onSelectPly: (ply: number) => void;
   filterOnlyErrors: boolean;
   onToggleFilter: () => void;
+  /** Auto-play is running: the list follows the current move without an animation. */
+  isPlaying?: boolean;
 }
 
 export const MoveList: React.FC<MoveListProps> = ({
@@ -33,9 +36,18 @@ export const MoveList: React.FC<MoveListProps> = ({
   onSelectPly,
   filterOnlyErrors,
   onToggleFilter,
+  isPlaying = false,
 }) => {
   const activeRowRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  // Read when the current move changes (not a reason to scroll by themselves)
+  const previousPlyRef = useRef(currentPly);
+  // The step on which auto-play stops (the last move, or a pause on an error) arrives in the same render as
+  // the stop: it still counts as played, so `before` keeps the previous value for one render.
+  const playingRef = useRef({ now: isPlaying, before: isPlaying });
+  useLayoutEffect(() => {
+    playingRef.current = { now: isPlaying, before: playingRef.current.now };
+  });
   const [filterLongThinks, setFilterLongThinks] = useState(false);
   const [filterRushed, setFilterRushed] = useState(false);
 
@@ -92,9 +104,13 @@ export const MoveList: React.FC<MoveListProps> = ({
   // Auto-scroll strictly inside the move list container (prevents the page/window from scrolling down)
   useEffect(() => {
     const container = scrollContainerRef.current;
-    const scrollBehavior: ScrollBehavior = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
-      ? 'auto'
-      : 'smooth';
+    const scrollBehavior = moveListScrollBehavior({
+      previousPly: previousPlyRef.current,
+      currentPly,
+      isPlaying: playingRef.current.now || playingRef.current.before,
+      reducedMotion: Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches),
+    });
+    previousPlyRef.current = currentPly;
     const activeEl = activeRowRef.current;
     if (container && activeEl) {
       const containerTop = container.scrollTop;

@@ -11,7 +11,7 @@ coups brillants, trace la courbe d'évaluation et un « entraîneur IA » (Gemin
 - Accessible : échiquier et toutes les commandes utilisables au clavier, annonces pour lecteurs d'écran, contrastes et mouvement réduit respectés
 - Mise en page : sur ordinateur l'échiquier est dimensionné sur la hauteur de la fenêtre, avec ses commandes de lecture, et un panneau à onglets (Coup / Liste) à côté du graphique d'évaluation
 - Échiquier interactif : exploration libre (« Et si j'avais joué… ? », glisser-déposer à la souris ou au doigt, choix de la pièce à la promotion), animation des coups dans les deux sens avec les captures, flèches et surbrillances au clic droit,
-  contrôle de l'espace, menaces tactiques, lecture automatique, raccourcis clavier
+  contrôle de l'espace, menaces tactiques, lecture automatique (qui s'arrête sur les erreurs, réglable), raccourcis clavier
 - Explications pédagogiques via l'API Gemini, appelée uniquement côté serveur
 
 ## Démarrage

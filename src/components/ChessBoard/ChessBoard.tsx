@@ -1,16 +1,16 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useCallback, useState, useMemo, useRef } from 'react';
 import { Chess, Square } from 'chess.js';
 import { ChessPiece } from './ChessPieces';
 import { ArrowsOverlay } from './ArrowsOverlay';
-import { HeatmapSquareOverlay, heatmapSquareTitle } from './HeatmapOverlay';
-import { ThreatBadge, ThreatTarget, ThreatTooltip } from './ThreatMarkers';
-import { getSquareStyle } from './boardTheme';
+import { BoardSquare, type HoveredThreat } from './BoardSquare';
+import { ThreatTooltip } from './ThreatMarkers';
 import { useBoardDrawing } from './useBoardDrawing';
 import { usePieceDrag } from './usePieceDrag';
 import { PromotionPicker } from './PromotionPicker';
 import type { PendingPromotion, PromotionPiece } from '../../hooks/useSandbox';
 import { diffPositions, type BoardTransition } from './boardTransition';
-import { nextSquare, squareLabel, type BoardKey } from '../../utils/accessibility';
+import { useStableCallback } from '../../hooks/useStableCallback';
+import { nextSquare, type BoardKey } from '../../utils/accessibility';
 import { TacticalThreat } from '../../utils/tacticalThreats';
 import { computeBoardHeatmap } from '../../utils/chessHeatmap';
 import { BoardTheme, HeatmapMode } from '../../types/ui';
@@ -138,20 +138,16 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
 
   // Legal moves for currently selected square
   const legalDestinations = useMemo(() => {
-    if (!selectedSquare) return [];
+    if (!selectedSquare) return new Set<string>();
     try {
-      return chess.moves({ square: selectedSquare as Square, verbose: true }).map((m) => m.to as string);
+      return new Set(chess.moves({ square: selectedSquare as Square, verbose: true }).map((m) => m.to as string));
     } catch {
-      return [];
+      return new Set<string>();
     }
   }, [chess, selectedSquare]);
 
   // Hovered tactical threat (for tooltip positioning)
-  const [hoveredThreat, setHoveredThreat] = useState<{
-    threat: TacticalThreat;
-    fileColIdx: number;
-    rankRowIdx: number;
-  } | null>(null);
+  const [hoveredThreat, setHoveredThreat] = useState<HoveredThreat | null>(null);
 
   // Keyboard navigation: roving tabindex, one square of the grid is in the tab order at a time
   const [focusedSquare, setFocusedSquare] = useState<string>('e4');
@@ -197,9 +193,30 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
 
   // Drag and drop with pointer events (mouse and finger): the piece follows the pointer
   const { drag, ghostRef, consumeClick, pieceHandlers } = usePieceDrag({
+    canDrag: (_from, piece) => piece.color === chess.turn(),
     onDragStart: (from) => onSquareClick?.(from),
     onDrop: movePiece,
   });
+
+  // Handlers of the squares: stable functions that use the latest props and state, so that the squares
+  // (memoised) are rendered again only when what they show changes.
+  const registerCell = useCallback((square: string, element: HTMLDivElement | null) => {
+    cellRefs.current[square] = element;
+  }, []);
+  const onFocusSquare = useCallback((square: string, element: HTMLElement) => {
+    setFocusedSquare(square);
+    if (pointerInteraction.current) element.blur(); // focus from the mouse: not the keyboard
+  }, []);
+  const onSquareClickStable = useStableCallback((square: string) => {
+    if (!consumeClick()) onSquareClick?.(square);
+  });
+  const onSquareMouseDown = useStableCallback(drawing.onSquareMouseDown);
+  const onSquareMouseEnter = useStableCallback(drawing.onSquareMouseEnter);
+  const onSquareMouseUp = useStableCallback(drawing.onSquareMouseUp);
+
+  const turn = chess.turn();
+  const userHighlights = useMemo(() => new Set(drawing.userHighlights), [drawing.userHighlights]);
+  const activeHeatmapMode = isHeatmapActive && heatmap ? (effectiveHeatmapMode as Exclude<HeatmapMode, 'none'>) : null;
 
   return (
     <div
@@ -212,6 +229,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
         aria-label={`Échiquier, trait aux ${chess.turn() === 'w' ? 'Blancs' : 'Noirs'}. Flèches pour se déplacer, Entrée pour sélectionner ou jouer.`}
         aria-rowcount={8}
         aria-colcount={8}
+        data-turn={turn}
         onKeyDown={handleGridKeyDown}
         onPointerDownCapture={() => {
           pointerInteraction.current = true;
@@ -222,187 +240,63 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
         onPointerCancelCapture={() => {
           pointerInteraction.current = false;
         }}
-        className="grid grid-cols-8 grid-rows-8 w-full h-full rounded-lg overflow-hidden"
+        className="group/board grid grid-cols-8 grid-rows-8 w-full h-full rounded-lg overflow-hidden"
       >
         {ranks.map((rank, rankRowIdx) => (
           <div key={rank} role="row" aria-rowindex={rankRowIdx + 1} className="contents">
             {files.map((file, fileColIdx) => {
-              const squareName = `${file}${rank}` as Square;
+              const squareName = `${file}${rank}`;
               const fileIdx = file.charCodeAt(0) - 'a'.charCodeAt(0);
               const rankIdx = 8 - rank;
-              const isLight = (fileIdx + rankIdx) % 2 === 0;
               const piece = board[rankIdx]?.[fileIdx];
-
-              const isLastMoveTo = lastMove?.to === squareName;
-              const isLastMove = lastMove?.from === squareName || isLastMoveTo;
-              const isSelected = selectedSquare === squareName;
-
-              const primaryThreat = threatsByTargetSquare[squareName]?.[0];
-              const hasHighThreat = threatsByTargetSquare[squareName]?.some((t) => t.severity === 'high');
-
-              const { squareBg, coordTextColor } = getSquareStyle(boardTheme, isLight, isLastMove);
+              const threats = threatsByTargetSquare[squareName];
 
               // Step animation (see `transition`): where this square's piece slides in from, and what fades
               const slideFrom = transition?.slides[squareName] ?? null;
               const vanishedPiece = transition?.vanished[squareName] ?? null;
               const hasReappeared = transition?.appeared.includes(squareName) ?? false;
-
-              let animationStyle: React.CSSProperties = {};
-              if (slideFrom) {
-                const fromCol = files.indexOf(slideFrom[0]);
-                const fromRow = ranks.indexOf(parseInt(slideFrom[1], 10));
-                animationStyle = {
-                  '--delta-x': `${(fromCol - fileColIdx) * 100}%`,
-                  '--delta-y': `${(fromRow - rankRowIdx) * 100}%`,
-                } as React.CSSProperties;
-              }
-
-              const canDragPiece = Boolean(piece && piece.color === chess.turn());
+              const isBestTarget = bestMove?.to === squareName;
 
               return (
-                <div
+                <BoardSquare
                   key={squareName}
-                  data-square={squareName}
-                  ref={(el) => {
-                    cellRefs.current[squareName] = el;
-                  }}
-                  role="gridcell"
-                  aria-colindex={fileColIdx + 1}
-                  aria-selected={isSelected}
-                  aria-label={squareLabel(squareName, piece, {
-                    selected: isSelected,
-                    legalDestination: legalDestinations.includes(squareName),
-                    threat: primaryThreat?.label,
-                  })}
-                  tabIndex={squareName === focusedSquare ? 0 : -1}
-                  onFocus={(e) => {
-                    setFocusedSquare(squareName);
-                    if (pointerInteraction.current) e.currentTarget.blur(); // focus from the mouse: not the keyboard
-                  }}
-                  title={
-                    isHeatmapActive && heatmap
-                      ? heatmapSquareTitle(
-                          squareName,
-                          effectiveHeatmapMode as Exclude<HeatmapMode, 'none'>,
-                          heatmap.squares[squareName]
-                        )
-                      : undefined
-                  }
-                  className={`relative flex items-center justify-center cursor-pointer transition-colors duration-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-indigo-500 ${
-                    isSelected ? 'bg-amber-300/85 ring-2 ring-inset ring-amber-500' : squareBg
-                  } ${drag && drag.over === squareName && drag.from !== squareName ? 'ring-4 ring-inset ring-white/60' : ''}`}
-                  onClick={() => {
-                    if (!consumeClick()) onSquareClick?.(squareName);
-                  }}
-                  onMouseDown={(e) => drawing.onSquareMouseDown(squareName, e)}
-                  onMouseEnter={() => drawing.onSquareMouseEnter(squareName)}
-                  onMouseUp={(e) => drawing.onSquareMouseUp(squareName, e)}
-                >
-                  {/* King in check red ring */}
-                  {checkSquare === squareName && (
-                    <div className="absolute inset-0 bg-rose-500/40 rounded-sm animate-pulse z-0" />
-                  )}
-
-                  {/* Heatmap space control overlay */}
-                  {isHeatmapActive && heatmap && (
-                    <HeatmapSquareOverlay
-                      ctrl={heatmap.squares[squareName]}
-                      mode={effectiveHeatmapMode as Exclude<HeatmapMode, 'none'>}
-                    />
-                  )}
-
-                  {/* User custom highlight circle (right-click toggle) */}
-                  {drawing.userHighlights.includes(squareName) && (
-                    <div className="absolute inset-1 rounded-full border-3 sm:border-4 border-emerald-400/90 bg-emerald-400/25 pointer-events-none z-10 shadow-sm" />
-                  )}
-
-                  {/* Best move destination indicator (dashed circle) */}
-                  {bestMove && bestMove.to === squareName && (
-                    <div
-                      className={`absolute inset-1.5 rounded-full border-2 border-dashed ${
-                        isPlayedMoveOptimal ? 'border-cyan-400/90' : 'border-emerald-400/90'
-                      } pointer-events-none z-10`}
-                    />
-                  )}
-
-                  {/* Legal move dots & capture rings (sandbox / interactive mode) */}
-                  {legalDestinations.includes(squareName) && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-15">
-                      {piece ? (
-                        <div className="w-[82%] h-[82%] rounded-full border-4 border-slate-900/40 ring-2 ring-amber-400/70" />
-                      ) : (
-                        <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-slate-900/35 ring-1 ring-white/30 shadow-sm" />
-                      )}
-                    </div>
-                  )}
-
-                  {/* Tactical target crosshair + badge (top-right) */}
-                  {primaryThreat && <ThreatTarget hasHighThreat={Boolean(hasHighThreat)} />}
-                  {primaryThreat && (
-                    <ThreatBadge
-                      threat={primaryThreat}
-                      onToggle={() =>
-                        setHoveredThreat((prev) =>
-                          prev?.threat.id === primaryThreat.id
-                            ? null
-                            : { threat: primaryThreat, fileColIdx, rankRowIdx }
-                        )
-                      }
-                      onHover={() => setHoveredThreat({ threat: primaryThreat, fileColIdx, rankRowIdx })}
-                      onLeave={() => setHoveredThreat(null)}
-                    />
-                  )}
-
-                  {/* Rank notation (left edge) and file notation (bottom edge) */}
-                  {file === files[0] && (
-                    <span
-                      aria-hidden="true"
-                      className={`absolute top-0.5 left-1 text-[10px] font-bold pointer-events-none select-none ${coordTextColor}`}
-                    >
-                      {rank}
-                    </span>
-                  )}
-                  {rank === ranks[7] && (
-                    <span
-                      aria-hidden="true"
-                      className={`absolute bottom-0.5 right-1 text-[10px] font-bold pointer-events-none select-none ${coordTextColor}`}
-                    >
-                      {file}
-                    </span>
-                  )}
-
-                  {/* A captured piece fades out under the piece that took it */}
-                  {vanishedPiece && (
-                    <div
-                      aria-hidden="true"
-                      className="absolute inset-0 flex items-center justify-center pointer-events-none z-[5]"
-                    >
-                      <div key={`vanish-${track.id}`} className="w-[84%] h-[84%] animate-piece-vanish">
-                        <ChessPiece type={vanishedPiece.type} color={vanishedPiece.color} />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Chess piece (draggable for free exploration & click-to-move). Only the pieces that
-                      move or come back are re-created for the animation, not the 32 of them at each step. */}
-                  {piece && (
-                    <div
-                      key={slideFrom || hasReappeared ? `step-${track.id}` : 'piece'}
-                      aria-hidden="true"
-                      {...(canDragPiece ? pieceHandlers(squareName, piece) : {})}
-                      className={`relative w-[84%] h-[84%] z-10 select-none ${
-                        canDragPiece
-                          ? 'cursor-grab active:cursor-grabbing hover:scale-105 transition-transform touch-none'
-                          : 'pointer-events-none'
-                      } ${drag?.from === squareName ? 'opacity-40' : 'opacity-100'} ${
-                        slideFrom ? 'animate-piece-slide' : hasReappeared ? 'animate-piece-appear' : ''
-                      }`}
-                      style={animationStyle}
-                    >
-                      <ChessPiece type={piece.type} color={piece.color} />
-                    </div>
-                  )}
-                </div>
+                  square={squareName}
+                  colIndex={fileColIdx}
+                  rowIndex={rankRowIdx}
+                  isLight={(fileIdx + rankIdx) % 2 === 0}
+                  pieceType={piece?.type ?? null}
+                  pieceColor={piece?.color ?? null}
+                  boardTheme={boardTheme}
+                  isLastMove={lastMove?.from === squareName || lastMove?.to === squareName}
+                  isSelected={selectedSquare === squareName}
+                  isLegalDestination={legalDestinations.has(squareName)}
+                  isFocusable={squareName === focusedSquare}
+                  isCheck={checkSquare === squareName}
+                  isUserHighlight={userHighlights.has(squareName)}
+                  isBestTarget={isBestTarget}
+                  isBestOptimal={isBestTarget && isPlayedMoveOptimal}
+                  isDragOver={drag?.over === squareName && drag.from !== squareName}
+                  isDragSource={drag?.from === squareName}
+                  primaryThreat={threats?.[0]}
+                  hasHighThreat={Boolean(threats?.some((t) => t.severity === 'high'))}
+                  heatmapMode={activeHeatmapMode}
+                  heatmapControl={heatmap?.squares[squareName]}
+                  rankLabel={file === files[0] ? String(rank) : null}
+                  fileLabel={rank === ranks[7] ? file : null}
+                  slideDx={slideFrom ? files.indexOf(slideFrom[0]) - fileColIdx : null}
+                  slideDy={slideFrom ? ranks.indexOf(parseInt(slideFrom[1], 10)) - rankRowIdx : null}
+                  vanished={vanishedPiece}
+                  reappeared={hasReappeared}
+                  stepId={slideFrom || vanishedPiece || hasReappeared ? track.id : 0}
+                  registerCell={registerCell}
+                  onFocusSquare={onFocusSquare}
+                  onSquareClick={onSquareClickStable}
+                  onSquareMouseDown={onSquareMouseDown}
+                  onSquareMouseEnter={onSquareMouseEnter}
+                  onSquareMouseUp={onSquareMouseUp}
+                  pieceHandlers={pieceHandlers}
+                  setHoveredThreat={setHoveredThreat}
+                />
               );
             })}
           </div>
