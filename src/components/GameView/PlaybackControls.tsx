@@ -5,6 +5,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  OctagonPause,
   Pause,
   Play,
   RotateCcw,
@@ -20,6 +21,8 @@ interface PlaybackControlsProps {
   currentErrorIndex: number | null;
   hasPrevError: boolean;
   hasNextError: boolean;
+  /** Auto-play stops on the mistakes and blunders. */
+  pauseOnErrors: boolean;
   onStart: () => void;
   onPrev: () => void;
   onNext: () => void;
@@ -28,6 +31,7 @@ interface PlaybackControlsProps {
   onChangeSpeed: (speed: PlaybackSpeed) => void;
   onPrevError: () => void;
   onNextError: () => void;
+  onTogglePauseOnErrors: () => void;
   onFlip: () => void;
 }
 
@@ -53,6 +57,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   currentErrorIndex,
   hasPrevError,
   hasNextError,
+  pauseOnErrors,
   onStart,
   onPrev,
   onNext,
@@ -61,6 +66,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   onChangeSpeed,
   onPrevError,
   onNextError,
+  onTogglePauseOnErrors,
   onFlip,
 }) => {
   const atEnd = currentPly >= totalMoves - 1;
@@ -166,6 +172,24 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           >
             <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+          </button>
+
+          <button
+            onClick={onTogglePauseOnErrors}
+            aria-pressed={pauseOnErrors}
+            className={`p-1.5 rounded-md border transition-colors cursor-pointer ${
+              pauseOnErrors
+                ? 'bg-amber-500/25 text-amber-200 border-amber-500/50'
+                : 'bg-transparent text-slate-400 border-slate-700 hover:text-slate-200'
+            }`}
+            aria-label="Pause de la lecture automatique sur les erreurs"
+            title={
+              pauseOnErrors
+                ? 'La lecture automatique s’arrête sur les erreurs et les gaffes (cliquer pour désactiver)'
+                : 'La lecture automatique ne s’arrête pas sur les erreurs (cliquer pour activer)'
+            }
+          >
+            <OctagonPause className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

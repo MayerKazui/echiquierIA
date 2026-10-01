@@ -13,7 +13,7 @@ import { usePlayback } from './hooks/usePlayback';
 import { useMoveSound } from './hooks/useMoveSound';
 import { useGamePosition } from './hooks/useGamePosition';
 import { useMoveAnnotations } from './hooks/useMoveAnnotations';
-import { useCriticalMoments } from './hooks/useCriticalMoments';
+import { isPauseWorthy, useCriticalMoments } from './hooks/useCriticalMoments';
 import { useSandbox } from './hooks/useSandbox';
 import { useLichessImport } from './hooks/useLichessImport';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -90,8 +90,17 @@ export default function App() {
   const totalMoves = moves?.length ?? 0;
   const lastPly = Math.max(0, totalMoves - 1);
 
-  const { currentPly, setCurrentPly, isPlaying, setIsPlaying, playbackSpeed, setPlaybackSpeed } =
-    usePlayback(totalMoves);
+  // Auto-play stops on the mistakes and blunders (a setting, on by default)
+  const [pauseOnErrors, setPauseOnErrors] = usePersistentState<boolean>('chess_pause_on_errors', true, (raw) =>
+    raw === 'true' ? true : raw === 'false' ? false : undefined
+  );
+  const { currentPly, setCurrentPly, isPlaying, setIsPlaying, playbackSpeed, setPlaybackSpeed } = usePlayback(
+    totalMoves,
+    {
+      pauseAt: pauseOnErrors ? (ply) => isPauseWorthy(moves?.[ply]) : undefined,
+      onPaused: (ply) => announce(`Lecture en pause. ${describeMove(moves?.[ply] ?? null, totalMoves)}`),
+    }
+  );
   const { isMuted, toggleSound } = useMoveSound(moves, currentPly);
   const { activeMove, previousMove, currentFen, alternativeFen } = useGamePosition(analysis, currentPly);
   const { criticalPlies, prevErrorPly, nextErrorPly, currentErrorIndex } = useCriticalMoments(moves, currentPly);
@@ -163,6 +172,14 @@ export default function App() {
   const toggleSoundAnnounced = () => {
     announce(isMuted ? 'Son activé' : 'Son coupé');
     toggleSound();
+  };
+  const togglePauseOnErrors = () => {
+    announce(
+      pauseOnErrors
+        ? 'La lecture automatique ne s’arrête plus sur les erreurs'
+        : 'La lecture automatique s’arrête sur les erreurs'
+    );
+    setPauseOnErrors(!pauseOnErrors);
   };
   const togglePlay = () => {
     announce(isPlaying ? `Pause, ${describeMove(activeMove, totalMoves)}` : 'Lecture automatique');
@@ -379,6 +396,7 @@ export default function App() {
       currentErrorIndex={currentErrorIndex}
       hasPrevError={prevErrorPly !== null}
       hasNextError={nextErrorPly !== null}
+      pauseOnErrors={pauseOnErrors}
       onStart={() => goToPly(0)}
       onPrev={() => goToPly((p) => Math.max(0, p - 1))}
       onNext={() => goToPly((p) => Math.min(lastPly, p + 1))}
@@ -387,6 +405,7 @@ export default function App() {
       onChangeSpeed={setPlaybackSpeed}
       onPrevError={() => prevErrorPly !== null && goToPly(prevErrorPly)}
       onNextError={() => nextErrorPly !== null && goToPly(nextErrorPly)}
+      onTogglePauseOnErrors={togglePauseOnErrors}
       onFlip={flipBoard}
     />
   );

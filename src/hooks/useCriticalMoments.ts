@@ -1,7 +1,14 @@
 import { useMemo } from 'react';
-import { MoveAnalysis } from '../types/chess';
+import { MoveAnalysis, MoveClassification } from '../types/chess';
 
 const CRITICAL_CLASSIFICATIONS = ['inaccuracy', 'mistake', 'blunder', 'missedWin'];
+
+/** Auto-play stops on these: the mistakes worth a look, not the mere inaccuracies (it would stop all the time). */
+const PAUSE_CLASSIFICATIONS: readonly MoveClassification[] = ['mistake', 'blunder', 'missedWin'];
+
+export function isPauseWorthy(move: MoveAnalysis | undefined): boolean {
+  return Boolean(move && PAUSE_CLASSIFICATIONS.includes(move.classification));
+}
 
 /** Plies of the inaccuracies / mistakes / blunders, with the previous and next one around `currentPly`. */
 export function useCriticalMoments(moves: MoveAnalysis[] | undefined, currentPly: number) {
