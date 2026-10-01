@@ -1,5 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { StockfishService, defaultWorkerCount, searchTimeLimitMs } from './stockfishEngine';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { loadOpeningsFromDisk } from '../test/openings';
+import { ensureOpeningBookLoaded } from './openingBook';
+import {
+  PARTIAL_INTERVAL_MS,
+  StockfishService,
+  defaultWorkerCount,
+  isAbortError,
+  searchTimeLimitMs,
+  type GameAnalysisOutput,
+} from './stockfishEngine';
 
 // Positions outside of the opening book and not game over
 const FEN_A = 'r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1';
@@ -21,7 +30,8 @@ class FakeWorker {
   constructor(
     readonly script: string,
     private readonly behavior: {
-      searchMs: number;
+      /** Duration of a search; a function gets the index of the search (0 for the first one). */
+      searchMs: number | ((searchIndex: number) => number);
       /** Moves reported by successive searches (cycled). */
       bestMoves: string[];
       /** When true the worker never finishes a search on its own and only answers `stop`. */
@@ -38,11 +48,14 @@ class FakeWorker {
     this.sent.push(command);
     if (command.startsWith('go depth')) {
       const depth = Number(command.split(' ')[2]);
-      const move = this.behavior.bestMoves[this.counter.searches++ % this.behavior.bestMoves.length];
+      const searchIndex = this.counter.searches++;
+      const move = this.behavior.bestMoves[searchIndex % this.behavior.bestMoves.length];
+      const { searchMs } = this.behavior;
+      const duration = typeof searchMs === 'function' ? searchMs(searchIndex) : searchMs;
       this.searching = true;
       this.emit(`info depth ${Math.max(1, depth - 2)} score cp 30 pv ${move}`);
       if (!this.behavior.endless) {
-        this.pendingSearch = setTimeout(() => this.finish(depth, move), this.behavior.searchMs);
+        this.pendingSearch = setTimeout(() => this.finish(depth, move), duration);
       }
       this.currentMove = move;
     } else if (command === 'stop' && this.searching && this.behavior.answersStop !== false) {
@@ -445,5 +458,200 @@ describe('evaluatePosition', () => {
     service.destroy();
     expect(workers[0].terminated).toBe(true);
     expect(Number.isFinite((await queued).cp)).toBe(true);
+  });
+});
+
+describe('cancelling an evaluation', () => {
+  it('rejects at once, without searching, when the signal is already aborted', async () => {
+    const { service, workers } = setup({ workerCount: 1 });
+    const controller = new AbortController();
+    controller.abort();
+    const result = await service.evaluatePosition(FEN_A, 10, controller.signal).catch((e) => e);
+    expect(isAbortError(result)).toBe(true);
+    expect(searches(workers)).toBe(0);
+  });
+
+  it('drops a queued position: it never reaches a worker, the others carry on', async () => {
+    const { service, workers } = setup({ workerCount: 1 });
+    const controller = new AbortController();
+    const running = service.evaluatePosition(FEN_A, 10);
+    const queued = service.evaluatePosition(FEN_B, 10, controller.signal).catch((e) => e);
+    controller.abort();
+    expect(isAbortError(await queued)).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(500);
+    await expect(running).resolves.toMatchObject({ bestMoveUci: 'e2a6' });
+    expect(searches(workers)).toBe(1);
+  });
+
+  it('stops the search that is running, and the next position is not given its stale bestmove', async () => {
+    const { service, workers } = setup({ workerCount: 1 }, { bestMoves: ['a2a3', 'h2h3'] });
+    const controller = new AbortController();
+    const cancelled = service.evaluatePosition(FEN_A, 10, controller.signal).catch((e) => e);
+    const next = service.evaluatePosition(FEN_B, 10);
+    await vi.advanceTimersByTimeAsync(10); // the first search is under way
+    controller.abort();
+
+    expect(isAbortError(await cancelled)).toBe(true);
+    expect(workers[0].sent).toContain('stop');
+    expect(searches(workers)).toBe(1); // the worker is still finishing the interrupted search
+
+    await vi.advanceTimersByTimeAsync(500);
+    // The second search's own answer, not the 'a2a3' of the interrupted one
+    await expect(next).resolves.toMatchObject({ bestMoveUci: 'h2h3' });
+    expect(searches(workers)).toBe(2);
+  });
+
+  it('does not cache the result of a cancelled search', async () => {
+    const { service, workers } = setup({ workerCount: 1 });
+    const controller = new AbortController();
+    const cancelled = service.evaluatePosition(FEN_A, 10, controller.signal).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(10);
+    controller.abort();
+    await cancelled;
+    await vi.advanceTimersByTimeAsync(500);
+
+    const again = service.evaluatePosition(FEN_A, 10);
+    await vi.advanceTimersByTimeAsync(500);
+    await again;
+    expect(searches(workers)).toBe(2);
+  });
+
+  it('ignores an abort that comes after the answer', async () => {
+    const { service, workers } = setup({ workerCount: 1 });
+    const controller = new AbortController();
+    const evaluation = service.evaluatePosition(FEN_A, 10, controller.signal);
+    await vi.advanceTimersByTimeAsync(500);
+    await expect(evaluation).resolves.toMatchObject({ bestMoveUci: 'e2a6' });
+
+    controller.abort();
+    expect(workers[0].sent).not.toContain('stop');
+  });
+});
+
+describe('analyzeFullGame', () => {
+  // Unusual moves: most positions are outside the opening book, so they go to the workers
+  const PGN = '1. a3 a6 2. b3 b6 3. c3 c6 4. d3 d6 5. e3 e6 6. f3 f6 *';
+  const TOTAL_PLIES = 12;
+
+  beforeAll(async () => {
+    await ensureOpeningBookLoaded(loadOpeningsFromDisk);
+  });
+
+  /** Lets the fake workers answer: they take 100 ms per position. */
+  const run = (ms: number) => vi.advanceTimersByTimeAsync(ms);
+
+  it('returns every ply, reports its progress and keeps working without options', async () => {
+    const { service } = setup({ workerCount: 3 });
+    const progress: Array<[number, number]> = [];
+    const analysis = service.analyzeFullGame(PGN, 10, (done, total) => progress.push([done, total]));
+    await run(5000);
+    const result = await analysis;
+
+    expect(result.moves).toHaveLength(TOTAL_PLIES);
+    expect(result.moves.map((m) => m.ply)).toEqual([...Array(TOTAL_PLIES).keys()]);
+    expect(progress.at(-1)![0]).toBe(progress.at(-1)![1]);
+  });
+
+  it('sends the plies analysed so far, in order, and they match the final result', async () => {
+    const { service } = setup({ workerCount: 2 });
+    const partials: Array<{ output: GameAnalysisOutput; total: number }> = [];
+    const analysis = service.analyzeFullGame(PGN, 10, undefined, {
+      onPartial: (output, total) => partials.push({ output, total }),
+    });
+    await run(10_000);
+    const final = await analysis;
+
+    expect(partials.length).toBeGreaterThan(0);
+    let previous = 0;
+    for (const { output, total } of partials) {
+      expect(total).toBe(TOTAL_PLIES);
+      expect(output.moves.length).toBeGreaterThan(previous); // grows, never repeats
+      expect(output.moves.length).toBeLessThan(TOTAL_PLIES); // the complete game is the return value
+      expect(output.moves.map((m) => m.ply)).toEqual([...Array(output.moves.length).keys()]);
+      expect(output.moves).toEqual(final.moves.slice(0, output.moves.length));
+      expect(output.statsWhite.accuracy).toBeGreaterThan(0); // statistics cover the plies sent
+      previous = output.moves.length;
+    }
+  });
+
+  it('does not flood its caller: at most one partial result per interval', async () => {
+    const { service } = setup({ workerCount: 3 }, { searchMs: 5 });
+    const times: number[] = [];
+    const analysis = service.analyzeFullGame(PGN, 10, undefined, { onPartial: () => times.push(Date.now()) });
+    await run(5000);
+    await analysis;
+
+    for (let i = 1; i < times.length; i++) {
+      expect(times[i] - times[i - 1]).toBeGreaterThanOrEqual(PARTIAL_INTERVAL_MS);
+    }
+  });
+
+  it('delivers the latest partial result even when nothing else completes for a while', async () => {
+    // The first positions are answered at once, the last one takes 5 s: the plies that are ready
+    // must be sent after the throttling delay, not only when the last position completes.
+    const { service } = setup({ workerCount: 1 }, { searchMs: 5 });
+    const sizes: number[] = [];
+    const analysis = service.analyzeFullGame(PGN, 10, undefined, { onPartial: (o) => sizes.push(o.moves.length) });
+    await run(PARTIAL_INTERVAL_MS * 3);
+    await run(5000);
+    await analysis;
+    expect(sizes.length).toBeGreaterThan(0);
+  });
+
+  it('never sends the complete game as a partial result, even when every position takes a while', async () => {
+    const { service } = setup({ workerCount: 1 }, { searchMs: PARTIAL_INTERVAL_MS + 100 });
+    const sizes: number[] = [];
+    const analysis = service.analyzeFullGame(PGN, 10, undefined, { onPartial: (o) => sizes.push(o.moves.length) });
+    await run(60_000);
+    const final = await analysis;
+
+    expect(sizes.length).toBeGreaterThan(1);
+    expect(Math.max(...sizes)).toBeLessThan(final.moves.length);
+  });
+
+  it('sends the plies that became ready after the interval, without waiting for the next position', async () => {
+    // Searches take 100 ms, 50 ms, then very long: the second result arrives while the first partial result
+    // is still inside its throttling interval, and nothing completes for a long time afterwards
+    const { service } = setup({ workerCount: 1 }, { searchMs: (i) => (i === 0 ? 100 : i === 1 ? 50 : 20_000) });
+    const controller = new AbortController();
+    const sizes: number[] = [];
+    const analysis = service
+      .analyzeFullGame(PGN, 10, undefined, { signal: controller.signal, onPartial: (o) => sizes.push(o.moves.length) })
+      .catch(() => undefined);
+    await run(PARTIAL_INTERVAL_MS * 3);
+
+    expect(sizes.length).toBeGreaterThanOrEqual(2);
+    expect(sizes[1]).toBeGreaterThan(sizes[0]);
+    controller.abort();
+    await analysis;
+  });
+
+  it('rejects with an abort error when cancelled, stops the searches and stops reporting', async () => {
+    const { service, workers } = setup({ workerCount: 2 });
+    const controller = new AbortController();
+    const onPartial = vi.fn();
+    const analysis = service.analyzeFullGame(PGN, 10, undefined, { signal: controller.signal, onPartial });
+    const outcome = analysis.catch((e) => e);
+
+    await run(250); // some positions done, others running or waiting
+    controller.abort();
+    expect(isAbortError(await outcome)).toBe(true);
+
+    const partialsAtAbort = onPartial.mock.calls.length;
+    const searchesAtAbort = searches(workers);
+    await run(10_000);
+    expect(onPartial.mock.calls.length).toBe(partialsAtAbort);
+    expect(searches(workers)).toBe(searchesAtAbort); // the queue was emptied: nothing new starts
+    expect(workers.some((w) => w.sent.includes('stop'))).toBe(true);
+  });
+
+  it('rejects without searching when the signal is already aborted', async () => {
+    const { service, workers } = setup({ workerCount: 2 });
+    const controller = new AbortController();
+    controller.abort();
+    const outcome = await service.analyzeFullGame(PGN, 10, undefined, { signal: controller.signal }).catch((e) => e);
+    expect(isAbortError(outcome)).toBe(true);
+    expect(searches(workers)).toBe(0);
   });
 });
