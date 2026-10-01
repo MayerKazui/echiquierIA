@@ -1,6 +1,6 @@
 import { Chess } from 'chess.js';
 import type { GameAnalysisResult, MoveAnalysis } from '../types/chess';
-import { computePlayerStats, parseElo } from '../utils/moveAnalysis';
+import { computePlayerStats } from '../utils/moveAnalysis';
 
 /**
  * Analysed games kept in the browser (IndexedDB), so that reloading the page or analysing the same PGN again
@@ -100,14 +100,8 @@ function withFreshStats(game: StoredGame): StoredGame {
     result: {
       ...game.result,
       moves,
-      statsWhite: computePlayerStats(
-        moves.filter((m) => m.color === 'w'),
-        parseElo(game.result.metadata.whiteElo)
-      ),
-      statsBlack: computePlayerStats(
-        moves.filter((m) => m.color === 'b'),
-        parseElo(game.result.metadata.blackElo)
-      ),
+      statsWhite: computePlayerStats(moves.filter((m) => m.color === 'w')),
+      statsBlack: computePlayerStats(moves.filter((m) => m.color === 'b')),
     },
   };
 }

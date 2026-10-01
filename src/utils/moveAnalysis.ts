@@ -1,82 +1,65 @@
 import { MoveClassification, PlayerStats, MoveAnalysis } from '../types/chess';
 
-/** Rating of each side, when the PGN gives it. */
-export interface PlayerElos {
-  w?: number;
-  b?: number;
-}
-
-/** A rating from a PGN header ("1672"), or undefined when it is missing or not a positive number. */
-export function parseElo(value: string | number | undefined): number | undefined {
-  const elo = typeof value === 'number' ? value : parseInt(value ?? '', 10);
-  return Number.isFinite(elo) && elo > 0 ? elo : undefined;
-}
-
-const DEFAULT_ELO = 1500;
 const LICHESS_COEFFICIENT = 0.00368208;
-// Fitted on 14 players of 7 chess.com game reviews (Elo 100 to 1757): their curve is steeper than Lichess'
-// and gets slightly steeper as the rating grows (a strong player is held to a higher standard).
-const BASE_SLOPE = 1.5;
-const ELO_EXPONENT = 0.15;
-
-/** How much steeper than Lichess' curve the Win% is for a player of this rating (1500 when unknown). */
-export function eloSlope(elo?: number): number {
-  const clamped = Math.min(3000, Math.max(100, elo ?? DEFAULT_ELO));
-  return BASE_SLOPE * Math.pow(clamped / DEFAULT_ELO, ELO_EXPONENT);
-}
+// The three constants below were fitted on 66 public chess.com games (132 players, 160 to 3300 Elo) whose
+// accuracy is published by chess.com: see IMPROVEMENTS.md. Held-out error: 3.7 points on average.
+/** The curve is flatter than Lichess' (0.6 times its slope): a won position is worth less than it looks. */
+const WIN_CURVE_SLOPE = 0.6;
+/** The accuracy of a move decays 2.5 times faster with the Win% given away than in Lichess' formula. */
+const DECAY = 0.04354 * 2.5;
+/** A single move can pull the mean down only so far (a mate blunder is already one lost game). */
+const MOVE_FLOOR = 10;
 
 /**
- * Win probability (0-100) of White from a centipawn score (White's perspective), for a player of the given
- * rating. Lichess' logistic curve, made steeper (see `eloSlope`), with the score clamped to ±1000 cp. It is
- * the only curve of the app: the classification thresholds and the accuracy below are both calibrated on it.
+ * Win probability (0-100) of White from a centipawn score (White's perspective). Lichess' logistic curve,
+ * flattened (see `WIN_CURVE_SLOPE`), with the score clamped to ±1000 cp. It is the only curve of the app:
+ * the classification thresholds and the accuracy below are both calibrated on it.
  */
-export function calculateWinPercentage(cp: number, elo?: number): number {
+export function calculateWinPercentage(cp: number): number {
   const clampedCp = Math.max(-1000, Math.min(1000, cp));
-  return 50 + 50 * (2 / (1 + Math.exp(-LICHESS_COEFFICIENT * eloSlope(elo) * clampedCp)) - 1);
+  return 50 + 50 * (2 / (1 + Math.exp(-LICHESS_COEFFICIENT * WIN_CURVE_SLOPE * clampedCp)) - 1);
 }
 
 /**
- * Accuracy (0-100) of a single move from the Win% it gave away (Lichess formula, with its small
- * "uncertainty bonus"). Based on the win probability rather than on raw centipawns, so a blunder or a
- * mate score weighs at most "the whole game lost", never thousands of centipawns.
+ * Accuracy (0-100) of a single move from the Win% it gave away: Lichess' formula (with its small
+ * "uncertainty bonus"), decaying faster. Based on the win probability rather than on raw centipawns, so a
+ * blunder or a mate score weighs at most "the whole game lost", never thousands of centipawns.
  */
 export function accuracyFromWinDrop(winPctDrop: number): number {
-  const raw = 103.1668 * Math.exp(-0.04354 * Math.max(0, winPctDrop)) - 3.1669 + 1;
+  const raw = 103.1668 * Math.exp(-DECAY * Math.max(0, winPctDrop)) - 3.1669 + 1;
   return Math.min(100, Math.max(0, raw));
 }
 
 type EvaluatedMove = Pick<MoveAnalysis, 'color' | 'evalBefore' | 'evalAfter' | 'centipawnLoss'>;
 
-/** Accuracy of one analysed move, for a mover of the given rating; falls back to the centipawn loss without evaluations. */
-export function moveAccuracy(m: EvaluatedMove, elo?: number): number {
+/** Accuracy of one analysed move; falls back to its centipawn loss when evaluations are missing. */
+export function moveAccuracy(m: EvaluatedMove): number {
   if (typeof m.evalBefore === 'number' && typeof m.evalAfter === 'number') {
-    const before = calculateWinPercentage(m.evalBefore, elo);
-    const after = calculateWinPercentage(m.evalAfter, elo);
+    const before = calculateWinPercentage(m.evalBefore);
+    const after = calculateWinPercentage(m.evalAfter);
     return accuracyFromWinDrop(m.color === 'w' ? before - after : after - before);
   }
-  return accuracyFromWinDrop(calculateWinPercentage(m.centipawnLoss, elo) - 50);
+  return accuracyFromWinDrop(calculateWinPercentage(m.centipawnLoss) - 50);
 }
 
-/** A single move can pull the harmonic mean down only so far (a mate blunder is already one lost game). */
-const HARMONIC_FLOOR = 5;
-
 /**
- * Accuracy (0-100, one decimal) of a set of moves of one player: the harmonic mean of the per-move accuracies.
- * Unlike a plain average it does not hide an isolated blunder among many good moves. Of the aggregations tried
- * (plain, volatility-weighted as on Lichess, harmonic, and mixes) it was the closest to chess.com's figures.
+ * Accuracy (0-100, one decimal) of a set of moves of one player: the geometric mean of the per-move accuracies
+ * (each at least `MOVE_FLOOR`). Unlike a plain average it does not hide an isolated blunder among many good
+ * moves, and unlike a harmonic mean it is not dominated by it. Of the aggregations tried (arithmetic,
+ * volatility-weighted as on Lichess, harmonic, power means) it was the simplest of those closest to chess.com.
  */
-export function accuracyFromMoves(moves: MoveAnalysis[], elo?: number): number {
+export function accuracyFromMoves(moves: MoveAnalysis[]): number {
   if (moves.length === 0) return 100;
-  const inverseSum = moves.reduce((sum, m) => sum + 1 / Math.max(moveAccuracy(m, elo), HARMONIC_FLOOR), 0);
-  return Math.round((moves.length / inverseSum) * 10) / 10;
+  const logSum = moves.reduce((sum, m) => sum + Math.log(Math.max(moveAccuracy(m), MOVE_FLOOR)), 0);
+  return Math.round(Math.exp(logSum / moves.length) * 10) / 10;
 }
 
 /**
  * Win% (0-100 points) a move may give away for each class: chess.com's expected-points limits (0.02, 0.05,
- * 0.10, 0.20), lowered by a fifth so that the moves counted as inaccuracies, mistakes and blunders over the
- * 14 reference players come close to chess.com's counts (126 against 136; with its own limits: 111).
+ * 0.10, 0.20) scaled by 0.6, so that on the flat curve above the moves counted as inaccuracies, mistakes and
+ * blunders over 14 chess.com reference players come close to chess.com's counts (132 against 136).
  */
-export const CLASS_LIMITS = { best: 0.5, excellent: 1.5, good: 4, inaccuracy: 8, mistake: 16 } as const;
+export const CLASS_LIMITS = { best: 0.3, excellent: 1.2, good: 3, inaccuracy: 6, mistake: 12 } as const;
 
 /** Classifies a move from the Win% it gave away (from the mover's point of view, in points). */
 export function classifyMove(
@@ -106,9 +89,9 @@ export function classifyMove(
 }
 
 /**
- * Aggregates the moves of one player into the statistics shown in the dashboard. `elo` is the player's rating, if known.
+ * Aggregates the moves of one player into the statistics shown in the dashboard.
  */
-export function computePlayerStats(playerMoves: MoveAnalysis[], elo?: number): PlayerStats {
+export function computePlayerStats(playerMoves: MoveAnalysis[]): PlayerStats {
   let book = 0;
   let brilliant = 0;
   let great = 0;
@@ -182,7 +165,7 @@ export function computePlayerStats(playerMoves: MoveAnalysis[], elo?: number): P
   const longThinksCount = playerMoves.filter((m) => m.isLongThink).length;
   const rushedMovesCount = playerMoves.filter((m) => m.isRushed).length;
 
-  const accuracy = accuracyFromMoves(playerMoves, elo);
+  const accuracy = accuracyFromMoves(playerMoves);
 
   return {
     accuracy,

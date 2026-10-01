@@ -57,17 +57,6 @@ describe('computePhaseStats', () => {
     expect(endgame.totalMoves).toBe(0);
   });
 
-  it("takes each player's rating into account", () => {
-    const moves = [
-      { ...move(1, 'w', 'good', 0), evalBefore: 100, evalAfter: -50 },
-      { ...move(1, 'b', 'good', 0), evalBefore: -50, evalAfter: 100 },
-    ];
-    const rated = computePhaseStats(moves, { w: 2500, b: 400 }).opening;
-    expect(rated.whiteAccuracy!).toBeLessThan(rated.blackAccuracy!); // same slip, harsher for the 2500
-    expect(rated.whiteAccuracy).toBe(accuracyFromMoves([moves[0]], 2500));
-    expect(rated.blackAccuracy).toBe(accuracyFromMoves([moves[1]], 400));
-  });
-
   it('matches the overall accuracy formula', () => {
     const moves = [
       { ...move(1, 'w', 'good', 0), evalBefore: 0, evalAfter: 0 },

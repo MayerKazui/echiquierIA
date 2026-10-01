@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { BookOpen, Check, Share2 } from 'lucide-react';
 import { GameAnalysisResult } from '../../types/chess';
-import { parseElo } from '../../utils/moveAnalysis';
 import { computePhaseStats } from '../../utils/phaseStats';
 import { buildGameSummary } from '../../utils/gameSummary';
 import { PlayerRadarChart } from './PlayerRadarChart';
@@ -21,10 +20,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ analysis, userPseudo = '',
   const { metadata, moves, statsWhite, statsBlack } = analysis;
 
   const [copiedSummary, setCopiedSummary] = useState(false);
-  const phaseStats = useMemo(
-    () => computePhaseStats(moves, { w: parseElo(metadata.whiteElo), b: parseElo(metadata.blackElo) }),
-    [moves, metadata.whiteElo, metadata.blackElo]
-  );
+  const phaseStats = useMemo(() => computePhaseStats(moves), [moves]);
 
   const handleCopySummary = () => {
     navigator.clipboard.writeText(buildGameSummary(analysis, phaseStats));
