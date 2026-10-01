@@ -6,7 +6,7 @@ Ce fichier suit ce qui reste à faire. `IMPROVEMENTS.md` garde l'historique de c
 
 Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait
 
-Ordre conseillé : **4 → 1 → 2**, puis 3, 5 et 6. L'import et l'analyse en lot (4) alimentent le profil (1), qui alimente l'entraînement (2).
+Ordre conseillé : **1 → 2** (le point 4 est fait), puis 3, 5 et 6. L'import et l'analyse en lot (4) alimentent le profil (1), qui alimente l'entraînement (2).
 
 ## A. Outil d'entraînement (priorité)
 
@@ -37,7 +37,7 @@ Une vue « Mon profil » qui agrège les parties enregistrées : « qu'est-ce qu
 
 - [x] **Import chess.com et Lichess** par pseudo (appels directs du navigateur), filtre de cadence, parties plus anciennes à la demande : voir `IMPROVEMENTS.md`.
 - [ ] Import : repère « déjà analysée » dans la liste, filtre par mois, et la précision que chess.com publie pour ses parties relues (`accuracies`), à comparer à la nôtre.
-- [ ] **« Analyser mes N dernières parties »** en tâche de fond, avec reprise si l'onglet est fermé. Sans cela le profil (1) reste théorique.
+- [x] **« Analyser mes N dernières parties »** (5, 10 ou 20) en tâche de fond, avec reprise si l'onglet est fermé : voir `IMPROVEMENTS.md`. Limite : l'historique garde 20 parties (à lever pour le profil, point 1).
 
 ### 5. Retour plus actionnable pour chaque partie
 

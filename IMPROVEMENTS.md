@@ -241,7 +241,7 @@ Deux limites notées à la section 12.
 
 ## Import des parties chess.com et Lichess — fait
 
-Premier point de `ROADMAP.md` (partie B, point 4) : récupérer ses parties sans copier-coller. Reste à faire dans ce point : l'analyse en lot (« mes N dernières parties »).
+Premier point de `ROADMAP.md` (partie B, point 4) : récupérer ses parties sans copier-coller. L'analyse en lot (« mes N dernières parties ») est décrite dans la section suivante.
 
 - [x] **Le navigateur appelle directement les API publiques** (`src/services/gameImport.ts`). Vérifié avec `curl` : chess.com (`/pub/player/{pseudo}/games/…`) et Lichess (`/api/games/user/{pseudo}`) répondent avec `Access-Control-Allow-Origin: *`. Pas d'endpoint serveur, donc rien à protéger ni à limiter chez nous, et l'import marche aussi sur GitHub Pages (où il n'y a pas de serveur).
 - [x] **Écran d'import** (`components/PgnInput/OnlineGames.tsx`, en tête du formulaire « Importer et Analyser ») : site (chess.com / Lichess), pseudo, cadence (Bullet, Blitz, Rapide, Classique pour Lichess, Quotidienne / Correspondance), « Chercher ». Une ligne par partie : adversaire et classement, issue (Victoire / Défaite / Nulle, en texte et en couleur), couleur jouée, cadence, nombre de coups, date. Cliquer une partie met son PGN dans le formulaire (la partie reste marquée tant que le PGN n'est pas modifié), puis la carte défile jusqu'au bouton « Lancer l'Analyse ». « Voir des parties plus anciennes » charge la page suivante.
@@ -255,8 +255,26 @@ Premier point de `ROADMAP.md` (partie B, point 4) : récupérer ses parties sans
 - **Limites** :
   - Dans le bac à sable de test, le navigateur ne fait pas confiance au certificat du proxy de sortie : les appels aux deux sites y ont été relayés par Node (même données réelles, vérification TLS conservée), si bien que l'autorisation inter-origines a été vérifiée par les en-têtes de réponse (`curl`) et non par une vraie requête inter-origines du navigateur.
   - La limite de Lichess (une requête à la fois) a fait échouer une recherche lors d'un essai à répétition ; le message d'erreur de l'appli n'a pas été relevé à ce moment-là (il est couvert par les tests, pas observé dans le navigateur).
-  - Pas encore : analyse en lot, repère « déjà analysée » dans la liste.
+  - Pas encore : repère « déjà analysée » dans la liste.
   - chess.com publie la **précision de chaque camp** (`accuracies`) pour les parties qu'il a relues : non utilisée ici, mais c'est la même source que celle du calage.
+
+## Analyse en lot des N dernières parties — fait
+
+Deuxième moitié du point 4 de `ROADMAP.md` : analyser d'un coup ses 5, 10 ou 20 dernières parties, sans rester devant l'écran, pour alimenter ensuite le profil de faiblesses.
+
+- [x] **Écran d'import** (`OnlineGames.tsx`) : « Analyser les [5 | 10 | 20] dernières parties » et le bouton « Analyser N partie(s) » (le choix est retenu, `chess_batch_size`). La profondeur est celle du formulaire. Le formulaire se ferme et l'analyse continue derrière.
+- [x] **File persistante** (`services/batchAnalysis.ts`) : la file est écrite dans `localStorage` (`chess_batch_analysis`) à chaque partie terminée. Dans l'ordre : la plus ancienne d'abord (la plus récente est celle qu'on voudra voir en dernier à l'écran), une à la fois, 20 au plus (le plafond de l'historique). Une partie qui échoue est notée et la file continue ; une partie déjà enregistrée à une profondeur suffisante est sautée. Un contenu invalide dans `localStorage` est ignoré sans erreur.
+- [x] **Reprise** : si l'onglet est fermé, la file est proposée à la visite suivante (« Une analyse en lot a été interrompue : 3 parties restantes sur 5 ») avec Reprendre / Abandonner. Elle ne repart **jamais seule** : le moteur ne se met pas à tourner sans que le joueur le demande.
+- [x] **Cède la place à l'analyse manuelle** (`hooks/useBatchAnalysis.ts`) : si le joueur lance sa propre analyse, celle du lot s'interrompt (la partie en cours sera refaite) et reprend toute seule à la fin. Le hook abandonne tout à la fermeture de la page.
+- [x] **Bandeau** (`AppHeader/BatchAnalysisBanner.tsx`) : « partie X sur N · contre … » avec barre de progression, Annuler ; états en pause, interrompu, terminé (« 5 parties analysées. Elles sont dans « Mes parties ». »).
+- [x] `useGameAnalysis` : le calcul du résultat (`buildGameResult`, `detectUserColor`) est sorti dans `services/gameResult.ts` pour que les deux analyses produisent exactement le même résultat enregistré.
+- Tests : 23 pour le service, 14 pour le hook, ceux du bandeau, et des ajouts pour l'écran d'import et le formulaire (623 tests au total). **18 défauts réintroduits** sur le service, le hook et la liste : 17 détectés, 1 équivalent (reprendre une file terminée ne fait rien).
+- Vérifié dans Chrome (Playwright, parties du compte de test servies depuis des réponses chess.com enregistrées, profondeur 10) : lot de 5 lancé, bandeau « partie 1 sur 5 » puis « partie 3 sur 5 », rechargement de la page → « 3 parties restantes sur 5 » sans que rien ne redémarre, Reprendre → « 5 parties analysées », file effacée, 5 parties enregistrées avec la bonne couleur. L'état « en pause pendant une analyse manuelle » n'est couvert que par les tests du hook, pas observé dans le navigateur.
+- **Limites** :
+  - Plafond de 20 parties de l'historique : un lot de 20 remplace les plus anciennes parties déjà enregistrées. Le lever (en ne gardant que les statistiques par coup des anciennes parties) est un prérequis du profil de faiblesses.
+  - Le bandeau ne nomme que l'adversaire ; pas de repère « déjà analysée » dans la liste d'import.
+  - Les parties déjà enregistrées gardent leurs anciens libellés de coups tant qu'elles ne sont pas réanalysées.
+  - Il faut garder l'onglet ouvert : un onglet en arrière-plan peut être ralenti par le navigateur.
 
 ## Ordre suggéré
 
