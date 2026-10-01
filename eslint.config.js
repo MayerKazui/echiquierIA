@@ -15,7 +15,7 @@ Module._resolveFilename = function (request, ...args) {
 const { default: tseslint } = await import('typescript-eslint');
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'coverage', 'public'] },
+  { ignores: ['dist', 'server.js', 'node_modules', 'coverage', 'public'] },
   js.configs.recommended,
   tseslint.configs.recommended,
   {
