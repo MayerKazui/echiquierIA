@@ -1,6 +1,6 @@
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearCards, loadCards, saveCard } from './trainingStore';
+import { clearCards, loadCards, mergeCards, saveCard } from './trainingStore';
 import type { Card } from '../utils/spacedRepetition';
 
 const card = (id: string, over: Partial<Card> = {}): Card => ({
@@ -98,5 +98,60 @@ describe('trainingStore', () => {
     it('forgets nothing, without throwing', async () => {
       await expect(clearCards()).resolves.toBeUndefined();
     });
+  });
+});
+
+describe('mergeCards', () => {
+  it('adds the cards that are not there', async () => {
+    expect(await mergeCards([card('a'), card('b')])).toEqual({ added: 2, replaced: 0, kept: 0 });
+    expect([...(await loadCards()).keys()].sort()).toEqual(['a', 'b']);
+  });
+
+  it('keeps the card that was worked on last', async () => {
+    await saveCard(card('a', { lastSeen: 100, level: 2 }));
+    await saveCard(card('b', { lastSeen: 100, level: 2 }));
+    const report = await mergeCards([card('a', { lastSeen: 200, level: 3 }), card('b', { lastSeen: 50, level: 0 })]);
+    expect(report).toEqual({ added: 0, replaced: 1, kept: 1 });
+    const cards = await loadCards();
+    expect(cards.get('a')?.level).toBe(3);
+    expect(cards.get('b')?.level).toBe(2);
+  });
+
+  it('at the same time, keeps the card with the most attempts', async () => {
+    await saveCard(card('a', { lastSeen: 100, attempts: 2, level: 1 }));
+    expect(await mergeCards([card('a', { lastSeen: 100, attempts: 3, level: 2 })])).toMatchObject({ replaced: 1 });
+    expect((await loadCards()).get('a')?.level).toBe(2);
+    expect(await mergeCards([card('a', { lastSeen: 100, attempts: 3, level: 0 })])).toMatchObject({
+      replaced: 0,
+      kept: 1,
+    });
+    expect((await loadCards()).get('a')?.level).toBe(2);
+  });
+
+  it('counts a card that is twice in the list once, the one worked on last', async () => {
+    const report = await mergeCards([card('a', { lastSeen: 10, level: 1 }), card('a', { lastSeen: 20, level: 2 })]);
+    expect(report).toEqual({ added: 1, replaced: 0, kept: 0 });
+    expect((await loadCards()).get('a')?.level).toBe(2);
+  });
+
+  it('ignores what is not a card', async () => {
+    const report = await mergeCards([card('a'), { id: 'b' } as Card, { ...card('c'), level: NaN }]);
+    expect(report).toEqual({ added: 1, replaced: 0, kept: 0 });
+  });
+
+  it('works with nothing to add', async () => {
+    expect(await mergeCards([])).toEqual({ added: 0, replaced: 0, kept: 0 });
+  });
+
+  it('keeps a mastered position mastered through a round trip (its date is a finite number)', async () => {
+    const mastered = card('m', { level: 4, dueAt: Number.MAX_SAFE_INTEGER });
+    const copy = JSON.parse(JSON.stringify(mastered)) as Card;
+    await mergeCards([copy]);
+    expect((await loadCards()).get('m')?.dueAt).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it('resolves with null when the storage is unavailable', async () => {
+    Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true, writable: true });
+    expect(await mergeCards([card('a')])).toBeNull();
   });
 });

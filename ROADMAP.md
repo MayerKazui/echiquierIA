@@ -6,7 +6,7 @@ Ce fichier suit ce qui reste à faire. `IMPROVEMENTS.md` garde l'historique de c
 
 Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait
 
-Ordre conseillé : **3**, puis 5 et 6 (les points 4, 1 et 2 sont faits). L'import et l'analyse en lot (4) alimentent le profil (1), qui alimente l'entraînement (2).
+Ordre conseillé : le point 3, puis 5 (les points 1, 2, 4 et 6 sont faits). L'import et l'analyse en lot (4) alimentent le profil (1), qui alimente l'entraînement (2).
 
 ## A. Outil d'entraînement (priorité)
 
@@ -49,9 +49,9 @@ Une vue « Mon profil » qui agrège les parties enregistrées : « qu'est-ce qu
 
 ### 6. Confort au quotidien
 
-- [ ] **Export et import des données** (JSON) : tout est dans le navigateur, un vidage de cache efface l'historique.
-- [ ] **PWA installable et utilisable hors ligne** (service worker ; le moteur tourne déjà dans le navigateur).
-- [ ] **Noms d'ouverture en français** (aujourd'hui en anglais, ~3 800 noms).
+- [x] **Export et import des données** (JSON) : voir `IMPROVEMENTS.md`.
+- [x] **PWA installable et utilisable hors ligne** : voir `IMPROVEMENTS.md`.
+- [x] **Noms d'ouverture en français** (~3 800 noms, à l'affichage).
 
 ## C. Fiabilité de l'analyse
 

@@ -17,6 +17,7 @@ import { MoveAnalysis } from '../../types/chess';
 import { formatPvToFrench, frenchifyMoveText, toFrenchSan } from '../../utils/chessNotation';
 import { apiUrl } from '../../utils/siteUrl';
 import { TacticalThreat } from '../../utils/tacticalThreats';
+import { toFrenchOpeningName } from '../../utils/openingNames';
 
 /**
  * Splits and formats raw plan text into clean individual actionable steps.
@@ -131,7 +132,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
         return {
           label:
             currentMove.openingName || openingName
-              ? `Coup théorique (${currentMove.openingName || openingName})`
+              ? `Coup théorique (${toFrenchOpeningName(currentMove.openingName || openingName || '')})`
               : 'Coup théorique (Livre)',
           icon: <BookOpen className="w-4 h-4 text-violet-300" />,
           color: 'text-violet-300 bg-violet-500/10 border-violet-500/30',

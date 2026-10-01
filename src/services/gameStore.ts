@@ -69,7 +69,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 /** Cheap structural check: stored data can come from an older or damaged version of the app. */
-function isStoredGame(value: unknown): value is StoredGame {
+export function isStoredGame(value: unknown): value is StoredGame {
   if (!isObject(value) || value.schemaVersion !== SCHEMA_VERSION) return false;
   if (typeof value.id !== 'string' || typeof value.pgn !== 'string') return false;
   if (typeof value.depth !== 'number' || typeof value.savedAt !== 'number') return false;
@@ -181,8 +181,12 @@ async function inTransaction<T>(
   }
 }
 
-/** Reduces to a summary the games that are older than the `keepFull` most recent ones, then calls `done`. */
-function compactOld(store: IDBObjectStore, keepFull: number, done: () => void): void {
+/**
+ * Reduces to a summary the games that are older than the `keepFull` most recent ones, then calls `done`. After a
+ * `saveGame` the games beyond the recent ones are already summaries from the first one on (`isSorted`), so the
+ * walk stops there; after a bulk write nothing is known of the order, and the walk goes to the end.
+ */
+function compactOld(store: IDBObjectStore, keepFull: number, done: () => void, isSorted = true): void {
   const request = store.index(SAVED_AT_INDEX).openCursor(null, 'prev');
   let skipped = false;
   request.onsuccess = () => {
@@ -195,8 +199,11 @@ function compactOld(store: IDBObjectStore, keepFull: number, done: () => void): 
     }
     // Every write goes through `saveGame`, so what is beyond the recent ones is already a summary from the first
     // summary on: there is no need to read the whole history at each save
-    if (!isStoredGame(cursor.value) || !isFullGame(cursor.value)) return done();
-    cursor.update(toSummary(cursor.value));
+    if (!isStoredGame(cursor.value) || !isFullGame(cursor.value)) {
+      if (isSorted) return done();
+    } else {
+      cursor.update(toSummary(cursor.value));
+    }
     cursor.continue();
   };
 }
@@ -338,6 +345,101 @@ export async function listGameIds(): Promise<Set<string>> {
   } catch (err) {
     console.warn('Could not list the analysed games:', err);
     return new Set();
+  }
+}
+
+/** Every stored game as it is kept (nothing recomputed), the most recently saved first: for a backup. */
+export async function exportGames(): Promise<StoredGame[]> {
+  try {
+    return await inTransaction<StoredGame[]>('readonly', (store, done) => {
+      const games: StoredGame[] = [];
+      done(games);
+      const cursor = store.index(SAVED_AT_INDEX).openCursor(null, 'prev');
+      cursor.onsuccess = () => {
+        const current = cursor.result;
+        if (!current) return;
+        if (isStoredGame(current.value)) games.push(current.value);
+        current.continue();
+      };
+    });
+  } catch (err) {
+    console.warn('Could not read the games for a backup:', err);
+    return [];
+  }
+}
+
+export interface MergeReport {
+  /** Games that were not there. */
+  added: number;
+  /** Games replaced by a more recent version of the same game. */
+  replaced: number;
+  /** Games already there that are as recent or more. */
+  kept: number;
+  /** Oldest games dropped to stay within the limit. */
+  trimmed: number;
+}
+
+/** Whether `incoming` should replace `existing`: it was saved later, or at the same time but is the complete one. */
+const isNewer = (incoming: StoredGame, existing: StoredGame): boolean =>
+  incoming.savedAt > existing.savedAt ||
+  (incoming.savedAt === existing.savedAt && isFullGame(incoming) && !isFullGame(existing));
+
+/**
+ * Adds games to the history (a backup being restored): a game already there is replaced only by a more recent
+ * version of it. The limits then apply as after a save. Resolves with null when it could not be written (nothing
+ * is then changed).
+ */
+export async function mergeGames(
+  records: StoredGame[],
+  limits: StoreLimits = DEFAULT_LIMITS
+): Promise<MergeReport | null> {
+  // A game twice in the file counts once: the most recent version
+  const latest = new Map<string, StoredGame>();
+  for (const record of records) {
+    const known = latest.get(record.id);
+    if (isStoredGame(record) && (!known || isNewer(record, known))) latest.set(record.id, record);
+  }
+  const valid = [...latest.values()];
+  const report: MergeReport = { added: 0, replaced: 0, kept: 0, trimmed: 0 };
+  try {
+    await inTransaction<void>('readwrite', (store) => {
+      let pending = valid.length;
+      const finish = () => {
+        const count = store.count();
+        count.onsuccess = () => {
+          const total = count.result;
+          const trim = () => {
+            if (total <= limits.total) return;
+            report.trimmed = total - limits.total;
+            dropOldest(store, report.trimmed);
+          };
+          if (total <= limits.full) return trim();
+          compactOld(store, limits.full, trim, false);
+        };
+      };
+      if (pending === 0) return finish();
+      for (const record of valid) {
+        const request = store.get(record.id);
+        request.onsuccess = () => {
+          const existing: unknown = request.result;
+          if (!isStoredGame(existing)) {
+            store.put(record);
+            report.added += 1;
+          } else if (isNewer(record, existing)) {
+            store.put(record);
+            report.replaced += 1;
+          } else {
+            report.kept += 1;
+          }
+          pending -= 1;
+          if (pending === 0) finish();
+        };
+      }
+    });
+    return report;
+  } catch (err) {
+    console.warn('Could not restore the games:', err);
+    return null;
   }
 }
 

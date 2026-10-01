@@ -1,5 +1,6 @@
 import { GameAnalysisResult } from '../types/chess';
 import { PhaseStats } from './phaseStats';
+import { toFrenchOpeningName } from './openingNames';
 
 /** Plain-text summary of the game, ready to paste on Discord, WhatsApp or X. */
 export function buildGameSummary(analysis: GameAnalysisResult, phaseStats: PhaseStats): string {
@@ -8,7 +9,7 @@ export function buildGameSummary(analysis: GameAnalysisResult, phaseStats: Phase
   const blackName = metadata.black || 'Noirs';
   const resultStr = metadata.result && metadata.result !== '*' ? `🏆 Résultat : ${metadata.result}\n` : '';
   const openingStr = metadata.opening
-    ? `📖 Ouverture : ${metadata.opening}${metadata.eco ? ` [${metadata.eco}]` : ''}\n`
+    ? `📖 Ouverture : ${toFrenchOpeningName(metadata.opening)}${metadata.eco ? ` [${metadata.eco}]` : ''}\n`
     : '';
   const { opening, middlegame, endgame } = phaseStats;
 

@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameAnalysisResult, MoveAnalysis } from '../../types/chess';
-import { saveGame } from '../../services/gameStore';
+import { clearGames, saveGame } from '../../services/gameStore';
+import { createBackup, serializeBackup } from '../../services/backup';
 import { GameHistory } from './GameHistory';
 
 function result(white: string, black: string, extra: Partial<GameAnalysisResult['metadata']> = {}): GameAnalysisResult {
@@ -104,7 +105,7 @@ describe('GameHistory', () => {
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText(/Boris/)).toBeTruthy();
     expect(within(rows[1]).getByText(/Anna/)).toBeTruthy();
-    expect(within(rows[0]).getByText(/\[B20\] Sicilian Defense/)).toBeTruthy();
+    expect(within(rows[0]).getByText(/\[B20\] Défense sicilienne/)).toBeTruthy();
     expect(within(rows[0]).getByText(/profondeur 18/)).toBeTruthy();
     expect(within(rows[0]).getByText(/précision 100 %/)).toBeTruthy();
   });
@@ -151,5 +152,27 @@ describe('GameHistory', () => {
     expect(await screen.findByText(/Aucune partie enregistrée/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Fermer' }));
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('GameHistory backup', () => {
+  it('offers the export and the import, also when no game is stored (to restore after a cleared browser)', async () => {
+    await clearGames();
+    render(<GameHistory currentPgn="" onOpen={() => {}} onClose={() => {}} />);
+    await screen.findByText(/Aucune partie enregistrée/);
+    expect(screen.getByRole('button', { name: 'Exporter mes données' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Importer une sauvegarde' })).toBeTruthy();
+  });
+
+  it('shows the games of a backup as soon as it is restored', async () => {
+    const text = serializeBackup(await createBackup());
+    await clearGames();
+    render(<GameHistory currentPgn="" onOpen={() => {}} onClose={() => {}} />);
+    await screen.findByText(/Aucune partie enregistrée/);
+
+    await userEvent.upload(screen.getByLabelText('Fichier de sauvegarde'), new File([text], 'sauvegarde.json'));
+    const rows = await screen.findAllByRole('listitem');
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]).getByText(/Boris/)).toBeTruthy();
   });
 });

@@ -11,6 +11,8 @@ import {
   gameId,
   isFullGame,
   listGameIds,
+  exportGames,
+  mergeGames,
   listGames,
   loadGame,
   loadLatestGame,
@@ -485,5 +487,131 @@ describe('deleteGame', () => {
     await expect(deleteGame('nope')).resolves.toBeUndefined();
     Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true, writable: true });
     await expect(deleteGame('nope')).resolves.toBeUndefined();
+  });
+});
+
+describe('exportGames', () => {
+  it('returns the games as they are kept (a light version stays light), the most recent first', async () => {
+    const limits = { full: 1, total: 5 };
+    vi.spyOn(Date, 'now').mockReturnValue(1000);
+    await saveGame({ pgn: '1. a3 *', depth: 12, result: makeResult('a') }, limits);
+    vi.spyOn(Date, 'now').mockReturnValue(2000);
+    await saveGame({ pgn: '1. b3 *', depth: 14, result: makeResult('b') }, limits);
+    const games = await exportGames();
+    expect(games.map((g) => [g.pgn, g.depth, g.detail])).toEqual([
+      ['1. b3 *', 14, 'full'],
+      ['1. a3 *', 12, 'summary'],
+    ]);
+  });
+
+  it('leaves out records of another schema', async () => {
+    await rawPut(stored({ id: 'old', schemaVersion: 0 }));
+    await saveGame({ pgn: PGN, depth: 12, result: makeResult() });
+    expect((await exportGames()).map((g) => g.id)).toEqual([gameId(PGN)]);
+  });
+
+  it('leaves out damaged records', async () => {
+    await rawPut({ id: 'broken' });
+    await saveGame({ pgn: PGN, depth: 12, result: makeResult() });
+    expect((await exportGames()).map((g) => g.id)).toEqual([gameId(PGN)]);
+  });
+
+  it('does not recompute anything: the statistics are the stored ones', async () => {
+    const result = makeResult();
+    result.statsWhite = { ...result.statsWhite, accuracy: 12.5 };
+    await rawPut(stored({ id: gameId(PGN), pgn: normalizePgn(PGN), result }));
+    expect((await exportGames())[0].result.statsWhite.accuracy).toBe(12.5);
+  });
+
+  it('is empty when the storage is unavailable', async () => {
+    Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true, writable: true });
+    expect(await exportGames()).toEqual([]);
+  });
+});
+
+describe('mergeGames', () => {
+  const record = (n: number, over: Partial<StoredGame> = {}): StoredGame =>
+    stored({ id: gameId(`1. a3 *\n; ${n}`), pgn: normalizePgn(`1. a3 *\n; ${n}`), savedAt: n * 1000, ...over });
+
+  it('adds the games that are not there', async () => {
+    const report = await mergeGames([record(1), record(2)]);
+    expect(report).toEqual({ added: 2, replaced: 0, kept: 0, trimmed: 0 });
+    expect((await listGames()).map((g) => g.savedAt)).toEqual([2000, 1000]);
+  });
+
+  it('replaces a game by a more recent version of it, and keeps the more recent one that is there', async () => {
+    await mergeGames([record(1, { savedAt: 5000, depth: 12 }), record(2, { savedAt: 5000, depth: 12 })]);
+    const report = await mergeGames([record(1, { savedAt: 6000, depth: 18 }), record(2, { savedAt: 4000, depth: 20 })]);
+    expect(report).toMatchObject({ added: 0, replaced: 1, kept: 1 });
+    expect((await loadGame('1. a3 *\n; 1'))?.depth).toBe(18);
+    expect((await loadGame('1. a3 *\n; 2'))?.depth).toBe(12);
+  });
+
+  it('keeps the existing game when the dates are the same', async () => {
+    await mergeGames([record(1, { depth: 12 })]);
+    const report = await mergeGames([record(1, { depth: 20 })]);
+    expect(report).toMatchObject({ replaced: 0, kept: 1 });
+    expect((await loadGame('1. a3 *\n; 1'))?.depth).toBe(12);
+  });
+
+  it('prefers the complete version of a game over its summary when the dates are the same', async () => {
+    await mergeGames([record(1, { detail: 'summary' })]);
+    expect(await mergeGames([record(1, { detail: 'full' })])).toMatchObject({ replaced: 1 });
+    expect((await loadGame('1. a3 *\n; 1'))?.detail).toBe('full');
+    // And not the other way round
+    expect(await mergeGames([record(1, { detail: 'summary' })])).toMatchObject({ replaced: 0, kept: 1 });
+    expect((await loadGame('1. a3 *\n; 1'))?.detail).toBe('full');
+  });
+
+  it('counts a game that is twice in the list once, with its most recent version', async () => {
+    const report = await mergeGames([record(1, { savedAt: 1000, depth: 10 }), record(1, { savedAt: 2000, depth: 16 })]);
+    expect(report).toEqual({ added: 1, replaced: 0, kept: 0, trimmed: 0 });
+    expect((await loadGame('1. a3 *\n; 1'))?.depth).toBe(16);
+  });
+
+  it('ignores what is not a stored game', async () => {
+    const report = await mergeGames([record(1), { id: 'x' } as StoredGame, { ...record(2), schemaVersion: 99 }]);
+    expect(report).toEqual({ added: 1, replaced: 0, kept: 0, trimmed: 0 });
+  });
+
+  it('works with nothing to add', async () => {
+    expect(await mergeGames([])).toEqual({ added: 0, replaced: 0, kept: 0, trimmed: 0 });
+  });
+
+  it('applies the limits after the merge: the oldest games are dropped, the older ones are reduced to a summary', async () => {
+    const limits = { full: 2, total: 4 };
+    // Games kept before the merge: one complete game (the most recent), and the file brings older complete ones
+    await saveGame({ pgn: '1. a3 *\n; local', depth: 12, result: makeResult('local') });
+    const report = await mergeGames([record(1), record(2), record(3), record(4)], limits);
+    // Date.now() is the real time for the local game: it is the most recent
+    expect(report).toMatchObject({ added: 4, trimmed: 1 });
+    const games = await listGames();
+    expect(games).toHaveLength(4);
+    expect(games.map(isFullGame)).toEqual([true, true, false, false]);
+    // The oldest of the file (1000) is the one dropped
+    expect(games.map((g) => g.savedAt).includes(1000)).toBe(false);
+  });
+
+  it('reduces to summaries even the games that come after a complete one of the file (no assumption on the order)', async () => {
+    const limits = { full: 1, total: 10 };
+    await mergeGames([record(5), record(4), record(3), record(2), record(1)], limits);
+    expect((await listGames()).map(isFullGame)).toEqual([true, false, false, false, false]);
+  });
+
+  it('reduces the older complete games even when a summary comes before them in the history', async () => {
+    const limits = { full: 1, total: 10 };
+    await mergeGames([record(3, { detail: 'summary' })], limits);
+    await mergeGames([record(5), record(2), record(1)], limits);
+    expect((await listGames()).map(isFullGame)).toEqual([true, false, false, false]);
+  });
+
+  it('does not reduce anything while the history is short', async () => {
+    await mergeGames([record(1), record(2)], { full: 5, total: 10 });
+    expect((await listGames()).every(isFullGame)).toBe(true);
+  });
+
+  it('resolves with null, changing nothing, when the storage is unavailable', async () => {
+    Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true, writable: true });
+    expect(await mergeGames([record(1)])).toBeNull();
   });
 });

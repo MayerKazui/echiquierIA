@@ -1,5 +1,6 @@
 import React from 'react';
 import { BookOpen } from 'lucide-react';
+import { toFrenchOpeningName } from '../../utils/openingNames';
 
 interface OpeningStripProps {
   opening: string;
@@ -13,7 +14,7 @@ export const OpeningStrip: React.FC<OpeningStripProps> = ({ opening, eco }) => (
       <BookOpen className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
       <span className="font-semibold text-white truncate">
         {eco ? `[${eco}] ` : ''}
-        {opening}
+        {toFrenchOpeningName(opening)}
       </span>
     </div>
   </div>

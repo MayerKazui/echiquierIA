@@ -10,6 +10,9 @@ import { openingAtPly } from './utils/openingAtPly';
 import { oneOf, usePersistentState } from './hooks/usePersistentState';
 import { useGameAnalysis } from './hooks/useGameAnalysis';
 import { useBatchAnalysis } from './hooks/useBatchAnalysis';
+import { useInstallPrompt } from './hooks/useInstallPrompt';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { useServiceWorkerUpdate } from './hooks/useServiceWorkerUpdate';
 import { usePlayback } from './hooks/usePlayback';
 import { useMoveSound } from './hooks/useMoveSound';
 import { useGamePosition } from './hooks/useGamePosition';
@@ -45,6 +48,7 @@ import { AppHeader } from './components/AppHeader/AppHeader';
 import { BottomNav } from './components/AppHeader/BottomNav';
 import { AnalysisProgressBanner } from './components/AppHeader/AnalysisProgressBanner';
 import { BatchAnalysisBanner } from './components/AppHeader/BatchAnalysisBanner';
+import { PwaBanner } from './components/AppHeader/PwaBanner';
 import { OpeningStrip } from './components/GameView/OpeningStrip';
 import { PlayerBar } from './components/GameView/PlayerBar';
 import { BoardToolbar } from './components/GameView/BoardToolbar';
@@ -101,6 +105,9 @@ export default function App() {
   } = useGameAnalysis(userPseudo, userColor);
   // Several games analysed in the background; it steps aside while the user analyses a game by hand
   const batch = useBatchAnalysis(isAnalyzing);
+  const isOnline = useOnlineStatus();
+  const { updateReady, applyUpdate } = useServiceWorkerUpdate();
+  const { canInstall, install } = useInstallPrompt();
   const startBatch = batch.start;
   // The game on screen: the moves analysed so far while an analysis runs, otherwise the finished analysis
   const analysis = partial ?? finalResult;
@@ -530,7 +537,10 @@ export default function App() {
         onOpenHistory={() => setIsHistoryOpen(true)}
         onOpenProfile={() => setIsProfileOpen(true)}
         onOpenTraining={() => setIsTrainingOpen(true)}
+        onInstall={canInstall ? () => void install() : undefined}
       />
+
+      <PwaBanner isOnline={isOnline} updateReady={updateReady} onUpdate={applyUpdate} />
 
       <BatchAnalysisBanner batch={batch} onResume={batch.resume} onCancel={batch.cancel} onDismiss={batch.dismiss} />
 

@@ -10,6 +10,8 @@ import {
   listGames,
   type StoredGame,
 } from '../../services/gameStore';
+import { DataBackup } from '../Backup/DataBackup';
+import { toFrenchOpeningName } from '../../utils/openingNames';
 
 interface GameHistoryProps {
   /** PGN of the game on screen, marked in the list. */
@@ -35,13 +37,16 @@ export const GameHistory: React.FC<GameHistoryProps> = ({ currentPgn, onOpen, on
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const currentId = currentPgn ? gameId(currentPgn) : null;
 
+  /** Changes when a backup was restored: the list is read again. */
+  const [revision, setRevision] = useState(0);
+
   useEffect(() => {
     let isCurrent = true;
     void listGames().then((list) => isCurrent && setGames(list));
     return () => {
       isCurrent = false;
     };
-  }, []);
+  }, [revision]);
 
   const remove = async (game: StoredGame) => {
     await deleteGame(game.id);
@@ -135,6 +140,8 @@ export const GameHistory: React.FC<GameHistoryProps> = ({ currentPgn, onOpen, on
           )}
         </div>
       )}
+
+      <DataBackup onRestored={() => setRevision((n) => n + 1)} />
     </div>
   );
 };
@@ -183,7 +190,7 @@ function GameRow({
             <BookOpen className="w-3 h-3 text-indigo-400 shrink-0" />
             <span className="truncate">
               {metadata.eco ? `[${metadata.eco}] ` : ''}
-              {metadata.opening}
+              {toFrenchOpeningName(metadata.opening)}
             </span>
           </span>
         )}

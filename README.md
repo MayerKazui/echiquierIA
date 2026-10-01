@@ -8,6 +8,10 @@ coups brillants, trace la courbe d'évaluation et un « entraîneur IA » (Gemin
 - Analyse Stockfish en parallèle dans des Web Workers, profondeur réglable (8 à 18) : les coups s'affichent dès qu'ils sont analysés et l'analyse peut être annulée
 - Les parties analysées (500 au plus, les 50 plus récentes complètes) sont conservées dans le navigateur (IndexedDB) : la dernière se rouvre après un rechargement, « Mes parties » (en-tête) permet d'en rouvrir une autre sans relancer Stockfish, et ré-analyser un même PGN est instantané. Rien n'est envoyé à un serveur
 - « S'entraîner » (en-tête) : rejouer les positions où l'on s'est trompé dans ses propres parties, avec correction par le moteur ; une position ratée revient le lendemain, une position réussie après 1, 3 puis 7 jours ; filtres par type d'erreur et par phase
+- « Mon profil » (en-tête) : ce qui revient dans vos parties (phase, type d'erreur, pendule, couleur, adversaire, évolution)
+- **Sauvegarde** : « Mes parties » exporte tout ce que l'application garde dans le navigateur (parties, progression d'entraînement, réglages) en un fichier JSON, et le réimporte (fusion avec l'existant)
+- **Application installable et utilisable hors ligne** (PWA) : le moteur, la base d'ouvertures et l'interface sont mis en cache ; une nouvelle version est proposée sans interrompre la partie en cours. Ne marchent pas hors ligne : l'import chess.com / Lichess et le coach IA
+- Noms d'ouverture en français (« Défense sicilienne : variante Dragon »)
 - Bilan par joueur : précision, phases de jeu, répartition des coups, gestion du temps si le PGN contient les pendules
 - Utilisable sur téléphone : en-tête et barre d'outils compacts, navigation en bas de l'écran, balayage pour changer de coup
 - Accessible : échiquier et toutes les commandes utilisables au clavier, annonces pour lecteurs d'écran, contrastes et mouvement réduit respectés
@@ -68,10 +72,12 @@ src/
   hooks/             état et logique de l'application (analyse, lecture, exploration, raccourcis…)
   components/        échiquier, graphiques, liste de coups, bilan, import PGN…
   services/          stockfishEngine (pool de workers, cache), openingBook, gameStore (parties analysées, IndexedDB),
-                     gameImport (parties d'un compte chess.com / Lichess), trainingStore (progression de l'entraînement, IndexedDB)
+                     gameImport (parties d'un compte chess.com / Lichess), trainingStore (progression de l'entraînement, IndexedDB),
+                     backup (export / import JSON de tout cela)
   utils/             logique pure testée : classification des coups, précision, PGN, pendules, notation…
   data/openings/     fichiers .tsv de lichess, source de public/openings.json
-vite/                plugin qui sert et empaquette le moteur Stockfish
+vite/                plugins : servir et empaqueter le moteur Stockfish, construire le service worker (sw.js)
+src/pwa/             service worker (hors ligne) et son inscription
 scripts/             génération de public/openings.json
 ```
 
@@ -98,7 +104,7 @@ reverse proxy, définissez `TRUST_PROXY` (automatique sur Cloud Run) et `APP_URL
 
 ### Interface sur GitHub Pages, API ailleurs
 
-GitHub Pages ne sert que des fichiers statiques : l'analyse (Stockfish dans le navigateur) et l'import des parties chess.com / Lichess (appels directs du navigateur) y fonctionnent entièrement, mais le coach IA (clé Gemini) et l'import vers Lichess ont besoin du serveur, qui reste par exemple sur Cloud Run. Le workflow `.github/workflows/pages.yml` publie `dist/` à chaque push sur `main`.
+GitHub Pages ne sert que des fichiers statiques : l'analyse (Stockfish dans le navigateur) et l'import des parties chess.com / Lichess (appels directs du navigateur) y fonctionnent entièrement, mais le coach IA (clé Gemini) et l'import vers Lichess ont besoin du serveur, qui reste par exemple sur Cloud Run. Le workflow `.github/workflows/pages.yml` publie `dist/` à chaque push sur `main`. Le service worker (`sw.js`) est construit par `vite build` lui-même : il fonctionne aussi sur Pages (portée `/<dépôt>/`).
 
 1. **Pages** : dans les réglages du dépôt, _Pages_ > _Source_ : **GitHub Actions** (un dépôt public est nécessaire sur l'offre gratuite).
 2. **Adresse de l'API** : variable de dépôt `API_URL` (_Settings_ > _Secrets and variables_ > _Actions_ > _Variables_), par exemple `https://mon-service.europe-west2.run.app`, sans barre finale. Sans elle, l'interface appelle `/api/...` sur son propre site, qui n'existe pas sur Pages : le coach bascule sur ses explications locales et l'import Lichess ouvre la page « coller un PGN ».
