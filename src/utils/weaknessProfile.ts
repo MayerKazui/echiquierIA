@@ -186,22 +186,28 @@ function parseOutcome(result: string | undefined, color: 'w' | 'b'): Outcome | n
 }
 
 /** "2024.03.17" → milliseconds; null for a missing or partial date ("2024.??.??"). */
-function parsePgnDate(raw: string | undefined): number | null {
+export function parsePgnDate(raw: string | undefined): number | null {
   const match = raw ? /^(\d{4})\.(\d{2})\.(\d{2})$/.exec(raw) : null;
   if (!match) return null;
   const time = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
   return Number.isFinite(time) ? time : null;
 }
 
+/** The side the player (the pseudo kept with the game) has in it, from the names; null when not named, or both. */
+export function playerColorIn({ userPseudo, metadata }: GameAnalysisResult): 'w' | 'b' | null {
+  const isWhite = sameName(userPseudo, metadata.white);
+  const isBlack = sameName(userPseudo, metadata.black);
+  if (isWhite === isBlack) return null;
+  return isWhite ? 'w' : 'b';
+}
+
 /** The game seen from the player's side, or null when the player is not named in it (or it is too short). */
 function countGame(source: ProfileSource): CountedGame | null {
   const { result } = source;
   const { metadata, moves } = result;
-  const pseudo = result.userPseudo;
-  const isWhite = sameName(pseudo, metadata.white);
-  const isBlack = sameName(pseudo, metadata.black);
-  if (isWhite === isBlack || moves.length < MIN_GAME_PLIES) return null; // not named, or playing oneself
-  const color = isWhite ? 'w' : 'b';
+  const color = playerColorIn(result);
+  if (color === null || moves.length < MIN_GAME_PLIES) return null; // not named, playing oneself, or too short
+  const isWhite = color === 'w';
   const allMoves = moves.filter((m) => m.color === color);
   return {
     source,
@@ -229,7 +235,7 @@ function gameBucket(games: CountedGame[]): GameBucket {
 /** Kinds of fault worked out here for games stored before they were recorded with the game. */
 const lateKinds = new Map<string, FaultKind>();
 
-function faultKindOf(gameKey: string, move: MoveAnalysis): FaultKind {
+export function faultKindOf(gameKey: string, move: MoveAnalysis): FaultKind {
   if (move.faultKind) return move.faultKind;
   const key = `${gameKey}:${move.ply}`;
   let kind = lateKinds.get(key);

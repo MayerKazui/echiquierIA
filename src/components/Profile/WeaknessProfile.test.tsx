@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -74,6 +74,26 @@ describe('WeaknessProfile', () => {
   });
 
   describe('with games', () => {
+    it('offers to train on the errors once the profile is shown', async () => {
+      await store(6);
+      const onTrain = vi.fn();
+      renderProfile({ onTrain });
+      await userEvent.click(await screen.findByRole('button', { name: "S'entraîner sur ces erreurs" }));
+      expect(onTrain).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not offer the training without anything to count, nor when it cannot be opened', async () => {
+      await store(2, { white: 'Carl', black: 'Dora' });
+      renderProfile({ onTrain: vi.fn() });
+      await screen.findByText('Aucune partie ne vous nomme');
+      expect(screen.queryByRole('button', { name: "S'entraîner sur ces erreurs" })).toBeNull();
+      cleanup();
+      await store(6);
+      renderProfile();
+      await screen.findByText('Parties comptées');
+      expect(screen.queryByRole('button', { name: "S'entraîner sur ces erreurs" })).toBeNull();
+    });
+
     it('shows the profile, and how many games were counted out of those stored', async () => {
       await store(6);
       renderProfile();

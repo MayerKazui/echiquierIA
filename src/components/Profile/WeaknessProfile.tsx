@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, X } from 'lucide-react';
+import { BarChart3, Dumbbell, X } from 'lucide-react';
 import { oneOf, usePersistentState } from '../../hooks/usePersistentState';
 import { useWeaknessProfile } from '../../hooks/useWeaknessProfile';
 import { ProfileView } from './ProfileView';
@@ -8,6 +8,8 @@ interface WeaknessProfileProps {
   onClose: () => void;
   /** Opens the import of online games (shown when there is nothing to count). */
   onImport: () => void;
+  /** Opens the training on the player's own mistakes (offered once the profile is shown). */
+  onTrain?: () => void;
 }
 
 /** How many of the latest games the profile uses; 0 is all of them. */
@@ -21,7 +23,7 @@ const BUTTON =
   'px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400';
 
 /** "Mon profil": what the analysed games say about where the player loses accuracy. */
-export const WeaknessProfile: React.FC<WeaknessProfileProps> = ({ onClose, onImport }) => {
+export const WeaknessProfile: React.FC<WeaknessProfileProps> = ({ onClose, onImport, onTrain }) => {
   const [latest, setLatest] = usePersistentState<number>('chess_profile_window', 0, oneOf(WINDOWS.map((w) => w.value)));
   const state = useWeaknessProfile(latest || undefined);
 
@@ -65,6 +67,16 @@ export const WeaknessProfile: React.FC<WeaknessProfileProps> = ({ onClose, onImp
               {label}
             </button>
           ))}
+          {onTrain && state.status === 'ready' && state.profile.counted > 0 && (
+            <button
+              type="button"
+              onClick={onTrain}
+              className={`${BUTTON} ml-auto flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 border-indigo-500 text-white`}
+            >
+              <Dumbbell className="w-3.5 h-3.5" aria-hidden="true" />
+              S&apos;entraîner sur ces erreurs
+            </button>
+          )}
         </div>
       )}
 

@@ -6,7 +6,7 @@ Ce fichier suit ce qui reste à faire. `IMPROVEMENTS.md` garde l'historique de c
 
 Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait
 
-Ordre conseillé : **2** (les points 4 et 1 sont faits), puis 3, 5 et 6. L'import et l'analyse en lot (4) alimentent le profil (1), qui alimente l'entraînement (2).
+Ordre conseillé : **3**, puis 5 et 6 (les points 4, 1 et 2 sont faits). L'import et l'analyse en lot (4) alimentent le profil (1), qui alimente l'entraînement (2).
 
 ## A. Outil d'entraînement (priorité)
 
@@ -22,9 +22,10 @@ Une vue « Mon profil » qui agrège les parties enregistrées : « qu'est-ce qu
 
 ### 2. S'entraîner sur ses propres erreurs
 
-- [ ] **« Rejouer mes erreurs »** : retrouver la position avant chaque erreur ou gaffe, chercher le coup, puis corriger avec le coup du moteur et l'explication. Les données existent déjà (`fenBefore`, `bestMoveSan`, `pv`, classification).
-- [ ] **Répétition espacée** : une position ratée revient après 1, 3, 7 jours (date et niveau par position dans IndexedDB).
-- [ ] **Filtre par thème** : « seulement mes erreurs de finale », « seulement mes pièces en prise ».
+- [x] **« Rejouer mes erreurs »** : la position avant chaque erreur ou gaffe, on cherche le coup, puis on corrige avec le coup du moteur, sa suite et l'explication : voir `IMPROVEMENTS.md`. Un autre coup que celui du moteur est accepté si le moteur le juge aussi bon.
+- [x] **Répétition espacée** : une position réussie revient après 1, 3 puis 7 jours, une position ratée revient le lendemain (une fiche par position, dans IndexedDB).
+- [x] **Filtre par thème** : type d'erreur (mat, pièce en prise, tactique manquée, avantage gâché, autre) et phase (ouverture, milieu de jeu, finale).
+- [ ] À affiner : ouvrir la partie à l'endroit de l'erreur depuis l'entraînement ; ne proposer qu'une position par situation identique (même position dans deux parties).
 
 ### 3. Suivi d'ouvertures
 
