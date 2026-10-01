@@ -1,5 +1,6 @@
 import { Chess } from 'chess.js';
 import type { GameAnalysisResult, MoveAnalysis } from '../types/chess';
+import { withFaultKinds } from '../utils/faultKinds';
 import { computePlayerStats } from '../utils/moveAnalysis';
 
 /**
@@ -214,6 +215,14 @@ function dropOldest(store: IDBObjectStore, excess: number): void {
   };
 }
 
+/** The result with the kind of each of the user's faults filled in (the profile counts them), if the side is known. */
+function withKinds(result: GameAnalysisResult): GameAnalysisResult {
+  const color = result.userColor;
+  if (color !== 'w' && color !== 'b') return result;
+  const moves = withFaultKinds(result.moves, color);
+  return moves === result.moves ? result : { ...result, moves };
+}
+
 /** How many games are kept complete, and how many in all (the defaults are the app's; tests use smaller ones). */
 export interface StoreLimits {
   full: number;
@@ -236,7 +245,7 @@ export async function saveGame(
     savedAt: Date.now(),
     schemaVersion: SCHEMA_VERSION,
     detail: 'full',
-    result: game.result,
+    result: withKinds(game.result),
   };
   try {
     await inTransaction<void>('readwrite', (store) => {
