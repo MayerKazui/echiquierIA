@@ -29,6 +29,7 @@ import {
   EvaluationChart,
   MoveComparison,
   MoveList,
+  Training,
   WeaknessProfile,
   prefetchViews,
 } from './lazyViews';
@@ -61,6 +62,7 @@ export default function App() {
   const [isPgnModalOpen, setIsPgnModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isTrainingOpen, setIsTrainingOpen] = useState(false);
   const { announcement, announce } = useAnnouncer();
 
   // While the user reads the start screen: download the engine, the openings database and the game views
@@ -527,6 +529,7 @@ export default function App() {
         onOpenPgnModal={() => setIsPgnModalOpen(true)}
         onOpenHistory={() => setIsHistoryOpen(true)}
         onOpenProfile={() => setIsProfileOpen(true)}
+        onOpenTraining={() => setIsTrainingOpen(true)}
       />
 
       <BatchAnalysisBanner batch={batch} onResume={batch.resume} onCancel={batch.cancel} onDismiss={batch.dismiss} />
@@ -596,8 +599,32 @@ export default function App() {
           <Suspense fallback={null}>
             <WeaknessProfile
               onClose={() => setIsProfileOpen(false)}
+              onTrain={() => {
+                setIsProfileOpen(false);
+                setIsTrainingOpen(true);
+              }}
               onImport={() => {
                 setIsProfileOpen(false);
+                // Without a game on screen the start screen already shows the import form
+                if (analysis) setIsPgnModalOpen(true);
+              }}
+            />
+          </Suspense>
+        </Modal>
+      )}
+
+      {isTrainingOpen && (
+        <Modal
+          title="S'entraîner sur mes erreurs"
+          onClose={() => setIsTrainingOpen(false)}
+          className="w-full max-w-4xl"
+        >
+          <Suspense fallback={null}>
+            <Training
+              boardTheme={boardTheme}
+              onClose={() => setIsTrainingOpen(false)}
+              onImport={() => {
+                setIsTrainingOpen(false);
                 // Without a game on screen the start screen already shows the import form
                 if (analysis) setIsPgnModalOpen(true);
               }}

@@ -6,7 +6,8 @@ coups brillants, trace la courbe d'évaluation et un « entraîneur IA » (Gemin
 - Import d'un PGN (collé, fichier ou exemples) avec reconnaissance de l'ouverture (base lichess, ~3 800 lignes)
 - Import direct des dernières parties d'un compte **chess.com** ou **Lichess** (pseudo, filtre de cadence, parties plus anciennes à la demande) : le navigateur appelle leurs API publiques, sans passer par le serveur
 - Analyse Stockfish en parallèle dans des Web Workers, profondeur réglable (8 à 18) : les coups s'affichent dès qu'ils sont analysés et l'analyse peut être annulée
-- Les parties analysées (20 au plus) sont conservées dans le navigateur (IndexedDB) : la dernière se rouvre après un rechargement, « Mes parties » (en-tête) permet d'en rouvrir une autre sans relancer Stockfish, et ré-analyser un même PGN est instantané. Rien n'est envoyé à un serveur
+- Les parties analysées (500 au plus, les 50 plus récentes complètes) sont conservées dans le navigateur (IndexedDB) : la dernière se rouvre après un rechargement, « Mes parties » (en-tête) permet d'en rouvrir une autre sans relancer Stockfish, et ré-analyser un même PGN est instantané. Rien n'est envoyé à un serveur
+- « S'entraîner » (en-tête) : rejouer les positions où l'on s'est trompé dans ses propres parties, avec correction par le moteur ; une position ratée revient le lendemain, une position réussie après 1, 3 puis 7 jours ; filtres par type d'erreur et par phase
 - Bilan par joueur : précision, phases de jeu, répartition des coups, gestion du temps si le PGN contient les pendules
 - Utilisable sur téléphone : en-tête et barre d'outils compacts, navigation en bas de l'écran, balayage pour changer de coup
 - Accessible : échiquier et toutes les commandes utilisables au clavier, annonces pour lecteurs d'écran, contrastes et mouvement réduit respectés
@@ -67,7 +68,7 @@ src/
   hooks/             état et logique de l'application (analyse, lecture, exploration, raccourcis…)
   components/        échiquier, graphiques, liste de coups, bilan, import PGN…
   services/          stockfishEngine (pool de workers, cache), openingBook, gameStore (parties analysées, IndexedDB),
-                     gameImport (parties d'un compte chess.com / Lichess)
+                     gameImport (parties d'un compte chess.com / Lichess), trainingStore (progression de l'entraînement, IndexedDB)
   utils/             logique pure testée : classification des coups, précision, PGN, pendules, notation…
   data/openings/     fichiers .tsv de lichess, source de public/openings.json
 vite/                plugin qui sert et empaquette le moteur Stockfish

@@ -16,6 +16,21 @@ export type FaultKind = NonNullable<MoveAnalysis['faultKind']>;
 
 export const FAULT_KINDS: readonly FaultKind[] = ['mate', 'hanging', 'tactic', 'wasted', 'other'];
 
+/** Names and one-line explanations of the kinds, shared by the profile and the training. */
+export const FAULT_KIND_TEXT: Record<FaultKind, { label: string; hint: string }> = {
+  mate: { label: 'Mat manqué ou subi', hint: "Un mat forcé laissé passer, ou offert à l'adversaire." },
+  hanging: {
+    label: 'Pièce laissée en prise',
+    hint: 'Le coup laisse une pièce (ou plus) à prendre pour rien, ou pour un pion.',
+  },
+  tactic: {
+    label: 'Tactique manquée',
+    hint: 'Fourchette, clouage ou pièce adverse à prendre : le moteur voyait mieux.',
+  },
+  wasted: { label: 'Avantage gâché', hint: 'Une position gagnée devenue égale, sans tactique précise derrière.' },
+  other: { label: 'Autres erreurs', hint: 'Erreurs de calcul ou de position, sans cause tactique repérée.' },
+};
+
 export const FAULT_CLASSIFICATIONS: ReadonlySet<MoveAnalysis['classification']> = new Set([
   'mistake',
   'blunder',

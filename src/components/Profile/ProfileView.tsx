@@ -2,7 +2,7 @@ import React from 'react';
 import { AlertTriangle, Lightbulb } from 'lucide-react';
 import { formatPlayedDate } from '../../services/gameImport';
 import { toFrenchSan } from '../../utils/chessNotation';
-import { FAULT_KINDS, type FaultKind } from '../../utils/faultKinds';
+import { FAULT_KINDS, FAULT_KIND_TEXT as KIND_TEXT } from '../../utils/faultKinds';
 import type { GamePhase } from '../../utils/phaseStats';
 import {
   MIN_BUCKET_MOVES,
@@ -27,20 +27,6 @@ const PHASES: Array<{ id: GamePhase; label: string; range: string }> = [
   { id: 'middlegame', label: 'Milieu de jeu', range: 'coups 13 à 30' },
   { id: 'endgame', label: 'Finale', range: 'coup 31 et après' },
 ];
-
-const KIND_TEXT: Record<FaultKind, { label: string; hint: string }> = {
-  mate: { label: 'Mat manqué ou subi', hint: "Un mat forcé laissé passer, ou offert à l'adversaire." },
-  hanging: {
-    label: 'Pièce laissée en prise',
-    hint: 'Le coup laisse une pièce (ou plus) à prendre pour rien, ou pour un pion.',
-  },
-  tactic: {
-    label: 'Tactique manquée',
-    hint: 'Fourchette, clouage ou pièce adverse à prendre : le moteur voyait mieux.',
-  },
-  wasted: { label: 'Avantage gâché', hint: 'Une position gagnée devenue égale, sans tactique précise derrière.' },
-  other: { label: 'Autres erreurs', hint: 'Erreurs de calcul ou de position, sans cause tactique repérée.' },
-};
 
 const SPEED_LABELS: Record<TimeControlClass, string> = {
   bullet: 'Bullet',
