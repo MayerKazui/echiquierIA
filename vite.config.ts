@@ -6,6 +6,8 @@ import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
   return {
+    // Sub-folder of the site (GitHub Pages project site: /echiquierIA/); the root otherwise
+    base: process.env.BASE_PATH ?? '/',
     plugins: [react(), tailwindcss(), stockfishEngine()],
     build: {
       rolldownOptions: {

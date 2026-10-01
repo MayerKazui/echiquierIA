@@ -1,0 +1,53 @@
+name: Deploy to GitHub Pages
+
+# Publishes the front-end (dist/) on GitHub Pages. The API (AI coach, Lichess import) is not served from Pages:
+# it runs on another host, given by the repository variable API_URL (Settings > Secrets and variables > Actions
+# > Variables). Without it the app still works: the coach falls back to local explanations.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build the front-end
+        run: bunx vite build
+        env:
+          # A project site is served from https://<user>.github.io/<repository>/
+          BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_API_URL: ${{ vars.API_URL }}
+
+      - name: Check the engine is in the build
+        run: test -s dist/stockfish-19.js && test -s dist/stockfish-19.wasm && test -s dist/openings.json
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

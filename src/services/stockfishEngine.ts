@@ -2,6 +2,7 @@ import { Chess, type Move } from 'chess.js';
 import { MoveAnalysis, PlayerStats } from '../types/chess';
 import { calculateWinPercentage, classifyMove, computePlayerStats } from '../utils/moveAnalysis';
 import { extractGameClocks } from '../utils/clockUtils';
+import { assetUrl } from '../utils/siteUrl';
 import {
   getOpeningBookEvaluation,
   checkIsTheoreticalMove,
@@ -78,7 +79,7 @@ interface CachedEvaluation {
  * the `stockfish` package (see vite/stockfishPlugin.ts); the `#` part tells the loader where its .wasm is.
  * There is no other engine: when it cannot run, positions are evaluated by the built-in heuristic.
  */
-const ENGINE_SCRIPT = '/stockfish-19.js#stockfish-19.wasm';
+const ENGINE_SCRIPT = `${assetUrl('stockfish-19.js')}#stockfish-19.wasm`;
 
 /** Above this the extra workers bring little and each one costs memory (hash table + wasm instance). */
 const MAX_WORKERS = 6;

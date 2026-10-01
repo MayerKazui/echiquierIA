@@ -46,13 +46,15 @@ La CI (GitHub Actions) exécute lint, typecheck, format, tests et build à chaqu
 
 Variables d'environnement (voir `.env.example`) :
 
-| Variable          | Rôle                                                                                |
-| ----------------- | ----------------------------------------------------------------------------------- |
-| `GEMINI_API_KEY`  | Clé de l'API Gemini (côté serveur uniquement)                                       |
-| `PORT`            | Port d'écoute, 3000 par défaut                                                      |
-| `APP_URL`         | URL publique, toujours autorisée à appeler `/api`                                   |
-| `ALLOWED_ORIGINS` | Autres origines autorisées (CORS), séparées par des virgules                        |
-| `TRUST_PROXY`     | Nombre de proxies devant le serveur, pour les limites de débit (auto sur Cloud Run) |
+| Variable          | Rôle                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`  | Clé de l'API Gemini (côté serveur uniquement)                                               |
+| `PORT`            | Port d'écoute, 3000 par défaut                                                              |
+| `APP_URL`         | URL publique, toujours autorisée à appeler `/api`                                           |
+| `ALLOWED_ORIGINS` | Autres origines autorisées (CORS), séparées par des virgules                                |
+| `TRUST_PROXY`     | Nombre de proxies devant le serveur, pour les limites de débit (auto sur Cloud Run)         |
+| `VITE_API_URL`    | À la construction : adresse de l'API si elle est sur un autre hôte (vide : même hôte)       |
+| `BASE_PATH`       | À la construction : sous-dossier du site (`/echiquierIA/` sur GitHub Pages), `/` par défaut |
 
 ## Architecture
 
@@ -86,8 +88,21 @@ erreurs génériques côté client.
 
 ## Déploiement
 
+### Un seul serveur (Cloud Run, VPS…)
+
 `bun run build` puis `node server.js` (ou `bun run start`). `build` compile le serveur en `server.js`, qui démarre en une fraction de seconde (tsx compile le TypeScript au lancement, ce qui prend plusieurs secondes sur un hôte lent) : c'est ce que lance la commande par défaut de Cloud Run (`if [ -f server.js ]; then node server.js; else npm start; fi`), qui laisse peu de temps au conteneur pour écouter sur son port. Le serveur écoute sur `PORT` (3000 par défaut) et sert `dist/` compressé (brotli/gzip), avec un cache long pour les fichiers hachés et une revalidation pour le reste. Derrière un
 reverse proxy, définissez `TRUST_PROXY` (automatique sur Cloud Run) et `APP_URL`.
+
+### Interface sur GitHub Pages, API ailleurs
+
+GitHub Pages ne sert que des fichiers statiques : l'analyse (Stockfish dans le navigateur) y fonctionne entièrement, mais le coach IA (clé Gemini) et l'import vers Lichess ont besoin du serveur, qui reste par exemple sur Cloud Run. Le workflow `.github/workflows/pages.yml` publie `dist/` à chaque push sur `main`.
+
+1. **Pages** : dans les réglages du dépôt, _Pages_ > _Source_ : **GitHub Actions** (un dépôt public est nécessaire sur l'offre gratuite).
+2. **Adresse de l'API** : variable de dépôt `API_URL` (_Settings_ > _Secrets and variables_ > _Actions_ > _Variables_), par exemple `https://mon-service.europe-west2.run.app`, sans barre finale. Sans elle, l'interface appelle `/api/...` sur son propre site, qui n'existe pas sur Pages : le coach bascule sur ses explications locales et l'import Lichess ouvre la page « coller un PGN ».
+3. **Serveur** : variable d'environnement `ALLOWED_ORIGINS=https://<utilisateur>.github.io` (l'origine, sans le nom du dépôt). Sans elle, le serveur refuse les appels venus d'un autre site (403).
+4. L'interface est servie depuis `https://<utilisateur>.github.io/<dépôt>/` : le workflow construit avec `BASE_PATH=/<dépôt>/`. Pour tester en local : `BASE_PATH=/echiquierIA/ VITE_API_URL=http://localhost:3000 bunx vite build --outDir /tmp/site/echiquierIA`.
+
+La clé Gemini ne doit jamais figurer dans l'interface : elle reste une variable d'environnement du serveur.
 
 ## Suivi des améliorations
 
