@@ -39,8 +39,9 @@ export const PlayerAccuracyCard: React.FC<PlayerAccuracyCardProps> = ({ roleLabe
     </div>
 
     {/* Quick Metrics */}
-    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-      <Metric label="Gaffes" value={stats.blunders + stats.missedWins} valueClass="text-rose-400" />
+    <div className="grid grid-cols-4 gap-2 text-center text-xs">
+      <Metric label="Gaffes" value={stats.blunders} valueClass="text-rose-400" />
+      <Metric label="Manqués" value={stats.missedWins} valueClass="text-orange-400" />
       <Metric label="Erreurs" value={stats.mistakes} valueClass="text-amber-400" />
       <Metric label="Meilleurs" value={stats.best + stats.brilliant} valueClass="text-emerald-400" />
     </div>

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MoveAnalysis, MoveClassification } from '../types/chess';
 import {
   CLASS_LIMITS,
+  MISS_LIMITS,
   accuracyFromMoves,
   accuracyFromWinDrop,
   calculateWinPercentage,
@@ -119,7 +120,7 @@ describe('accuracyFromMoves', () => {
 
   it('bottoms out at the per-move floor for a lost game, far below the old 25% floor', () => {
     const awful = gameFromEvals([500, ...Array.from({ length: 20 }, (_, i) => (i % 2 ? 500 : -500))]);
-    expect(accuracyOf(awful, 'w')).toBe(10);
+    expect(accuracyOf(awful, 'w')).toBe(5);
   });
 
   it.each<[string, number]>([
@@ -175,58 +176,80 @@ describe('accuracyFromMoves', () => {
     const mate = { color: 'w', evalBefore: 500, evalAfter: -10000, centipawnLoss: 10500 } as MoveAnalysis;
     const queen = { color: 'w', evalBefore: 500, evalAfter: -1000, centipawnLoss: 1500 } as MoveAnalysis;
     expect(accuracyFromMoves([perfect, perfect, mate])).toBe(accuracyFromMoves([perfect, perfect, queen]));
-    expect(accuracyFromMoves([perfect, perfect, mate])).toBeGreaterThan(40);
+    expect(accuracyFromMoves([perfect, perfect, mate])).toBeGreaterThan(30);
   });
 });
 
 describe('classifyMove', () => {
-  // classifyMove(isWhite, playedSan, bestSan, winPctDrop, evalBefore, evalAfter, isSacrifice)
+  // classifyMove(playedSan, bestSan, winPctDrop, isSacrifice, previousOpponentDrop)
   it('labels the engine move (or a near-identical one) as best', () => {
-    expect(classifyMove(true, 'Nf3', 'Nf3', 0, 20, 20)).toBe('best');
-    expect(classifyMove(true, 'Nf3', 'Nf3', 6, 20, 20)).toBe('best'); // the engine's own move is always "best"
-    expect(classifyMove(true, 'd4', 'Nf3', CLASS_LIMITS.best, 20, 10)).toBe('best');
+    expect(classifyMove('Nf3', 'Nf3', 0)).toBe('best');
+    expect(classifyMove('Nf3', 'Nf3', 6)).toBe('best'); // the engine's own move is always "best"
+    expect(classifyMove('d4', 'Nf3', CLASS_LIMITS.best)).toBe('best');
   });
 
   it('labels a sacrifice that gives nothing away as brilliant', () => {
-    expect(classifyMove(true, 'Bxh7+', 'Nf3', 1, 50, 150, true)).toBe('brilliant');
+    expect(classifyMove('Bxh7+', 'Nf3', 1, true)).toBe('brilliant');
     // Without a sacrifice the same move is only "excellent"
-    expect(classifyMove(true, 'Bxh7+', 'Nf3', 1, 50, 150, false)).toBe('excellent');
+    expect(classifyMove('Bxh7+', 'Nf3', 1, false)).toBe('excellent');
   });
 
   it('does not label a costly sacrifice as brilliant', () => {
-    expect(classifyMove(true, 'Bxh7+', 'Nf3', 2, 50, 150, true)).toBe('good');
-  });
-
-  it('detects a missed win for White and for Black', () => {
-    expect(classifyMove(true, 'h3', 'Qxf7#', 40, 300, 0)).toBe('missedWin');
-    expect(classifyMove(false, 'h6', 'Qxf2#', 40, -300, 0)).toBe('missedWin');
-  });
-
-  it('does not report a missed win when the advantage is kept', () => {
-    expect(classifyMove(true, 'h3', 'Qxf7#', 10, 300, 180)).toBe('mistake');
+    expect(classifyMove('Bxh7+', 'Nf3', 2, true)).toBe('good');
   });
 
   it.each<[number, MoveClassification]>([
     [0.4, 'excellent'],
     [1.1, 'excellent'],
     [1.2, 'good'],
-    [2.9, 'good'],
-    [3, 'inaccuracy'],
-    [5.9, 'inaccuracy'],
-    [6, 'mistake'],
-    [11.9, 'mistake'],
-    [12, 'blunder'],
+    [3.9, 'good'],
+    [4, 'inaccuracy'],
+    [7.9, 'inaccuracy'],
+    [8, 'mistake'],
+    [19.9, 'mistake'],
+    [20, 'blunder'],
     [80, 'blunder'],
   ])('limits: a Win%-drop of %s is %s', (winPctDrop, expected) => {
-    // Evaluations stay close to equal so the "missed win" rule cannot apply
-    expect(classifyMove(true, 'a3', 'e4', winPctDrop, 20, -20)).toBe(expected);
+    expect(classifyMove('a3', 'e4', winPctDrop)).toBe(expected);
   });
 
   it('is based on the Win% only: giving up pawns in a won position is not a blunder', () => {
     // +12 -> +9 is about two points of win probability
     const drop = calculateWinPercentage(1200) - calculateWinPercentage(900);
     expect(drop).toBeLessThan(CLASS_LIMITS.good);
-    expect(classifyMove(true, 'a3', 'e4', drop, 1200, 900)).toBe('good');
+    expect(classifyMove('a3', 'e4', drop)).toBe('good');
+  });
+
+  describe('a miss: not punishing a mistake of the opponent', () => {
+    const { opponentDrop, ownDrop } = MISS_LIMITS;
+
+    it('is a move giving away enough right after a mistake of the opponent', () => {
+      expect(classifyMove('h3', 'Qxf7#', ownDrop, false, opponentDrop)).toBe('missedWin');
+      expect(classifyMove('h3', 'Qxf7#', 15, false, 30)).toBe('missedWin');
+    });
+
+    it('stays a plain error when the opponent had not just erred', () => {
+      expect(classifyMove('h3', 'Qxf7#', 10, false, opponentDrop - 0.1)).toBe('mistake');
+      expect(classifyMove('h3', 'Qxf7#', 25, false, 0)).toBe('blunder');
+    });
+
+    it('needs the move itself to give away enough', () => {
+      expect(classifyMove('h3', 'Qxf7#', ownDrop - 0.1, false, 30)).toBe('inaccuracy');
+      // a small slip is still a "good" move, whatever happened before
+      expect(classifyMove('h3', 'Qxf7#', 2, false, 30)).toBe('good');
+    });
+
+    it('is fitted on chess.com: an opponent mistake of 8 points, then a move giving away 5', () => {
+      expect([opponentDrop, ownDrop]).toEqual([8, 5]);
+      expect(classifyMove('h3', 'Qxf7#', 5, false, 8)).toBe('missedWin');
+      expect(classifyMove('h3', 'Qxf7#', 4.9, false, 8)).toBe('inaccuracy');
+      expect(classifyMove('h3', 'Qxf7#', 5, false, 7.9)).toBe('inaccuracy');
+    });
+
+    it('is never a move of the engine, nor a brilliant one', () => {
+      expect(classifyMove('Qxf7#', 'Qxf7#', 12, false, 30)).toBe('best');
+      expect(classifyMove('Bxh7+', 'Nf3', 1, true, 30)).toBe('brilliant');
+    });
   });
 });
 
@@ -269,7 +292,8 @@ describe('computePlayerStats', () => {
       good: 1,
       inaccuracies: 1,
       mistakes: 2,
-      blunders: 2, // blunders and missed wins are counted together
+      blunders: 1, // missed wins are counted apart, as chess.com does
+      missedWins: 1,
       avgCentipawnLoss: 100,
     });
     expect(stats.accuracy).toBe(accuracyFromMoves(moves));
