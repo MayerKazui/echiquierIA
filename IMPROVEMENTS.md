@@ -223,6 +223,14 @@ Deux limites notées à la section 12.
 - Les coups de livre comptent pour 100 % (comme avant, 0 cp perdu). Le _classement_ des coups (gaffe, erreur…) reste fondé sur les centipions : une « gaffe » peut survenir dans une position déjà gagnée sans changer grand-chose à la probabilité de gain, donc sans peser sur la précision.
 - Tests : `accuracyFromWinDrop`, `moveAccuracy`, `accuracyFromMoves`, phases et relecture du stockage ; 2 mutations vérifiées (couleur, plafond du ratio).
 
+## Notation française partout (fait)
+
+- [x] **Règle** : les coups sont stockés en notation anglaise (`san`, `bestMoveSan`, livre d'ouvertures) et **traduits à l'affichage** (`toFrenchSan`). Avant, le meilleur coup du moteur était stocké en français alors que le coup joué l'était en anglais : la comparaison « coup joué = meilleur coup » échouait pour les pièces, et les affichages se mélangeaient.
+- [x] **Corrigé** : titres du panneau de comparaison (« Pourquoi Dc5 est une imprécision… », « L'idée directrice de Db3 »), textes de secours locaux, bandeau d'exploration, infobulles du graphique, suite théorique du livre d'ouvertures (suites en SAN, lues par `formatPvToFrench`), annonce vocale du concept.
+- [x] **Coach IA** : le serveur envoie à Gemini les coups, la variante et l'historique **en français** avec la consigne de n'écrire qu'en notation française ; ses textes de secours aussi. En filet de sécurité, `frenchifyMoveText` réécrit à l'affichage les coups anglais restants (Qc5 → Dc5, Nxf3 → Cxf3, e8=Q → e8=D). Un « R » initial n'est pas touché (tour en anglais, roi en français : ambigu).
+- [x] Les parties déjà enregistrées voient leur meilleur coup relu en anglais, reconstruit depuis son coup UCI (`gameStore`).
+- Tests : `frenchifyMoveText`, `formatPvToFrench` en SAN, relecture des anciennes parties, panneau de comparaison (3) ; 2 mutations vérifiées. Vérifié dans le navigateur : 39 coups parcourus, aucune notation anglaise dans la page.
+
 ## Ordre suggéré
 
 1 (sécurité serveur) → 2 (Gemini) → 4 (tests sur la logique pure) → 3 (découpage de `App.tsx`), puis le reste.

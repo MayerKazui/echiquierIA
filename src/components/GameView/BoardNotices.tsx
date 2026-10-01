@@ -1,5 +1,6 @@
 import React from 'react';
 import { Check, FlaskConical, Undo2, X } from 'lucide-react';
+import { toFrenchSan } from '../../utils/chessNotation';
 
 /** Shown after a Lichess import (or fallback to the manual paste page). */
 export const LichessNotice: React.FC<{ onDismiss: () => void }> = ({ onDismiss }) => (
@@ -49,7 +50,7 @@ export const SandboxBanner: React.FC<SandboxBannerProps> = ({ moves, onUndo, onE
           </span>
         </div>
         <div className="font-mono text-slate-200 text-[11px] truncate">
-          {moves.map((m, idx) => `${idx + 1}. ${m.san}`).join(' ')}
+          {moves.map((m, idx) => `${idx + 1}. ${toFrenchSan(m.san)}`).join(' ')}
         </div>
       </div>
     </div>

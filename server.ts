@@ -4,6 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import { resolvePort } from './server/config';
+import { formatPvToFrench, toFrenchSan } from './src/utils/chessNotation';
 import { spaFallback, staticMiddlewares } from './server/static';
 import type { ZodType } from 'zod';
 import {
@@ -193,6 +194,16 @@ function setCachedExplanation(key: string, data: Explanation) {
   }
 }
 
+/** The first moves of a UCI variation (space separated) written in French SAN, or the text itself if it cannot be read. */
+function pvToFrench(fen: string | undefined, pv: string | undefined): string | undefined {
+  if (!pv || !fen) return pv;
+  try {
+    return formatPvToFrench(fen, pv.split(' ').filter(Boolean), 5, false);
+  } catch {
+    return pv;
+  }
+}
+
 // Helper: Dynamic, 100% situational heuristic chess coach (never generic boilerplate)
 function generateSituationalExplanation(
   movePlayed: MoveRef | undefined,
@@ -204,6 +215,9 @@ function generateSituationalExplanation(
 ): Explanation {
   const playedSan = movePlayed?.san || movePlayed?.uci || '';
   const bestSan = moveBest?.san || moveBest?.uci || playedSan;
+  // Piece detection below reads English SAN; everything shown to the player is in French notation
+  const playedFr = toFrenchSan(playedSan);
+  const bestFr = toFrenchSan(bestSan);
   const isWhite = playerColor === 'white';
   const oppColor = isWhite ? 'noires' : 'blanches';
 
@@ -239,7 +253,7 @@ function generateSituationalExplanation(
 
   if (isGoodMove) {
     whyPlayedIsBad = ''; // Le coup joué n'est PAS mauvais !
-    whyBestIsBetter = `Le coup joué ${playedSan} est le meilleur choix dans cette position : il ${
+    whyBestIsBetter = `Le coup joué ${playedFr} est le meilleur choix dans cette position : il ${
       isCapture
         ? 'élimine une pièce adverse clé tout en maintenant une coordination optimale'
         : isCheck
@@ -250,10 +264,10 @@ function generateSituationalExplanation(
     }.`;
   } else {
     whyPlayedIsBad = isBlunder
-      ? `En jouant ${playedSan}, le camp ${isWhite ? 'blanc' : 'noir'} concède un avantage matériel ou positionnel direct que l'adversaire peut exploiter.`
-      : `Le coup ${playedSan} est imprécis et laisse l'adversaire respirer au lieu de maintenir une pression directe.`;
+      ? `En jouant ${playedFr}, le camp ${isWhite ? 'blanc' : 'noir'} concède un avantage matériel ou positionnel direct que l'adversaire peut exploiter.`
+      : `Le coup ${playedFr} est imprécis et laisse l'adversaire respirer au lieu de maintenir une pression directe.`;
 
-    whyBestIsBetter = `Le coup recommandé ${bestSan} ${
+    whyBestIsBetter = `Le coup recommandé ${bestFr} ${
       isCapture ? 'élimine une pièce maîtresse' : `installe ${pieceName}`
     } directement sur la case ${targetSquare || 'clé'}, posant un problème tactique immédiat aux pièces ${oppColor}.`;
   }
@@ -261,7 +275,7 @@ function generateSituationalExplanation(
   // Situational plan: tailored with pieces, target squares and PV continuation
   const pvList = (pv || '').split(' ').filter(Boolean).slice(0, 4);
   const steps: string[] = [
-    `1. ${isGoodMove ? `Poursuivre avec l'idée de ${playedSan}` : `Jouer ${bestSan}`} pour ${
+    `1. ${isGoodMove ? `Poursuivre avec l'idée de ${playedFr}` : `Jouer ${bestFr}`} pour ${
       isCapture ? 'déstructurer la défense adverse' : `activer ${pieceName} vers la case ${targetSquare || 'centrale'}`
     }.`,
   ];
@@ -305,15 +319,21 @@ app.post('/api/coach/explain', explainLimiter, validateBody(explainSchema), asyn
       (movePlayed?.san && moveBest?.san && movePlayed.san === moveBest.san) ||
       !moveBest?.san;
 
+    // The client sends English SAN: the coach reads and writes French notation only (R, D, T, F, C)
+    const playedLabel = toFrenchSan(movePlayed?.san || '') || movePlayed?.uci;
+    const bestLabel = toFrenchSan(moveBest?.san || '') || moveBest?.uci;
+    const pvFrench = pvToFrench(fen, pv);
+    const historyFrench = sanHistory ? sanHistory.slice(-8).map(toFrenchSan).join(' ') : 'N/A';
+
     const promptDirective = isGoodMove
-      ? `ATTENTION DIRECTIVE CRITIQUE : Le coup joué ${movePlayed?.san || movePlayed?.uci} est UN EXCELLENT COUP ou LE MEILLEUR COUP (classification : "${classification}"). Il n'y a AUCUNE erreur ni gaffe.
+      ? `ATTENTION DIRECTIVE CRITIQUE : Le coup joué ${playedLabel} est UN EXCELLENT COUP ou LE MEILLEUR COUP (classification : "${classification}"). Il n'y a AUCUNE erreur ni gaffe.
 Tu DOIS IMPÉRATIVEMENT féliciter le joueur !
 - Dans "whyPlayedIsBad" : mets obligatoirement une chaîne vide "" (ne critique surtout pas ce coup !).
 - Dans "whyBestIsBetter" : explique avec clarté pourquoi ce coup joué est remarquable, quelles menaces ou avantages il crée et comment il surclasse les alternatives.
 - Dans "plan" : fournis le plan d'action en 3 étapes pour continuer sur cette lancée victorieuse.`
-      : `Le coup joué ${movePlayed?.san || movePlayed?.uci} est une ${classification}.
+      : `Le coup joué ${playedLabel} est une ${classification}.
 - Dans "whyPlayedIsBad" : explique précisément la faiblesse ou la perte tactique concrète causée par ce coup joué.
-- Dans "whyBestIsBetter" : explique la force et la supériorité tactique du coup recommandé ${moveBest?.san || moveBest?.uci}.
+- Dans "whyBestIsBetter" : explique la force et la supériorité tactique du coup recommandé ${bestLabel}.
 - Dans "plan" : fournis le plan de redressement en 3 étapes.`;
 
     const prompt = `Tu es un Grand Maître International d'échecs et un entraîneur d'élite mondialement reconnu.
@@ -322,13 +342,15 @@ Analyse ce moment précis de la partie :
 - FEN de la position : ${fen}
 - Trait : ${playerColor === 'white' ? 'Blancs' : 'Noirs'}
 - Numéro du coup : ${moveNumber}
-- Coup joué par le joueur : ${movePlayed?.san || movePlayed?.uci} (évaluation : ${evalPlayed})
-- Meilleur coup Stockfish : ${moveBest?.san || moveBest?.uci || movePlayed?.san} (évaluation : ${evalBest})
+- Coup joué par le joueur : ${playedLabel} (évaluation : ${evalPlayed})
+- Meilleur coup Stockfish : ${bestLabel || playedLabel} (évaluation : ${evalBest})
 - Classification du coup : ${classification}
-- Variante principale calculée par Stockfish (PV) : ${pv || 'N/A'}
-- Contexte des derniers coups : ${sanHistory ? sanHistory.slice(-8).join(' ') : 'N/A'}
+- Variante principale calculée par Stockfish (PV) : ${pvFrench || 'N/A'}
+- Contexte des derniers coups : ${historyFrench}
 
 ${promptDirective}
+
+NOTATION : écris TOUS les coups en notation française (R = Roi, D = Dame, T = Tour, F = Fou, C = Cavalier ; pas de lettre pour un pion ; O-O et O-O-O pour le roque), exactement comme dans les coups ci-dessus. N'utilise JAMAIS les lettres anglaises K, Q, R (tour), B, N.
 
 DIRECTIVE POUR LE PLAN D'ACTION ("plan") :
 Le plan d'action doit être STRICTEMENT SITUATIONNEL, PRÉCIS et adapté à cette position exacte.
@@ -368,7 +390,14 @@ Format JSON strict requis :
       setCachedExplanation(cacheKey, parsed);
     } catch (genErr) {
       console.warn('Gemini calls failed, falling back to situational dynamic chess analysis:', genErr);
-      parsed = generateSituationalExplanation(movePlayed, moveBest, pv, playerColor, moveNumber, classificationKey);
+      parsed = generateSituationalExplanation(
+        movePlayed,
+        moveBest,
+        pvFrench,
+        playerColor,
+        moveNumber,
+        classificationKey
+      );
     }
 
     res.json({ success: true, data: parsed });
@@ -378,7 +407,7 @@ Format JSON strict requis :
     const fallback = generateSituationalExplanation(
       body.movePlayed,
       body.moveBest,
-      body.pv,
+      pvToFrench(body.fen, body.pv),
       body.playerColor || 'white',
       body.moveNumber || 1,
       body.classificationKey || 'mistake'

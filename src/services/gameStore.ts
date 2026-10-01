@@ -1,4 +1,5 @@
-import type { GameAnalysisResult } from '../types/chess';
+import { Chess } from 'chess.js';
+import type { GameAnalysisResult, MoveAnalysis } from '../types/chess';
 import { computePlayerStats } from '../utils/moveAnalysis';
 
 /**
@@ -69,15 +70,36 @@ function isStoredGame(value: unknown): value is StoredGame {
 }
 
 /**
- * Recomputes the statistics from the stored moves: they are cheap to derive and games saved
- * before a change in the way they are computed (e.g. the accuracy) must not keep the old values.
+ * The engine's best move as English SAN, rebuilt from its UCI move. Games saved by an earlier version
+ * kept it in French ("Cf3"), which then did not match the played move ("Nf3").
+ */
+function bestMoveInEnglish(move: MoveAnalysis): string {
+  const uci = move.bestMoveUci;
+  // Cheap test first: only a move starting with D, T, F, C (or R: a king in French) can be in French
+  if (!/^[DTFCR]|=[DTFC]/.test(move.bestMoveSan ?? '') || !uci || uci.length < 4) return move.bestMoveSan;
+  try {
+    const played = new Chess(move.fenBefore).move({
+      from: uci.substring(0, 2),
+      to: uci.substring(2, 4),
+      promotion: uci.length > 4 ? uci[4] : undefined,
+    });
+    return played.san;
+  } catch {
+    return move.bestMoveSan;
+  }
+}
+
+/**
+ * Brings a stored game up to date when it is read: the statistics are recomputed from the moves (a change
+ * in the way they are computed must not leave the old values) and the best moves are written in English SAN.
  */
 function withFreshStats(game: StoredGame): StoredGame {
-  const { moves } = game.result;
+  const moves = game.result.moves.map((m) => ({ ...m, bestMoveSan: bestMoveInEnglish(m) }));
   return {
     ...game,
     result: {
       ...game.result,
+      moves,
       statsWhite: computePlayerStats(moves.filter((m) => m.color === 'w')),
       statsBlack: computePlayerStats(moves.filter((m) => m.color === 'b')),
     },

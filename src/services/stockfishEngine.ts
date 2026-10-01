@@ -8,7 +8,6 @@ import {
   identifyGameOpening,
   ensureOpeningBookLoaded,
 } from './openingBook';
-import { toFrenchSan } from '../utils/chessNotation';
 import { LruCache } from '../utils/lruCache';
 
 export interface EngineEvaluation {
@@ -378,7 +377,7 @@ export class StockfishService {
               promotion: bestMove.length > 4 ? bestMove[4] : undefined,
             });
             if (moveObj) {
-              currentEval.bestMoveSan = toFrenchSan(moveObj.san);
+              currentEval.bestMoveSan = moveObj.san;
             }
           } catch {
             currentEval.bestMoveSan = bestMove;

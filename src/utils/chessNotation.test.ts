@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Chess } from 'chess.js';
 import { SAMPLE_GAMES } from './sampleGames';
-import { convertUciToFrenchSan, formatPvToFrench, toEnglishSan, toFrenchSan } from './chessNotation';
+import { convertUciToFrenchSan, formatPvToFrench, frenchifyMoveText, toEnglishSan, toFrenchSan } from './chessNotation';
 
 const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -91,8 +91,41 @@ describe('formatPvToFrench', () => {
     expect(formatPvToFrench(START, ['e2e4', 'e7e5', 'g1f3', 'b8c6'], 3, false)).toBe('e4 e5 Cf3');
   });
 
+  it('also reads a variation written in SAN (the opening book), English or French', () => {
+    expect(formatPvToFrench(START, ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5'], 6, false)).toBe('e4 e5 Cf3 Cc6 Fb5');
+    expect(formatPvToFrench(START, ['e4', 'e5', 'Cf3', 'Cc6'])).toBe('1. e4 e5 2. Cf3 Cc6');
+    expect(formatPvToFrench(START, ['e2e4', 'e5', 'Nf3'], 6, false)).toBe('e4 e5 Cf3');
+  });
+
   it('stops at the first illegal move and handles empty input', () => {
     expect(formatPvToFrench(START, ['e2e4', 'e2e4', 'g1f3'])).toBe('1. e4');
     expect(formatPvToFrench(START, [])).toBe('');
+  });
+});
+
+describe('frenchifyMoveText', () => {
+  it.each<[string, string]>([
+    ['En jouant Qc5, tu permets ...Nf6', 'En jouant Dc5, tu permets ...Cf6'],
+    ['Bxf7+ puis Qxd8# et Kg1', 'Fxf7+ puis Dxd8# et Rg1'],
+    ['Nbd7 ou N5f3', 'Cbd7 ou C5f3'],
+    ['promotion e8=Q# ou exd8=N+', 'promotion e8=D# ou exd8=C+'],
+    ['(Qh5)', '(Dh5)'],
+  ])('%s', (text, expected) => {
+    expect(frenchifyMoveText(text)).toBe(expected);
+  });
+
+  it('leaves French moves, ordinary words and a leading R alone', () => {
+    const text = 'Db3 puis Cf3, Fg5, Txd1 et Rg1 ; Bonjour, Quelle case : e4 ? Nous Bravo';
+    expect(frenchifyMoveText(text)).toBe(text);
+    expect(frenchifyMoveText('Rad1')).toBe('Rad1');
+  });
+
+  it('does not touch letters inside a longer word or square names alone', () => {
+    expect(frenchifyMoveText('Nf3x Bd5abc Qe4s')).toBe('Nf3x Bd5abc Qe4s');
+    expect(frenchifyMoveText('la case b5 et le pion e4')).toBe('la case b5 et le pion e4');
+  });
+
+  it('handles empty text', () => {
+    expect(frenchifyMoveText('')).toBe('');
   });
 });
