@@ -35,7 +35,8 @@ Une vue « Mon profil » qui agrège les parties enregistrées : « qu'est-ce qu
 
 ### 4. Récupérer ses parties sans copier-coller
 
-- [ ] **Import chess.com** par pseudo (API publique `/pub/player/{pseudo}/games/{année}/{mois}`, déjà utilisée pour le calage), en plus de Lichess ; filtres mois et cadence.
+- [x] **Import chess.com et Lichess** par pseudo (appels directs du navigateur), filtre de cadence, parties plus anciennes à la demande : voir `IMPROVEMENTS.md`.
+- [ ] Import : repère « déjà analysée » dans la liste, filtre par mois, et la précision que chess.com publie pour ses parties relues (`accuracies`), à comparer à la nôtre.
 - [ ] **« Analyser mes N dernières parties »** en tâche de fond, avec reprise si l'onglet est fermé. Sans cela le profil (1) reste théorique.
 
 ### 5. Retour plus actionnable pour chaque partie

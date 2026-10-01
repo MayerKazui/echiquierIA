@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState, useMemo } from 'react';
+import React, { useEffect, useId, useRef, useState, useMemo } from 'react';
 import { FileText, Upload, Play, Sliders, AlertCircle, User, BookOpen } from 'lucide-react';
 import { Chess } from 'chess.js';
 import { SAMPLE_GAMES, SampleGame } from '../../utils/sampleGames';
@@ -9,6 +9,8 @@ import { ANALYSIS_LEVELS, DEFAULT_ANALYSIS_DEPTH } from '../../utils/analysisLev
 import { oneOf, usePersistentState } from '../../hooks/usePersistentState';
 import type { AnalysisProgress } from '../../hooks/useGameAnalysis';
 import { AnalysisProgressBar } from '../AppHeader/AnalysisProgressBar';
+import type { ImportedGame } from '../../services/gameImport';
+import { OnlineGames, gameKey } from './OnlineGames';
 
 /** `identifyGameOpening` reads at most 35 plies: no need to replay more. */
 const MAX_OPENING_PLIES = 36;
@@ -47,6 +49,9 @@ export const PgnInput: React.FC<PgnInputProps> = ({
   );
   const workerCount = defaultWorkerCount(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined);
   const [validationError, setValidationError] = useState<string | null>(null);
+  /** The imported game whose PGN is in the field (it stays marked in the list while the PGN is not edited). */
+  const [importedKey, setImportedKey] = useState<string | null>(null);
+  const startButtonRef = useRef<HTMLButtonElement>(null);
 
   // Same lookup as the analysis (the whole game, the openings database first): one name everywhere.
   // The database is fetched when idle; the preview is recomputed once it is there.
@@ -80,7 +85,19 @@ export const PgnInput: React.FC<PgnInputProps> = ({
 
   const handleSelectSample = (sample: SampleGame) => {
     setPgnText(sample.pgn);
+    setImportedKey(null);
     setValidationError(null);
+  };
+
+  const handleSelectImported = (game: ImportedGame, username: string) => {
+    setPgnText(game.pgn);
+    setImportedKey(gameKey(game));
+    setValidationError(null);
+    // The board is oriented, and the advice written, for the pseudo the games were searched with
+    const players = [game.white, game.black].map((name) => name.toLowerCase());
+    if (!userPseudo || !players.some((name) => name.includes(userPseudo.toLowerCase()))) onUpdatePseudo(username);
+    // The start button can be far below the list on a phone
+    startButtonRef.current?.scrollIntoView?.({ block: 'nearest' });
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,6 +109,7 @@ export const PgnInput: React.FC<PgnInputProps> = ({
       const content = event.target?.result as string;
       if (content) {
         setPgnText(content);
+        setImportedKey(null);
         setValidationError(null);
       }
     };
@@ -124,7 +142,7 @@ export const PgnInput: React.FC<PgnInputProps> = ({
             Importer et Analyser une Partie (PGN)
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Collez le PGN de votre partie (Chess.com, Lichess, FFE) ou sélectionnez un exemple ci-dessous.
+            Importez vos parties de chess.com ou Lichess, collez un PGN (FFE…) ou sélectionnez un exemple ci-dessous.
           </p>
         </div>
 
@@ -140,6 +158,8 @@ export const PgnInput: React.FC<PgnInputProps> = ({
 
       {/* Nothing can be edited while the analysis runs: the form shows its progress instead */}
       <fieldset disabled={isAnalyzing} className="contents">
+        <OnlineGames userPseudo={userPseudo} selectedKey={importedKey} onSelect={handleSelectImported} />
+
         {/* Preset Sample Games */}
         <div>
           <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 block mb-2">
@@ -196,6 +216,7 @@ export const PgnInput: React.FC<PgnInputProps> = ({
             value={pgnText}
             onChange={(e) => {
               setPgnText(e.target.value);
+              setImportedKey(null);
               if (validationError) setValidationError(null);
             }}
             placeholder='[Event "Tournoi"]&#10;1. e4 e5 2. Nf3 Nc6...'
@@ -335,9 +356,10 @@ export const PgnInput: React.FC<PgnInputProps> = ({
       ) : (
         <div className="flex items-center justify-end gap-3 pt-2">
           <button
+            ref={startButtonRef}
             type="button"
             onClick={handleStartAnalysis}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
+            className="scroll-mb-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
           >
             <Play className="w-4 h-4" />
             <span>Lancer l'Analyse Complète</span>
