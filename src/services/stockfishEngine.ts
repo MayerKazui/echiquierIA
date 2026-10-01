@@ -1,6 +1,12 @@
 import { Chess, type Move } from 'chess.js';
 import { MoveAnalysis, PlayerStats } from '../types/chess';
-import { calculateWinPercentage, classifyMove, computePlayerStats } from '../utils/moveAnalysis';
+import {
+  calculateWinPercentage,
+  classifyMove,
+  computePlayerStats,
+  parseElo,
+  type PlayerElos,
+} from '../utils/moveAnalysis';
 import { extractGameClocks } from '../utils/clockUtils';
 import {
   getOpeningBookEvaluation,
@@ -598,7 +604,8 @@ export class StockfishService {
     fensAfter: string[],
     moveClocks: ReturnType<typeof extractGameClocks>['moveClocks'],
     evalCache: Map<string, EngineEvaluation>,
-    count: number
+    count: number,
+    elos: PlayerElos
   ): MoveAnalysis[] {
     const movesAnalysis: MoveAnalysis[] = [];
     let inBook = true;
@@ -616,8 +623,8 @@ export class StockfishService {
       const evalBefore = evalBeforeRes.cp;
       const evalAfter = evalAfterRes.cp;
 
-      const winPctBefore = calculateWinPercentage(evalBefore);
-      const winPctAfter = calculateWinPercentage(evalAfter);
+      const winPctBefore = calculateWinPercentage(evalBefore, elos[move.color]);
+      const winPctAfter = calculateWinPercentage(evalAfter, elos[move.color]);
 
       // Check if played move is recognized in the official theoretical opening book (7,800+ lines)
       let bookCheck: { isBook: boolean; eco?: string; name?: string } = { isBook: false };
@@ -713,18 +720,19 @@ export class StockfishService {
     fensAfter: string[],
     moveClocks: ReturnType<typeof extractGameClocks>['moveClocks'],
     evalCache: Map<string, EngineEvaluation>,
-    count: number
+    count: number,
+    elos: PlayerElos
   ): GameAnalysisOutput {
-    const moves = this.buildMoves(history, fensBefore, fensAfter, moveClocks, evalCache, count);
+    const moves = this.buildMoves(history, fensBefore, fensAfter, moveClocks, evalCache, count, elos);
     return {
       moves,
       statsWhite: computePlayerStats(
         moves.filter((m) => m.color === 'w'),
-        moves
+        elos.w
       ),
       statsBlack: computePlayerStats(
         moves.filter((m) => m.color === 'b'),
-        moves
+        elos.b
       ),
       // Identify the official Lichess opening name & ECO
       detectedOpening: identifyGameOpening(fensAfter.slice(0, count)),
@@ -749,6 +757,9 @@ export class StockfishService {
     chess.loadPgn(pgn);
     const history = chess.history({ verbose: true });
     const totalPlies = history.length;
+    // Ratings of the players (PGN headers): the Win% curve, hence the classification and the accuracy, depend on them
+    const headers = chess.getHeaders();
+    const elos: PlayerElos = { w: parseElo(headers.WhiteElo), b: parseElo(headers.BlackElo) };
 
     // Ensure full theoretical openings dataset (7,800+ lines) is loaded into cache
     await ensureOpeningBookLoaded();
@@ -797,7 +808,7 @@ export class StockfishService {
       }
       sentPlies = readyPlies;
       lastSentAt = Date.now();
-      onPartial(this.summarize(history, fensBefore, fensAfter, moveClocks, evalCache, readyPlies), totalPlies);
+      onPartial(this.summarize(history, fensBefore, fensAfter, moveClocks, evalCache, readyPlies, elos), totalPlies);
     };
 
     try {
@@ -816,7 +827,7 @@ export class StockfishService {
       trailingTimer = undefined;
     }
 
-    return this.summarize(history, fensBefore, fensAfter, moveClocks, evalCache, totalPlies);
+    return this.summarize(history, fensBefore, fensAfter, moveClocks, evalCache, totalPlies, elos);
   }
 
   public destroy() {

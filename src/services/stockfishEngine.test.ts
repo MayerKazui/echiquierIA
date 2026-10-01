@@ -553,6 +553,30 @@ describe('analyzeFullGame', () => {
     expect(progress.at(-1)![0]).toBe(progress.at(-1)![1]);
   });
 
+  it("reads the players' ratings from the PGN headers: the same evaluation is worth more to a stronger player", async () => {
+    const analyseWithRating = async (elo: string) => {
+      const { service } = setup({ workerCount: 3 });
+      const analysis = service.analyzeFullGame(`[WhiteElo "${elo}"]\n[BlackElo "${elo}"]\n\n${PGN}`, 10);
+      await run(5000);
+      return analysis;
+    };
+    const strong = await analyseWithRating('2800');
+    const weak = await analyseWithRating('100');
+    // Every evaluation of the fake engine is +30 cp for the side to move: White's first position
+    expect(strong.moves[0].winPercentBefore).toBeGreaterThan(weak.moves[0].winPercentBefore);
+    // ...and so is the slip it is then measured against: the statistics use the ratings too
+    expect(strong.statsWhite.accuracy).toBeLessThan(weak.statsWhite.accuracy);
+    expect(strong.statsBlack.accuracy).toBeLessThan(weak.statsBlack.accuracy);
+  });
+
+  it('analyses a game without ratings (default curve)', async () => {
+    const { service } = setup({ workerCount: 3 });
+    const analysis = service.analyzeFullGame(PGN, 10);
+    await run(5000);
+    const { moves } = await analysis;
+    expect(moves[0].winPercentBefore).toBeGreaterThan(50);
+  });
+
   it('sends the plies analysed so far, in order, and they match the final result', async () => {
     const { service } = setup({ workerCount: 2 });
     const partials: Array<{ output: GameAnalysisOutput; total: number }> = [];

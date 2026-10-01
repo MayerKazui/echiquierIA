@@ -155,6 +155,28 @@ describe('statistics of games saved by an older version', () => {
   });
 });
 
+describe('statistics of a stored game use the ratings of its players', () => {
+  it('recomputes the accuracy with the rating of each side', async () => {
+    const slip = {
+      ...makeResult().moves[0],
+      evalBefore: 100,
+      evalAfter: -50,
+      classification: 'inaccuracy',
+      centipawnLoss: 150,
+    } as MoveAnalysis;
+    const rated = (elo: string): GameAnalysisResult => ({
+      ...makeResult(),
+      metadata: { white: 'A', black: 'B', whiteElo: elo, blackElo: elo },
+      moves: [slip],
+    });
+    await rawPut(stored({ id: gameId(PGN), result: rated('2500') }));
+    const strong = (await loadGame(PGN))?.result.statsWhite.accuracy;
+    await rawPut(stored({ id: gameId(PGN), result: rated('300') }));
+    const weak = (await loadGame(PGN))?.result.statsWhite.accuracy;
+    expect(strong).toBeLessThan(weak!);
+  });
+});
+
 describe('best moves of games saved by an older version', () => {
   const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
   const withBest = (bestMoveSan: string, bestMoveUci: string, fenBefore = START) => {
