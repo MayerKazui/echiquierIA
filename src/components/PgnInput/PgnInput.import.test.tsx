@@ -98,4 +98,38 @@ describe('PgnInput: import from chess.com / Lichess', () => {
     expect(screen.getByRole('button', { name: 'Lichess' }).matches(':disabled')).toBe(true);
     expect(screen.getByRole('textbox', { name: 'Pseudo chess.com' }).matches(':disabled')).toBe(true);
   });
+
+  describe('analysing the latest games in the background', () => {
+    const searchGames = async () => {
+      await userEvent.click(screen.getByRole('button', { name: 'Lichess' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Chercher' }));
+      await screen.findByRole('button', { name: 'Analyser 1 partie' });
+    };
+
+    it('hands the games, the pseudo of the search and the depth chosen in the form to the app', async () => {
+      const onAnalyzeBatch = vi.fn();
+      renderInput({ onAnalyzeBatch });
+      await userEvent.click(screen.getByRole('radio', { name: /Expert/ }));
+      await searchGames();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Analyser 1 partie' }));
+      expect(onAnalyzeBatch).toHaveBeenCalledWith([imported], 'alice', 16);
+    });
+
+    it('is not offered when the app gives no way to run it', async () => {
+      renderInput();
+      await userEvent.click(screen.getByRole('button', { name: 'Lichess' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Chercher' }));
+      await screen.findByRole('button', { name: /^Charger la partie contre Bob/ });
+      expect(screen.queryByRole('button', { name: /^Analyser \d+ partie/ })).toBeNull();
+    });
+
+    it('cannot be started again while a batch runs', async () => {
+      renderInput({ onAnalyzeBatch: vi.fn(), isBatchBusy: true });
+      await userEvent.click(screen.getByRole('button', { name: 'Lichess' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Chercher' }));
+      const button = await screen.findByRole('button', { name: 'Analyse en cours…' });
+      expect((button as HTMLButtonElement).disabled).toBe(true);
+    });
+  });
 });

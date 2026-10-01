@@ -25,6 +25,9 @@ interface PgnInputProps {
   progress?: AnalysisProgress | null;
   /** Stops the running analysis. */
   onCancel?: () => void;
+  /** Analyses the latest games of the online list in the background, at the chosen depth. */
+  onAnalyzeBatch?: (games: ImportedGame[], username: string, depth: number) => void;
+  isBatchBusy?: boolean;
   onClose?: () => void;
 }
 
@@ -36,6 +39,8 @@ export const PgnInput: React.FC<PgnInputProps> = ({
   isAnalyzing,
   progress = null,
   onCancel,
+  onAnalyzeBatch,
+  isBatchBusy = false,
   onClose,
 }) => {
   const pgnFieldId = useId();
@@ -158,7 +163,13 @@ export const PgnInput: React.FC<PgnInputProps> = ({
 
       {/* Nothing can be edited while the analysis runs: the form shows its progress instead */}
       <fieldset disabled={isAnalyzing} className="contents">
-        <OnlineGames userPseudo={userPseudo} selectedKey={importedKey} onSelect={handleSelectImported} />
+        <OnlineGames
+          userPseudo={userPseudo}
+          selectedKey={importedKey}
+          onSelect={handleSelectImported}
+          onAnalyzeBatch={onAnalyzeBatch && ((games, username) => onAnalyzeBatch(games, username, selectedDepth))}
+          isBatchBusy={isBatchBusy}
+        />
 
         {/* Preset Sample Games */}
         <div>

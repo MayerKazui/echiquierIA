@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, CloudDownload, Search } from 'lucide-react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { AlertCircle, CloudDownload, ListChecks, Search } from 'lucide-react';
 import {
   ImportError,
   SOURCE_LABELS,
@@ -11,6 +11,7 @@ import {
   type ImportedGame,
   type SpeedFilter,
 } from '../../services/gameImport';
+import { MAX_BATCH_JOBS } from '../../services/batchAnalysis';
 import { isAbortError } from '../../services/stockfishEngine';
 import { oneOf, usePersistentState } from '../../hooks/usePersistentState';
 
@@ -21,12 +22,18 @@ interface OnlineGamesProps {
   selectedKey: string | null;
   /** The game was picked; `username` is the pseudo it was searched with. */
   onSelect: (game: ImportedGame, username: string) => void;
+  /** Analyses these games (the newest of the list) in the background; `username` is the pseudo they were searched with. */
+  onAnalyzeBatch?: (games: ImportedGame[], username: string) => void;
+  /** A batch is already running: another one cannot be started. */
+  isBatchBusy?: boolean;
   /** Replaces the network call (tests). */
   fetchPage?: typeof fetchGamesPage;
 }
 
 const SOURCES: readonly ImportSource[] = ['chesscom', 'lichess'];
 const ALL_SPEEDS: readonly SpeedFilter[] = ['all', 'bullet', 'blitz', 'rapid', 'classical', 'daily'];
+/** How many of the latest games can be analysed at once (the history keeps `MAX_BATCH_JOBS`). */
+const BATCH_SIZES = [5, 10, MAX_BATCH_JOBS] as const;
 
 const OUTCOMES = {
   win: { label: 'Victoire', className: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
@@ -51,6 +58,8 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
   userPseudo,
   selectedKey,
   onSelect,
+  onAnalyzeBatch,
+  isBatchBusy = false,
   fetchPage = fetchGamesPage,
 }) => {
   const [source, setSource] = usePersistentState<ImportSource>('chess_import_source', 'chesscom', oneOf(SOURCES));
@@ -58,6 +67,7 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
   const [chesscomUser, setChesscomUser] = usePersistentState('chess_import_user_chesscom', userPseudo, (raw) => raw);
   const [lichessUser, setLichessUser] = usePersistentState('chess_import_user_lichess', userPseudo, (raw) => raw);
   const [storedSpeed, setSpeed] = usePersistentState<SpeedFilter>('chess_import_speed', 'all', oneOf(ALL_SPEEDS));
+  const [batchSize, setBatchSize] = usePersistentState<number>('chess_batch_size', 10, oneOf(BATCH_SIZES));
 
   const username = source === 'chesscom' ? chesscomUser : lichessUser;
   const setUsername = source === 'chesscom' ? setChesscomUser : setLichessUser;
@@ -73,6 +83,7 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [loadedTitle, setLoadedTitle] = useState<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
+  const batchSelectId = useId();
 
   useEffect(() => () => controllerRef.current?.abort(), []);
 
@@ -131,7 +142,14 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
     onSelect(game, searched.username);
   };
 
+  const startBatch = () => {
+    if (!searched || !onAnalyzeBatch) return;
+    onAnalyzeBatch(games.slice(0, batchCount), searched.username);
+  };
+
   const label = SOURCE_LABELS[source];
+  // The list is newest first: the batch takes the first ones, and never more than what is shown
+  const batchCount = Math.min(batchSize, games.length);
   const status = isLoading
     ? `Recherche des parties de ${username.trim()} sur ${label}…`
     : loadedTitle
@@ -255,6 +273,41 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
             </li>
           )}
         </ul>
+      )}
+      {onAnalyzeBatch && games.length > 0 && (
+        <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+          <div className="flex flex-wrap items-center gap-2">
+            <ListChecks className="w-4 h-4 text-indigo-400 shrink-0" aria-hidden="true" />
+            <label htmlFor={batchSelectId} className="text-xs font-semibold text-slate-200">
+              Analyser les
+            </label>
+            <select
+              id={batchSelectId}
+              value={batchSize}
+              onChange={(event) => setBatchSize(Number(event.target.value))}
+              className="px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            >
+              {BATCH_SIZES.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs font-semibold text-slate-200">dernières parties</span>
+            <button
+              type="button"
+              disabled={isBatchBusy || isLoading}
+              onClick={startBatch}
+              className="ml-auto inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-white cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+            >
+              {isBatchBusy ? 'Analyse en cours…' : `Analyser ${batchCount} partie${batchCount > 1 ? 's' : ''}`}
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-400">
+            En arrière-plan, la plus ancienne d'abord : vous pouvez continuer à utiliser l'application, et l'analyse
+            reprend si vous fermez l'onglet. « Mes parties » garde les {MAX_BATCH_JOBS} dernières parties analysées.
+          </p>
+        </div>
       )}
       {games.length === 0 && cursor && !isLoading && (
         <button

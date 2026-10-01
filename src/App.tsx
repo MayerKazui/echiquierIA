@@ -9,6 +9,7 @@ import { openingAtPly } from './utils/openingAtPly';
 
 import { oneOf, usePersistentState } from './hooks/usePersistentState';
 import { useGameAnalysis } from './hooks/useGameAnalysis';
+import { useBatchAnalysis } from './hooks/useBatchAnalysis';
 import { usePlayback } from './hooks/usePlayback';
 import { useMoveSound } from './hooks/useMoveSound';
 import { useGamePosition } from './hooks/useGamePosition';
@@ -29,9 +30,12 @@ import { GameHistory } from './components/GameHistory/GameHistory';
 
 import { EvaluationBar } from './components/EvaluationBar/EvaluationBar';
 import { PgnInput } from './components/PgnInput/PgnInput';
+import type { ImportedGame } from './services/gameImport';
+import { jobsFromGames } from './services/batchAnalysis';
 import { AppHeader } from './components/AppHeader/AppHeader';
 import { BottomNav } from './components/AppHeader/BottomNav';
 import { AnalysisProgressBanner } from './components/AppHeader/AnalysisProgressBanner';
+import { BatchAnalysisBanner } from './components/AppHeader/BatchAnalysisBanner';
 import { OpeningStrip } from './components/GameView/OpeningStrip';
 import { PlayerBar } from './components/GameView/PlayerBar';
 import { BoardToolbar } from './components/GameView/BoardToolbar';
@@ -84,6 +88,9 @@ export default function App() {
     updateAiExplanation,
     updateUserColor: updateResultUserColor,
   } = useGameAnalysis(userPseudo, userColor);
+  // Several games analysed in the background; it steps aside while the user analyses a game by hand
+  const batch = useBatchAnalysis(isAnalyzing);
+  const startBatch = batch.start;
   // The game on screen: the moves analysed so far while an analysis runs, otherwise the finished analysis
   const analysis = partial ?? finalResult;
   const moves = analysis?.moves;
@@ -230,6 +237,15 @@ export default function App() {
   );
 
   // The form (start screen or dialog) stays open with the progress until the first moves can be shown
+  /** Analyses the latest games of the online list in the background, the oldest first. */
+  const runBatch = useCallback(
+    (games: ImportedGame[], username: string, depth: number) => {
+      const jobs = jobsFromGames(games);
+      if (startBatch(jobs, depth, username)) setIsPgnModalOpen(false);
+    },
+    [startBatch]
+  );
+
   const isPgnModalVisible = isPgnModalOpen && !partial;
   const cancelFromBanner = () => {
     cancelAnalysis();
@@ -503,6 +519,8 @@ export default function App() {
         onOpenHistory={() => setIsHistoryOpen(true)}
       />
 
+      <BatchAnalysisBanner batch={batch} onResume={batch.resume} onCancel={batch.cancel} onDismiss={batch.dismiss} />
+
       {isAnalyzing && progress && analysis && !isPgnModalVisible && (
         <AnalysisProgressBanner progress={progress} onCancel={cancelFromBanner} />
       )}
@@ -528,6 +546,8 @@ export default function App() {
                   isAnalyzing={isAnalyzing}
                   progress={progress}
                   onCancel={cancelAnalysis}
+                  onAnalyzeBatch={runBatch}
+                  isBatchBusy={batch.status === 'running' || batch.status === 'paused'}
                 />
               </div>
             </div>
@@ -570,6 +590,8 @@ export default function App() {
             isAnalyzing={isAnalyzing}
             progress={progress}
             onCancel={cancelAnalysis}
+            onAnalyzeBatch={runBatch}
+            isBatchBusy={batch.status === 'running' || batch.status === 'paused'}
             onClose={() => setIsPgnModalOpen(false)}
           />
         </Modal>

@@ -223,4 +223,81 @@ describe('OnlineGames', () => {
     await act(async () => answerFirst({ games: [game({ id: 'first', black: 'First' })], cursor: null }));
     expect(screen.queryByRole('button', { name: /contre First/ })).toBeNull();
   });
+
+  describe('analysing the latest games in the background', () => {
+    const many = (count: number) =>
+      Array.from({ length: count }, (_, i) => game({ id: `g${i + 1}`, white: 'alice', black: `Opp${i + 1}` }));
+    const searchWith = async (count: number, props: Partial<React.ComponentProps<typeof OnlineGames>> = {}) => {
+      const onAnalyzeBatch = vi.fn();
+      renderGames({ onAnalyzeBatch, ...props }, [{ games: many(count), cursor: null }]);
+      await search();
+      await screen.findByRole('button', { name: /^Analyser \d+ partie/ });
+      return onAnalyzeBatch;
+    };
+
+    it('is not offered without a handler', async () => {
+      renderGames({}, [{ games: many(3), cursor: null }]);
+      await search();
+      await screen.findByRole('list');
+      expect(screen.queryByRole('button', { name: /^Analyser \d+ partie/ })).toBeNull();
+      expect(screen.queryByRole('combobox', { name: 'Analyser les' })).toBeNull();
+    });
+
+    it('is not offered before a search', () => {
+      renderGames({ onAnalyzeBatch: vi.fn() });
+      expect(screen.queryByRole('combobox', { name: 'Analyser les' })).toBeNull();
+    });
+
+    it('sends the newest games of the list, ten by default, with the pseudo they were searched with', async () => {
+      const onAnalyzeBatch = await searchWith(12);
+      await userEvent.click(screen.getByRole('button', { name: 'Analyser 10 parties' }));
+
+      expect(onAnalyzeBatch).toHaveBeenCalledTimes(1);
+      const [games, username] = onAnalyzeBatch.mock.calls[0] as [ImportedGame[], string];
+      expect(games.map((g) => g.id)).toEqual(Array.from({ length: 10 }, (_, i) => `g${i + 1}`));
+      expect(username).toBe('alice');
+    });
+
+    it('lets the user choose how many, and remembers it', async () => {
+      const onAnalyzeBatch = await searchWith(12);
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Analyser les' }), '5');
+      await userEvent.click(screen.getByRole('button', { name: 'Analyser 5 parties' }));
+      expect((onAnalyzeBatch.mock.calls[0][0] as ImportedGame[]).map((g) => g.id)).toEqual([
+        'g1',
+        'g2',
+        'g3',
+        'g4',
+        'g5',
+      ]);
+      expect(localStorage.getItem('chess_batch_size')).toBe('5');
+    });
+
+    it('never asks for more games than the list shows', async () => {
+      const onAnalyzeBatch = await searchWith(3);
+      await userEvent.click(screen.getByRole('button', { name: 'Analyser 3 parties' }));
+      expect((onAnalyzeBatch.mock.calls[0][0] as ImportedGame[]).map((g) => g.id)).toEqual(['g1', 'g2', 'g3']);
+    });
+
+    it('says "partie" for a single game', async () => {
+      await searchWith(1);
+      expect(screen.getByRole('button', { name: 'Analyser 1 partie' })).toBeTruthy();
+    });
+
+    it('is disabled while a batch runs', async () => {
+      const fetchPage = vi.fn<FetchPage>(() => Promise.resolve({ games: many(4), cursor: null }));
+      const props = { userPseudo: 'alice', selectedKey: null, onSelect: vi.fn(), onAnalyzeBatch: vi.fn(), fetchPage };
+      const { rerender } = render(<OnlineGames {...props} />);
+      await search();
+      await screen.findByRole('button', { name: 'Analyser 4 parties' });
+
+      rerender(<OnlineGames {...props} isBatchBusy />);
+      expect((screen.getByRole('button', { name: 'Analyse en cours…' }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('mentions that the history keeps 20 games, and that the analysis goes on in the background', async () => {
+      await searchWith(5);
+      expect(screen.getByText(/« Mes parties » garde les 20 dernières/)).toBeTruthy();
+      expect(screen.getByText(/En arrière-plan, la plus ancienne d'abord/)).toBeTruthy();
+    });
+  });
 });

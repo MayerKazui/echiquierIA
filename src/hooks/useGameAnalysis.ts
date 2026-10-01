@@ -3,8 +3,7 @@ import { GameAnalysisResult, MoveAnalysis } from '../types/chess';
 import { PlayerColor } from '../types/ui';
 import { isAbortError, stockfishService, type GameAnalysisOutput } from '../services/stockfishEngine';
 import { loadGame, loadLatestGame, saveGame } from '../services/gameStore';
-import { chooseOpening } from '../services/openingBook';
-import { parsePgnHeaders } from '../utils/pgnParser';
+import { buildGameResult, detectUserColor } from '../services/gameResult';
 import { SAMPLE_GAMES } from '../utils/sampleGames';
 
 export interface AnalysisProgress {
@@ -42,21 +41,6 @@ function withTimeout<T>(promise: Promise<T>, fallback: T, ms: number): Promise<T
       }
     );
   });
-}
-
-/** Picks the side the user played from the PGN player names, falling back to `fallback`. */
-function detectUserColor(
-  headers: { white?: string; black?: string },
-  userPseudo: string,
-  fallback: PlayerColor
-): PlayerColor {
-  if (!userPseudo) return fallback;
-  const white = (headers.white || '').toLowerCase();
-  const black = (headers.black || '').toLowerCase();
-  const pseudo = userPseudo.toLowerCase();
-  if (black.includes(pseudo) && !white.includes(pseudo)) return 'b';
-  if (white.includes(pseudo)) return 'w';
-  return fallback;
 }
 
 /**
@@ -146,22 +130,7 @@ export function useGameAnalysis(userPseudo: string, userColor: PlayerColor) {
           return { status: 'done', result: reused };
         }
 
-        const headers = parsePgnHeaders(pgnToAnalyze);
-        const toResult = (output: GameAnalysisOutput): GameAnalysisResult => {
-          const metadata = { ...headers };
-          // Same opening name as the start screen: the database first, the PGN header as a fallback
-          const opening = chooseOpening(output.detectedOpening ?? null, headers);
-          metadata.opening = opening?.name;
-          metadata.eco = opening?.eco;
-          return {
-            metadata,
-            moves: output.moves,
-            statsWhite: output.statsWhite,
-            statsBlack: output.statsBlack,
-            userColor: detectUserColor(metadata, userPseudo, userColor),
-            userPseudo,
-          };
-        };
+        const toResult = (output: GameAnalysisOutput) => buildGameResult(pgnToAnalyze, output, userPseudo, userColor);
 
         let firstMovesShown = false;
         const output = await stockfishService.analyzeFullGame(
