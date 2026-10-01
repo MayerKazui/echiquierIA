@@ -441,6 +441,7 @@ export default function App() {
           onSelectPly={goToPly}
           filterOnlyErrors={filterOnlyErrors}
           onToggleFilter={() => setFilterOnlyErrors((f) => !f)}
+          isPlaying={isPlaying}
         />
       }
     />
