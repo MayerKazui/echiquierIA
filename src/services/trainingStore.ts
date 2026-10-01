@@ -50,7 +50,7 @@ async function inTransaction<T>(
 const isNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 
 /** Cheap structural check: the data can come from another version of the app or be damaged. */
-function isCard(value: unknown): value is Card {
+export function isCard(value: unknown): value is Card {
   if (typeof value !== 'object' || value === null) return false;
   const card = value as Record<string, unknown>;
   return (
@@ -101,5 +101,56 @@ export async function clearCards(): Promise<void> {
     });
   } catch (err) {
     console.warn('Could not clear the training progress:', err);
+  }
+}
+
+export interface CardMergeReport {
+  added: number;
+  /** Cards replaced by a more recent version of the same card. */
+  replaced: number;
+  kept: number;
+}
+
+/** Whether `incoming` is further along than `existing`: worked on later, or at the same time but more often. */
+const isFurther = (incoming: Card, existing: Card): boolean =>
+  incoming.lastSeen > existing.lastSeen ||
+  (incoming.lastSeen === existing.lastSeen && incoming.attempts > existing.attempts);
+
+/**
+ * Adds cards to the progress (a backup being restored): a position already worked on keeps the card that was
+ * worked on last. Resolves with null when it could not be written (nothing is then changed).
+ */
+export async function mergeCards(cards: Card[]): Promise<CardMergeReport | null> {
+  // A card twice in the file counts once: the one worked on last
+  const latest = new Map<string, Card>();
+  for (const card of cards) {
+    const known = latest.get(card.id);
+    if (isCard(card) && (!known || isFurther(card, known))) latest.set(card.id, card);
+  }
+  const valid = [...latest.values()];
+  const report: CardMergeReport = { added: 0, replaced: 0, kept: 0 };
+  if (valid.length === 0) return report;
+  try {
+    await inTransaction<void>('readwrite', (store) => {
+      for (const card of valid) {
+        const request = store.get(card.id);
+        request.onsuccess = () => {
+          const existing: unknown = request.result;
+          if (!isCard(existing)) {
+            store.put(card);
+            report.added += 1;
+          } else if (isFurther(card, existing)) {
+            store.put(card);
+            report.replaced += 1;
+          } else {
+            report.kept += 1;
+          }
+        };
+      }
+    });
+    return report;
+  } catch (err) {
+    console.warn('Could not restore the training progress:', err);
+    return null;
   }
 }
