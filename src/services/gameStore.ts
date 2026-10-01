@@ -34,8 +34,9 @@ export const SCHEMA_VERSION = 1;
 /** Number of games kept; the least recently saved ones are dropped first. */
 export const MAX_GAMES = 500;
 /**
- * Number of most recent games kept with their complete analysis (about 70 KB each). The older ones are reduced to a
- * summary of about a quarter of that size, so that a long history stays light.
+ * Number of most recent games kept with their complete analysis. The older ones are reduced to a summary (about a
+ * third lighter: no variations, no AI explanations, positions only before a fault), which bounds what a long
+ * history keeps and leaves the statistics, the evaluations and the faults.
  */
 export const MAX_FULL_GAMES = 50;
 

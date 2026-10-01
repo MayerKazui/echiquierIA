@@ -18,7 +18,7 @@ Une vue « Mon profil » qui agrège les parties enregistrées : « qu'est-ce qu
 - [ ] **Par type d'erreur** : pièce laissée en prise, fourchette ou clouage manqué, mat en 1 ou 2 raté, position gagnée gâchée. Les menaces sont déjà détectées (`threatInfo.ts`) mais pas rattachées aux erreurs.
 - [ ] **Par situation** : zeitnot et coups rapides (les horloges sont lues), Blancs ou Noirs, adversaire plus fort ou plus faible.
 - [ ] **Tendance** : précision et nombre de gaffes par partie dans le temps.
-- [ ] Prérequis : lever le plafond de 20 parties (`gameStore`) en gardant seulement les statistiques par coup pour les anciennes parties et l'analyse complète pour les récentes.
+- [x] Prérequis : plafond levé (500 parties, les 50 plus récentes complètes, les autres allégées avec évaluations et classements par coup).
 
 ### 2. S'entraîner sur ses propres erreurs
 
@@ -36,8 +36,9 @@ Une vue « Mon profil » qui agrège les parties enregistrées : « qu'est-ce qu
 ### 4. Récupérer ses parties sans copier-coller
 
 - [x] **Import chess.com et Lichess** par pseudo (appels directs du navigateur), filtre de cadence, parties plus anciennes à la demande : voir `IMPROVEMENTS.md`.
-- [ ] Import : repère « déjà analysée » dans la liste, filtre par mois, et la précision que chess.com publie pour ses parties relues (`accuracies`), à comparer à la nôtre.
-- [x] **« Analyser mes N dernières parties »** (5, 10 ou 20) en tâche de fond, avec reprise si l'onglet est fermé : voir `IMPROVEMENTS.md`. Limite : l'historique garde 20 parties (à lever pour le profil, point 1).
+- [x] Import : repère « Analysée » dans la liste : voir `IMPROVEMENTS.md`.
+- [ ] Import : filtre par mois, et la précision que chess.com publie pour ses parties relues (`accuracies`), à comparer à la nôtre.
+- [x] **« Analyser mes N dernières parties »** (5 à 100) en tâche de fond, avec reprise si l'onglet est fermé : voir `IMPROVEMENTS.md`. L'historique garde maintenant 500 parties (50 complètes, les autres allégées).
 
 ### 5. Retour plus actionnable pour chaque partie
 
