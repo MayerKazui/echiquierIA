@@ -2,6 +2,7 @@
 import { act, renderHook } from '@testing-library/react';
 import type React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { BoardPiece } from './boardTransition';
 import { usePieceDrag } from './usePieceDrag';
 
 const PAWN = { type: 'p', color: 'b' } as const;
@@ -131,5 +132,46 @@ describe('usePieceDrag', () => {
     const down = pointer(50, 50);
     act(() => result.current.pieceHandlers('a1', PAWN).onPointerDown(down));
     expect(down.currentTarget.setPointerCapture).toHaveBeenCalledWith(1);
+  });
+
+  it('does not start a drag for a piece that cannot be dragged', () => {
+    const onDragStart = vi.fn();
+    const onDrop = vi.fn();
+    const canDrag = vi.fn((_from: string, piece: BoardPiece) => piece.color === 'w');
+    const { result } = renderHook(() => usePieceDrag({ canDrag, onDragStart, onDrop }));
+    const handlers = result.current.pieceHandlers('a1', PAWN); // a black pawn
+
+    act(() => handlers.onPointerDown(pointer(50, 50)));
+    act(() => handlers.onPointerMove(pointer(250, 50)));
+    act(() => handlers.onPointerUp(pointer(250, 50)));
+    expect(canDrag).toHaveBeenCalledWith('a1', PAWN);
+    expect(onDragStart).not.toHaveBeenCalled();
+    expect(onDrop).not.toHaveBeenCalled();
+    expect(result.current.drag).toBeNull();
+
+    const white = result.current.pieceHandlers('a1', { type: 'p', color: 'w' });
+    act(() => white.onPointerDown(pointer(50, 50)));
+    act(() => white.onPointerMove(pointer(250, 50)));
+    expect(onDragStart).toHaveBeenCalledWith('a1');
+  });
+
+  it('has handlers with a stable identity that call the latest callbacks', () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const { result, rerender } = renderHook(({ onDrop }) => usePieceDrag({ onDrop }), {
+      initialProps: { onDrop: first },
+    });
+    const before = { pieceHandlers: result.current.pieceHandlers, consumeClick: result.current.consumeClick };
+    const handlers = result.current.pieceHandlers('a1', PAWN); // taken before the callbacks change
+
+    rerender({ onDrop: second });
+    expect(result.current.pieceHandlers).toBe(before.pieceHandlers);
+    expect(result.current.consumeClick).toBe(before.consumeClick);
+
+    act(() => handlers.onPointerDown(pointer(50, 50)));
+    act(() => handlers.onPointerMove(pointer(70, 50)));
+    act(() => handlers.onPointerUp(pointer(250, 50)));
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledWith('a1', 'c1'); // the handlers of an earlier render use the new callback
   });
 });

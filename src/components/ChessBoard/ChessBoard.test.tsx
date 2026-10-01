@@ -145,3 +145,37 @@ describe('ChessBoard accessibility', () => {
     expect(onSquareClick).toHaveBeenCalledWith('g1');
   });
 });
+
+describe('ChessBoard who can move', () => {
+  const AFTER_E4 = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1';
+  const grid = () => screen.getByRole('grid');
+  const pieceOn = (square: string) => cell(square).querySelector('[data-color]') as HTMLElement;
+
+  it('tells the turn to the grid and the colour to each piece, so that styles can follow the turn', () => {
+    const { rerender } = render(<ChessBoard fen={START} />);
+    expect(grid().dataset.turn).toBe('w');
+    expect(pieceOn('e2').dataset.color).toBe('w');
+    expect(pieceOn('e7').dataset.color).toBe('b');
+    expect(document.querySelectorAll('[data-color]')).toHaveLength(32);
+
+    rerender(<ChessBoard fen={AFTER_E4} />);
+    expect(grid().dataset.turn).toBe('b');
+  });
+
+  it('starts a drag only from a piece of the side to move', () => {
+    document.elementFromPoint = vi.fn(() => cell('e4'));
+    const onSquareClick = vi.fn();
+    render(<ChessBoard fen={START} onSquareClick={onSquareClick} onPieceMove={() => {}} />);
+    const drag = (square: string) => {
+      const piece = pieceOn(square);
+      fireEvent.pointerDown(piece, { button: 0, isPrimary: true, pointerId: 1, clientX: 10, clientY: 10 });
+      fireEvent.pointerMove(piece, { isPrimary: true, pointerId: 1, clientX: 80, clientY: 10 });
+      fireEvent.pointerUp(piece, { isPrimary: true, pointerId: 1, clientX: 80, clientY: 10 });
+    };
+
+    drag('e7'); // a black pawn, white to move
+    expect(onSquareClick).not.toHaveBeenCalled();
+    drag('e2'); // a white pawn
+    expect(onSquareClick).toHaveBeenCalledWith('e2');
+  });
+});

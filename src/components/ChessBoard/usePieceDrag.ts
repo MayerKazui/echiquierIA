@@ -36,9 +36,12 @@ const squareAt = (x: number, y: number): string | null =>
  * page instead of dragging.
  */
 export function usePieceDrag({
+  canDrag,
   onDragStart,
   onDrop,
 }: {
+  /** Whether the piece on this square can be dragged (checked when the press starts; default: always). */
+  canDrag?: (from: string, piece: BoardPiece) => boolean;
   /** The drag has started from this square (select the piece, show its moves). */
   onDragStart?: (from: string) => void;
   onDrop: (from: string, to: string) => void;
@@ -48,26 +51,33 @@ export function usePieceDrag({
   const pointer = useRef({ x: 0, y: 0 });
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const swallowNextClick = useRef(false);
+  // Every handler below has a stable identity (the squares of the board are memoised and keep the handlers
+  // of their last render) and reaches the latest callbacks through this ref.
+  const callbacks = useRef({ canDrag, onDragStart, onDrop });
+  useLayoutEffect(() => {
+    callbacks.current = { canDrag, onDragStart, onDrop };
+  });
 
-  const moveGhost = () => {
+  const moveGhost = useCallback(() => {
     const ghost = ghostRef.current;
     const size = session.current?.size ?? 0;
     if (ghost)
       ghost.style.transform = `translate(${pointer.current.x - size / 2}px, ${pointer.current.y - size / 2}px)`;
-  };
+  }, []);
 
   // The piece that follows the pointer exists from the render after the drag starts: place it right away
   useLayoutEffect(() => {
     if (drag) moveGhost();
-  }, [drag]);
+  }, [drag, moveGhost]);
 
   const end = useCallback(() => {
     session.current = null;
     setDrag(null);
   }, []);
 
-  const onPointerDown = (e: React.PointerEvent<HTMLElement>, from: string, piece: BoardPiece) => {
+  const onPointerDown = useCallback((e: React.PointerEvent<HTMLElement>, from: string, piece: BoardPiece) => {
     if (e.button !== 0 || !e.isPrimary) return; // right click draws arrows
+    if (callbacks.current.canDrag && !callbacks.current.canDrag(from, piece)) return;
     session.current = {
       from,
       piece,
@@ -78,59 +88,70 @@ export function usePieceDrag({
       isDragging: false,
     };
     e.currentTarget.setPointerCapture?.(e.pointerId);
-  };
+  }, []);
 
-  const onPointerMove = (e: React.PointerEvent<HTMLElement>) => {
-    const s = session.current;
-    if (!s || e.pointerId !== s.pointerId) return;
-    pointer.current = { x: e.clientX, y: e.clientY };
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLElement>) => {
+      const s = session.current;
+      if (!s || e.pointerId !== s.pointerId) return;
+      pointer.current = { x: e.clientX, y: e.clientY };
 
-    if (!s.isDragging) {
-      if (Math.hypot(e.clientX - s.startX, e.clientY - s.startY) < DRAG_THRESHOLD) return;
-      s.isDragging = true;
-      onDragStart?.(s.from);
-      setDrag({ from: s.from, piece: s.piece, over: s.from, size: s.size });
-      return;
-    }
+      if (!s.isDragging) {
+        if (Math.hypot(e.clientX - s.startX, e.clientY - s.startY) < DRAG_THRESHOLD) return;
+        s.isDragging = true;
+        callbacks.current.onDragStart?.(s.from);
+        setDrag({ from: s.from, piece: s.piece, over: s.from, size: s.size });
+        return;
+      }
 
-    moveGhost();
-    const over = squareAt(e.clientX, e.clientY);
-    setDrag((d) => (d && d.over !== over ? { ...d, over } : d));
-  };
+      moveGhost();
+      const over = squareAt(e.clientX, e.clientY);
+      setDrag((d) => (d && d.over !== over ? { ...d, over } : d));
+    },
+    [moveGhost]
+  );
 
-  const onPointerUp = (e: React.PointerEvent<HTMLElement>) => {
-    const s = session.current;
-    if (!s || e.pointerId !== s.pointerId) return;
-    if (s.isDragging) {
-      // The click that follows the release must not select the square again
-      swallowNextClick.current = true;
-      setTimeout(() => (swallowNextClick.current = false), 0);
-      const to = squareAt(e.clientX, e.clientY);
-      end();
-      if (to && to !== s.from) onDrop(s.from, to);
-    } else {
-      end();
-    }
-  };
+  const onPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLElement>) => {
+      const s = session.current;
+      if (!s || e.pointerId !== s.pointerId) return;
+      if (s.isDragging) {
+        // The click that follows the release must not select the square again
+        swallowNextClick.current = true;
+        setTimeout(() => (swallowNextClick.current = false), 0);
+        const to = squareAt(e.clientX, e.clientY);
+        end();
+        if (to && to !== s.from) callbacks.current.onDrop(s.from, to);
+      } else {
+        end();
+      }
+    },
+    [end]
+  );
 
   /** True once after a drag: the caller ignores that click. */
-  const consumeClick = () => {
+  const consumeClick = useCallback(() => {
     const swallow = swallowNextClick.current;
     swallowNextClick.current = false;
     return swallow;
-  };
+  }, []);
+
+  const onLostPointerCapture = useCallback(() => {
+    if (session.current?.isDragging) end();
+    else session.current = null;
+  }, [end]);
 
   /** Handlers for the piece standing on `from`. */
-  const pieceHandlers = (from: string, piece: BoardPiece) => ({
-    onPointerDown: (e: React.PointerEvent<HTMLElement>) => onPointerDown(e, from, piece),
-    onPointerMove,
-    onPointerUp,
-    onPointerCancel: end,
-    onLostPointerCapture: () => {
-      if (session.current?.isDragging) end();
-      else session.current = null;
-    },
-  });
+  const pieceHandlers = useCallback(
+    (from: string, piece: BoardPiece) => ({
+      onPointerDown: (e: React.PointerEvent<HTMLElement>) => onPointerDown(e, from, piece),
+      onPointerMove,
+      onPointerUp,
+      onPointerCancel: end,
+      onLostPointerCapture,
+    }),
+    [onPointerDown, onPointerMove, onPointerUp, end, onLostPointerCapture]
+  );
 
   return { drag, ghostRef, consumeClick, pieceHandlers };
 }
