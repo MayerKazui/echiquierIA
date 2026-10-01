@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Volume2, VolumeX } from 'lucide-react';
+import { FileText, History, Volume2, VolumeX } from 'lucide-react';
 import { GameMetadata } from '../../types/chess';
 import { AppTab, PlayerColor } from '../../types/ui';
 import { ViewTabs } from './ViewTabs';
@@ -19,6 +19,7 @@ interface AppHeaderProps {
   onUpdateUserColor: (color: PlayerColor) => void;
   onToggleSound: () => void;
   onOpenPgnModal: () => void;
+  onOpenHistory: () => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -34,6 +35,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onUpdateUserColor,
   onToggleSound,
   onOpenPgnModal,
+  onOpenHistory,
 }) => (
   <header className="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-3 sm:px-4 lg:px-8 py-2 sm:py-3 w-full max-w-full">
     {/* One row on every screen: on a phone the labels give way to icons and the views move to the bottom bar */}
@@ -75,6 +77,17 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             <span className="hidden sm:inline">{userColor === 'w' ? ' Blancs' : ' Noirs'}</span>
           </button>
         </div>
+
+        <button
+          onClick={onOpenHistory}
+          aria-haspopup="dialog"
+          aria-label="Mes parties"
+          className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors cursor-pointer flex items-center"
+          title="Rouvrir une partie déjà analysée"
+        >
+          <History className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-400" />
+          <span className="hidden lg:inline ml-1">Mes parties</span>
+        </button>
 
         {/* Sound Mute/Unmute Button */}
         <button

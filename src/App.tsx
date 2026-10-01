@@ -25,6 +25,7 @@ import { ensureOpeningBookLoaded } from './services/openingBook';
 import { ChessBoard, Dashboard, EvaluationChart, MoveComparison, MoveList, prefetchViews } from './lazyViews';
 import { LiveRegion, useAnnouncer } from './components/a11y/LiveRegion';
 import { Modal } from './components/a11y/Modal';
+import { GameHistory } from './components/GameHistory/GameHistory';
 
 import { EvaluationBar } from './components/EvaluationBar/EvaluationBar';
 import { PgnInput } from './components/PgnInput/PgnInput';
@@ -46,6 +47,7 @@ export default function App() {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [activeTab, setActiveTab] = useState<AppTab>('board');
   const [isPgnModalOpen, setIsPgnModalOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const { announcement, announce } = useAnnouncer();
 
   // While the user reads the start screen: download the engine, the openings database and the game views
@@ -478,6 +480,7 @@ export default function App() {
         onUpdateUserColor={handleUpdateUserColor}
         onToggleSound={toggleSoundAnnounced}
         onOpenPgnModal={() => setIsPgnModalOpen(true)}
+        onOpenHistory={() => setIsHistoryOpen(true)}
       />
 
       {isAnalyzing && progress && analysis && !isPgnModalVisible && (
@@ -523,6 +526,19 @@ export default function App() {
       </main>
 
       {analysis && <BottomNav activeTab={visibleTab} isAnalyzing={isAnalyzing} onChangeTab={setActiveTab} />}
+
+      {isHistoryOpen && (
+        <Modal title="Mes parties" onClose={() => setIsHistoryOpen(false)} className="w-full max-w-2xl">
+          <GameHistory
+            currentPgn={pgn}
+            onClose={() => setIsHistoryOpen(false)}
+            onOpen={(game) => {
+              setIsHistoryOpen(false);
+              void runAnalysis(game.pgn, game.depth);
+            }}
+          />
+        </Modal>
+      )}
 
       {isPgnModalVisible && (
         <Modal title="Charger une autre partie" onClose={() => setIsPgnModalOpen(false)} className="w-full max-w-2xl">

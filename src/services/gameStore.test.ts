@@ -5,7 +5,9 @@ import {
   MAX_GAMES,
   SCHEMA_VERSION,
   clearGames,
+  deleteGame,
   gameId,
+  listGames,
   loadGame,
   loadLatestGame,
   normalizePgn,
@@ -177,5 +179,53 @@ describe('when IndexedDB is not available', () => {
     await expect(loadGame(PGN)).resolves.toBeNull();
     await expect(loadLatestGame()).resolves.toBeNull();
     await expect(clearGames()).resolves.toBeUndefined();
+  });
+});
+
+describe('listGames', () => {
+  it('is empty when nothing is stored', async () => {
+    expect(await listGames()).toEqual([]);
+  });
+
+  it('lists the games from the most recently saved to the oldest', async () => {
+    const now = vi.spyOn(Date, 'now');
+    for (const [time, pgn] of [
+      [1, '1. e4 *'],
+      [3, '1. d4 *'],
+      [2, '1. c4 *'],
+    ] as const) {
+      now.mockReturnValue(time);
+      await saveGame({ pgn, depth: 12, result: makeResult(pgn) });
+    }
+    expect((await listGames()).map((g) => g.pgn)).toEqual(['1. d4 *', '1. c4 *', '1. e4 *']);
+  });
+
+  it('leaves out entries of another schema version and damaged ones', async () => {
+    await rawPut(stored({ id: 'old', schemaVersion: SCHEMA_VERSION - 1, savedAt: 5 }));
+    await saveGame({ pgn: '1. e4 *', depth: 12, result: makeResult('ok') });
+    const games = await listGames();
+    expect(games).toHaveLength(1);
+    expect(games[0].result.userPseudo).toBe('ok');
+  });
+
+  it('is empty, without throwing, when IndexedDB is unavailable', async () => {
+    Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true, writable: true });
+    expect(await listGames()).toEqual([]);
+  });
+});
+
+describe('deleteGame', () => {
+  it('removes only the given game', async () => {
+    await saveGame({ pgn: '1. e4 *', depth: 12, result: makeResult('a') });
+    await saveGame({ pgn: '1. d4 *', depth: 12, result: makeResult('b') });
+    await deleteGame(gameId('1. e4 *'));
+    expect(await loadGame('1. e4 *')).toBeNull();
+    expect(await loadGame('1. d4 *')).not.toBeNull();
+  });
+
+  it('ignores an unknown id and an unavailable database', async () => {
+    await expect(deleteGame('nope')).resolves.toBeUndefined();
+    Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true, writable: true });
+    await expect(deleteGame('nope')).resolves.toBeUndefined();
   });
 });

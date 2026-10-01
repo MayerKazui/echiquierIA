@@ -166,11 +166,32 @@ Points 3 et 4 de la liste de priorités reçue (voir « Reste de la liste » plu
 - Vérifié avec de vrais gestes tactiles (Chrome émulé, 390 × 844) : balayage gauche puis droite sur la barre joueur (coup 1 → 2 → 1), sans effet sur le plateau, barre d'outils qui défile, navigation basse, aucun débordement horizontal ; le bureau est inchangé. Tests : 12 pour `useSwipe` (9 mutations détectées) et 3 pour `BottomNav`.
 - Limite : vérifié sur Chrome émulé, pas sur un vrai téléphone (iOS Safari notamment : zone de sécurité, comportement du balayage).
 
-### Reste de la liste de priorités reçue
+### 12. Mise en page, historique et polish — fait
 
-- [ ] **Points 1 et 2 : mise en page** : échiquier calé sur la hauteur de l'écran, liste de coups remontée, contrôles toujours visibles.
-- [ ] **Point 5 : historique des parties** : la persistance (point 9) conserve 20 parties mais n'a pas d'écran pour les rouvrir.
-- [ ] **Polish** : animation inversée et captures, glisser avec événements pointer, `prompt()` remplacé (le pseudo l'utilise encore), doublons retirés (deux boutons « son » fusionnés dans l'en-tête, il reste celui des contrôles de lecture), noms d'ouverture harmonisés.
+Points 1 et 2 (mise en page), historique des parties et polish de la liste de priorités reçue. Une vérification dans le navigateur avait montré que les points 1 et 2 n'étaient **pas** faits (barre de lecture à y=887 sur un écran de 720 px, liste des coups à y≈1000) : ils ont été refaits avant le polish. Les points 3 (mobile) et 4 (écran d'analyse) ont été revérifiés tels quels.
+
+**Mise en page (points 1 et 2)**
+
+- [x] **Échiquier calé sur la hauteur de l'écran** (`--board` dans `index.css`, `lg` et plus) : `clamp(18rem, min(100dvh − 16.5rem, 100vw − 34rem), 56rem)`. Joueurs, échiquier et contrôles de lecture tiennent ensemble sans défilement de la page : mesuré à 1024×768, 1280×720, 1440×900 et 1920×1080 (avant : plateau de 492 px à y=315 et contrôles sous la ligne de flottaison, y compris à 1920×1080). La colonne de gauche n'est plus `sticky`.
+- [x] **Panneau de droite** : ouverture, outils, panneau à deux onglets **Coup / Liste (n)**, graphique d'évaluation. La liste des coups est à un clic au lieu de ~1 000 px plus bas (sur téléphone : juste après les contrôles de lecture, au lieu d'environ 1 700 px). Les deux onglets restent montés (l'inactif est seulement caché) : les filtres « Longs » et « Précipités » de la liste ne sont plus perdus quand on change d'onglet.
+- [x] **Cartes vides retirées** : la carte « Menaces tactiques » n'apparaît que si le coup du moteur ou le coup joué crée une menace ; le texte « Cliquez sur Expliquer… » est supprimé (le bouton le dit).
+- [x] **Contrôles de lecture sur une rangée** : un seul bouton de vitesse qui défile (au lieu de quatre), sauts d'erreurs en icônes + compteur, plus de bouton « son » (celui de l'en-tête reste) ni de pastille du coup (déjà affiché sous l'échiquier).
+- Retiré : le choix de taille « Normal / Grand / XL » (le plateau prend la place disponible) ; `BoardSize`, `boardLayout.ts` et la prop `maxWidthClass` disparaissent. L'ancien réglage `chess_board_size` reste inutilisé dans le stockage local.
+
+**Historique des parties**
+
+- [x] **« Mes parties »** (bouton de l'en-tête, fenêtre accessible) : les 20 parties conservées (`listGames`, `deleteGame` dans `gameStore`), de la plus récente à la plus ancienne, avec joueurs, résultat, ouverture, date, nombre de demi-coups, profondeur et précision de l'utilisateur ; la partie affichée est marquée. Ouvrir une partie réutilise l'analyse enregistrée (≈ 0,2 s mesuré, sans Stockfish), suppression d'une partie ou de toutes (avec confirmation).
+
+**Polish**
+
+- [x] **Animation dans les deux sens et captures** : `diffPositions` compare l'ancienne et la nouvelle position. Une pièce glisse de la case où elle était vers celle où elle est, en avant comme en arrière (reculer rejouait le coup précédent en avant) ; la pièce prise s'efface sous la pièce qui prend, et réapparaît quand on reprend la capture ; roque (tour comprise), prise en passant et promotions gérés. Seules les pièces qui bougent sont recréées (la clé contenait le dernier coup : les 32 pièces étaient remontées à chaque coup). Un saut de plusieurs coups n'est pas animé.
+- [x] **Glisser-déposer aux événements pointer** (`usePieceDrag`) à la place du drag HTML5 (image fantôme du navigateur) et du bricolage `touchstart` + `elementFromPoint` : la pièce suit la souris ou le doigt, la case survolée est surlignée, un simple appui reste un clic, le clic qui suit un glisser est ignoré, clic droit exclu (flèches). `touch-action: none` sur les pièces qui peuvent jouer. Vérifié avec la souris et avec de vrais événements tactiles (CDP) : le plateau ne défile pas pendant le glisser.
+- [x] **Promotion** : en exploration libre, un pion qui arrive sur la dernière rangée ouvre un choix (Dame / Tour / Fou / Cavalier) au lieu de toujours promouvoir en dame (`PromotionPicker`, `pendingPromotion` dans `useSandbox`) ; Échap ou un clic à côté annule.
+- [x] **`window.prompt()` remplacé** par un petit formulaire dans l'en-tête (`PseudoEditor` : Entrée enregistre, Échap ou un clic à côté ferme sans enregistrer, focus rendu au bouton).
+- [x] **Doublons retirés** : un seul bouton « son » (en-tête), un seul bouton d'inversion de l'échiquier (contrôles de lecture), la couleur du joueur n'est plus dans le bandeau d'ouverture (il reste l'en-tête et le Bilan).
+- [x] **Noms d'ouverture harmonisés** : l'aperçu de l'écran d'accueil lisait 25 demi-coups contre 35 pour l'analyse et mélangeait des libellés français de la base intégrée (« Défense sicilienne (2. Cf3) ») avec les noms anglais de la base complète (« Sicilian Defense: Sozin Attack… »). Maintenant l'aperçu, le bandeau, le panneau et le Bilan utilisent la même recherche (`chooseOpening` : la base d'abord, l'en-tête du PGN seulement en repli, nom et code ECO toujours de la même source), et les noms de la base complète remplacent les libellés français (qui ne servent plus qu'avant le chargement de la base). Le bandeau montre l'ouverture atteinte **au coup affiché** (`openingAtPly`) au lieu du nom final dès le coup 1.
+- Tests : 415 au total (36 fichiers). Nouveaux : `diffPositions` (8), `usePieceDrag` (8), `PromotionPicker`, `useSandbox` (promotion), `SidePanel`, `useMediaQuery`, `PseudoEditor`, `openingAtPly`, `chooseOpening` et noms de la base, `GameHistory`, `listGames`/`deleteGame`. Mutations vérifiées : seuil de glisser, clic avalé après un glisser, détection des sauts, priorité des noms de la base, `hidden` des onglets.
+- Limites / non fait : les noms d'ouverture restent en anglais (aucune traduction des ~3 800 noms) ; `ChessBoard` recalcule toujours les 64 cases à chaque rendu (pas de `React.memo` par case) ; la lecture automatique garde un intervalle fixe (pas de pause sur les gaffes) et le défilement de la liste reste « smooth » ; vérifié sur Chrome émulé, pas sur un vrai téléphone.
 
 ## Ordre suggéré
 
