@@ -1,14 +1,17 @@
-import React, { useId, useState, useMemo } from 'react';
+import React, { useEffect, useId, useState, useMemo } from 'react';
 import { FileText, Upload, Play, Sliders, AlertCircle, User, BookOpen } from 'lucide-react';
 import { Chess } from 'chess.js';
 import { SAMPLE_GAMES, SampleGame } from '../../utils/sampleGames';
 import { validatePgn, parsePgnHeaders } from '../../utils/pgnParser';
-import { identifyGameOpening } from '../../services/openingBook';
+import { chooseOpening, ensureOpeningBookLoaded, identifyGameOpening } from '../../services/openingBook';
 import { defaultWorkerCount } from '../../services/stockfishEngine';
 import { ANALYSIS_LEVELS, DEFAULT_ANALYSIS_DEPTH } from '../../utils/analysisLevels';
 import { oneOf, usePersistentState } from '../../hooks/usePersistentState';
 import type { AnalysisProgress } from '../../hooks/useGameAnalysis';
 import { AnalysisProgressBar } from '../AppHeader/AnalysisProgressBar';
+
+/** `identifyGameOpening` reads at most 35 plies: no need to replay more. */
+const MAX_OPENING_PLIES = 36;
 
 interface PgnInputProps {
   currentPgn: string;
@@ -45,31 +48,35 @@ export const PgnInput: React.FC<PgnInputProps> = ({
   const workerCount = defaultWorkerCount(typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Real-time preview of detected opening from PGN text
+  // Same lookup as the analysis (the whole game, the openings database first): one name everywhere.
+  // The database is fetched when idle; the preview is recomputed once it is there.
+  const [isBookReady, setIsBookReady] = useState(false);
+  useEffect(() => {
+    let isCurrent = true;
+    void ensureOpeningBookLoaded().then(() => isCurrent && setIsBookReady(true));
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
   const detectedOpening = useMemo(() => {
     if (!pgnText.trim()) return null;
+    const headers = parsePgnHeaders(pgnText);
     try {
-      const headers = parsePgnHeaders(pgnText);
-      if (headers.opening) {
-        return { name: headers.opening, eco: headers.eco };
-      }
       const chess = new Chess();
       chess.loadPgn(pgnText);
-      const history = chess.history();
-      if (history.length > 0) {
-        const fens: string[] = [];
-        const replay = new Chess();
-        for (const m of history.slice(0, 25)) {
-          replay.move(m);
-          fens.push(replay.fen());
-        }
-        return identifyGameOpening(fens);
+      const replay = new Chess();
+      const fens: string[] = [];
+      for (const move of chess.history().slice(0, MAX_OPENING_PLIES)) {
+        replay.move(move);
+        fens.push(replay.fen());
       }
+      return chooseOpening(identifyGameOpening(fens), headers);
     } catch {
-      return null;
+      return chooseOpening(null, headers);
     }
-    return null;
-  }, [pgnText]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed when the database arrives
+  }, [pgnText, isBookReady]);
 
   const handleSelectSample = (sample: SampleGame) => {
     setPgnText(sample.pgn);

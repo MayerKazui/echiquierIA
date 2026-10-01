@@ -5,11 +5,12 @@ coups brillants, trace la courbe d'évaluation et un « entraîneur IA » (Gemin
 
 - Import d'un PGN (collé, fichier ou exemples) avec reconnaissance de l'ouverture (base lichess, ~3 800 lignes)
 - Analyse Stockfish en parallèle dans des Web Workers, profondeur réglable (8 à 18) : les coups s'affichent dès qu'ils sont analysés et l'analyse peut être annulée
-- Les parties analysées (20 au plus) sont conservées dans le navigateur (IndexedDB) : la dernière se rouvre après un rechargement et ré-analyser un même PGN est instantané. Rien n'est envoyé à un serveur
+- Les parties analysées (20 au plus) sont conservées dans le navigateur (IndexedDB) : la dernière se rouvre après un rechargement, « Mes parties » (en-tête) permet d'en rouvrir une autre sans relancer Stockfish, et ré-analyser un même PGN est instantané. Rien n'est envoyé à un serveur
 - Bilan par joueur : précision, phases de jeu, répartition des coups, gestion du temps si le PGN contient les pendules
 - Utilisable sur téléphone : en-tête et barre d'outils compacts, navigation en bas de l'écran, balayage pour changer de coup
 - Accessible : échiquier et toutes les commandes utilisables au clavier, annonces pour lecteurs d'écran, contrastes et mouvement réduit respectés
-- Échiquier interactif : exploration libre (« Et si j'avais joué… ? »), flèches et surbrillances au clic droit,
+- Mise en page : sur ordinateur l'échiquier est dimensionné sur la hauteur de la fenêtre, avec ses commandes de lecture, et un panneau à onglets (Coup / Liste) à côté du graphique d'évaluation
+- Échiquier interactif : exploration libre (« Et si j'avais joué… ? », glisser-déposer à la souris ou au doigt, choix de la pièce à la promotion), animation des coups dans les deux sens avec les captures, flèches et surbrillances au clic droit,
   contrôle de l'espace, menaces tactiques, lecture automatique, raccourcis clavier
 - Explications pédagogiques via l'API Gemini, appelée uniquement côté serveur
 

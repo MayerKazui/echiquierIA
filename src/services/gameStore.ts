@@ -182,3 +182,34 @@ export async function clearGames(): Promise<void> {
     console.warn('Could not clear the stored games:', err);
   }
 }
+
+/** Every readable stored game, the most recently saved first (older formats and damaged entries are left out). */
+export async function listGames(): Promise<StoredGame[]> {
+  try {
+    return await inTransaction<StoredGame[]>('readonly', (store, done) => {
+      const games: StoredGame[] = [];
+      done(games);
+      const cursor = store.index(SAVED_AT_INDEX).openCursor(null, 'prev');
+      cursor.onsuccess = () => {
+        const current = cursor.result;
+        if (!current) return;
+        if (isStoredGame(current.value)) games.push(current.value);
+        current.continue();
+      };
+    });
+  } catch (err) {
+    console.warn('Could not list the analysed games:', err);
+    return [];
+  }
+}
+
+/** Removes one stored game (nothing happens if it is not there). */
+export async function deleteGame(id: string): Promise<void> {
+  try {
+    await inTransaction<void>('readwrite', (store) => {
+      store.delete(id);
+    });
+  } catch (err) {
+    console.warn('Could not delete the analysed game:', err);
+  }
+}

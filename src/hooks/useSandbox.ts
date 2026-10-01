@@ -3,6 +3,15 @@ import { Chess, Square } from 'chess.js';
 import { stockfishService } from '../services/stockfishEngine';
 import { chessAudio } from '../utils/chessAudio';
 
+export type PromotionPiece = 'q' | 'r' | 'b' | 'n';
+
+/** A pawn move that reaches the last rank, waiting for the choice of the new piece. */
+export interface PendingPromotion {
+  from: string;
+  to: string;
+  color: 'w' | 'b';
+}
+
 interface SandboxMove {
   san: string;
   from: string;
@@ -19,6 +28,7 @@ export function useSandbox(
   { onEnter, onMove }: { onEnter?: () => void; onMove?: (san: string) => void } = {}
 ) {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
+  const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
   const [isSandboxMode, setIsSandboxMode] = useState(false);
   const [history, setHistory] = useState<SandboxMove[]>([]);
   const [evaluation, setEvaluation] = useState<{ cp: number; mate: number | null }>({ cp: 0, mate: null });
@@ -50,15 +60,25 @@ export function useSandbox(
     }
   }, [activeFen]);
 
-  /** Plays from -> to on the active position; returns false if the move is illegal. */
+  /**
+   * Plays from -> to on the active position; returns false if the move is illegal. A promotion waits for the
+   * choice of the piece (`pendingPromotion`) unless `promotion` is given.
+   */
   const tryMove = useCallback(
-    (from: string, to: string): boolean => {
+    (from: string, to: string, promotion?: PromotionPiece): boolean => {
       const chess = loadActivePosition();
       try {
-        const move = chess.move({ from, to, promotion: 'q' });
+        const candidates = chess.moves({ square: from as Square, verbose: true }).filter((m) => m.to === to);
+        if (candidates.length === 0) return false;
+        if (candidates[0].isPromotion() && !promotion) {
+          setPendingPromotion({ from, to, color: candidates[0].color });
+          return true;
+        }
+        const move = chess.move({ from, to, promotion });
         if (!move) return false;
         chessAudio.playForMove(move.san, move.san.includes('+') || move.san.includes('#'));
         setSelectedSquare(null);
+        setPendingPromotion(null);
         setHistory((prev) => [...prev, { san: move.san, from: move.from, to: move.to, fen: chess.fen() }]);
         setIsSandboxMode(true);
         onEnter?.();
@@ -70,6 +90,14 @@ export function useSandbox(
     },
     [loadActivePosition, onEnter, onMove]
   );
+
+  const choosePromotion = useCallback(
+    (piece: PromotionPiece) => {
+      if (pendingPromotion) tryMove(pendingPromotion.from, pendingPromotion.to, piece);
+    },
+    [pendingPromotion, tryMove]
+  );
+  const cancelPromotion = useCallback(() => setPendingPromotion(null), []);
 
   // Click-to-move: select a piece of the side to move, then click its destination
   const handleSquareClick = useCallback(
@@ -98,12 +126,14 @@ export function useSandbox(
       return prev.slice(0, -1);
     });
     setSelectedSquare(null);
+    setPendingPromotion(null);
   }, []);
 
   const exit = useCallback(() => {
     setIsSandboxMode(false);
     setHistory([]);
     setSelectedSquare(null);
+    setPendingPromotion(null);
   }, []);
 
   return {
@@ -112,6 +142,9 @@ export function useSandbox(
     lastMove,
     evaluation,
     selectedSquare,
+    pendingPromotion,
+    choosePromotion,
+    cancelPromotion,
     activeFen,
     handleSquareClick,
     handlePieceMove,
