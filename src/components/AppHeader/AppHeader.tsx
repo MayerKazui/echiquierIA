@@ -1,8 +1,9 @@
 import React from 'react';
-import { FileText, User, Volume2, VolumeX } from 'lucide-react';
+import { FileText, Volume2, VolumeX } from 'lucide-react';
 import { GameMetadata } from '../../types/chess';
 import { AppTab, PlayerColor } from '../../types/ui';
 import { ViewTabs } from './ViewTabs';
+import { PseudoEditor } from './PseudoEditor';
 
 interface AppHeaderProps {
   metadata?: GameMetadata;
@@ -60,18 +61,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       <div className="flex items-center justify-end gap-1.5 sm:gap-2.5 shrink-0">
         {/* User Profile / Pseudo Quick Pill */}
         <div className="flex items-center gap-0.5 sm:gap-1 px-1 sm:px-2 py-0.5 sm:py-1 rounded-xl bg-slate-950/70 border border-slate-800 text-xs">
-          <button
-            onClick={() => {
-              const next = window.prompt('Entrez votre pseudo de joueur :', userPseudo);
-              if (next !== null) onUpdatePseudo(next.trim());
-            }}
-            aria-label={`Pseudo du joueur : ${userPseudo || 'non renseigné'}. Modifier`}
-            className="flex items-center gap-1 p-1.5 sm:p-0 font-bold text-white hover:text-indigo-300 transition-colors cursor-pointer text-[11px]"
-            title="Cliquer pour changer de pseudo"
-          >
-            <User className="w-4 h-4 sm:w-3 sm:h-3 text-indigo-400 shrink-0" />
-            <span className="hidden sm:inline max-w-[110px] truncate">{userPseudo || 'Pseudo'}</span>
-          </button>
+          <PseudoEditor pseudo={userPseudo} onChange={onUpdatePseudo} />
           <div className="h-3 w-px bg-slate-800 mx-0.5" />
           <button
             onClick={() => onUpdateUserColor(userColor === 'w' ? 'b' : 'w')}

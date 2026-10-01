@@ -5,6 +5,7 @@ import { toFrenchSan } from './utils/chessNotation';
 import { HEATMAP_LABELS, describeMove } from './utils/accessibility';
 import { computeBoardMaterial } from './utils/chessMaterial';
 import { computeBoardHeatmap } from './utils/chessHeatmap';
+import { openingAtPly } from './utils/openingAtPly';
 
 import { oneOf, usePersistentState } from './hooks/usePersistentState';
 import { useGameAnalysis } from './hooks/useGameAnalysis';
@@ -257,17 +258,12 @@ export default function App() {
   });
 
   const metadata = analysis?.metadata;
+  // The opening reached at this move, so the name does not give away the rest of the game
+  const currentOpening = openingAtPly(moves, currentPly);
 
   // The pieces of the game view. A phone stacks them (see `gameView`); from `lg` up the board and the players
   // are on the left, the opening, tools, move panel and evaluation chart on the right.
-  const openingStrip = metadata?.opening && (
-    <OpeningStrip
-      opening={metadata.opening}
-      eco={metadata.eco}
-      userColor={userColor}
-      onUpdateUserColor={handleUpdateUserColor}
-    />
-  );
+  const openingStrip = currentOpening && <OpeningStrip opening={currentOpening.name} eco={currentOpening.eco} />;
 
   const topPlayer = (
     <PlayerBar color={isFlipped ? 'w' : 'b'} metadata={metadata} userColor={userColor} material={boardMaterial} />
@@ -403,8 +399,8 @@ export default function App() {
           onUpdateAiExplanation={updateAiExplanation}
           sanHistory={moves?.map((m) => m.san) || []}
           userColor={userColor}
-          openingName={metadata?.opening}
-          eco={metadata?.eco}
+          openingName={currentOpening?.name}
+          eco={currentOpening?.eco}
           tacticalThreatsSuggestion={suggestionThreats}
           tacticalThreatsPlayed={playedThreats}
           threatsMode={threatsMode}

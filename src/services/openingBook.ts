@@ -347,6 +347,8 @@ export interface BookEntry {
   validMoves: Set<string>;
   eco?: string;
   name?: string;
+  /** The name comes from the full dataset (the built-in labels of the base book are only a fallback). */
+  isDatasetName?: boolean;
 }
 
 const bookCache = new Map<string, BookEntry>();
@@ -565,12 +567,15 @@ export async function ensureOpeningBookLoaded(
               validMoves: new Set<string>(),
               eco,
               name,
+              isDatasetName: Boolean(name),
             };
             bookCache.set(normFen, entry);
-          } else {
-            // Keep existing canonical French names from registerBranch if available
-            if (eco && !entry.eco) entry.eco = eco;
-            if (name && !entry.name) entry.name = name;
+          } else if (name && !entry.isDatasetName) {
+            // One naming scheme everywhere: the dataset name replaces the built-in label of the base book
+            // (the first dataset line reaching a position names it, as before)
+            entry.eco = eco || entry.eco;
+            entry.name = name;
+            entry.isDatasetName = true;
           }
 
           if (bestMoveSan) {
@@ -658,6 +663,20 @@ export function checkIsTheoreticalMove(
   }
 
   return { isBook: false };
+}
+
+/**
+ * The opening to show for a game: the one found in the openings database, which names the start screen, the
+ * board and the summary the same way; the PGN header only when the database knows nothing of the game.
+ * The name and the ECO code always come from the same source.
+ */
+export function chooseOpening(
+  detected: { eco: string; name: string } | null,
+  header: { opening?: string; eco?: string }
+): { eco?: string; name: string } | null {
+  if (detected) return { eco: detected.eco, name: detected.name };
+  if (header.opening) return { eco: header.eco, name: header.opening };
+  return null;
 }
 
 /**

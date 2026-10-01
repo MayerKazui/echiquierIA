@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadOpeningsFromDisk } from '../test/openings';
 import {
   checkIsTheoreticalMove,
+  chooseOpening,
   ensureOpeningBookLoaded,
   getOpeningBookEvaluation,
   identifyGameOpening,
@@ -104,6 +105,15 @@ describe('opening book (full dataset)', () => {
     expect(identifyGameOpening(fensOf(['d4', 'd5', 'c4']).after)?.eco).toBe('D06');
   });
 
+  it('names the first moves with the dataset names, not the French labels of the base book', () => {
+    for (const sans of [['e4'], ['e4', 'c5'], ['e4', 'c5', 'Nf3'], ['d4', 'd5']]) {
+      const name = identifyGameOpening(fensOf(sans).after)?.name ?? '';
+      expect(name, sans.join(' ')).toMatch(/^[A-Za-z' -]+(: [A-Za-z0-9' ,.-]+)?$/);
+      expect(name, sans.join(' ')).not.toMatch(/Défense sicilienne|Ouverture du pion|Partie |Début du|Gambit Dame/);
+    }
+    expect(identifyGameOpening(fensOf(['e4', 'c5']).after)?.name).toBe('Sicilian Defense');
+  });
+
   it('names irregular openings too', () => {
     expect(identifyGameOpening(fensOf(['a3', 'a6', 'h3', 'h6']).after)?.eco).toBe('A00');
   });
@@ -169,5 +179,37 @@ describe('ensureOpeningBookLoaded (download)', () => {
     await fresh.ensureOpeningBookLoaded(working); // loaded: no second download
     expect(working).toHaveBeenCalledTimes(1);
     warn.mockRestore();
+  });
+});
+
+describe('opening book (built-in labels before the dataset is there)', () => {
+  it('names the first moves in French, then the dataset takes over', async () => {
+    vi.resetModules();
+    const fresh = await import('./openingBook');
+    const sicilian = fensOf(['e4', 'c5', 'Nf3']).after;
+    expect(fresh.identifyGameOpening(sicilian)?.name).toBe('Défense sicilienne (2. Cf3)');
+    await fresh.ensureOpeningBookLoaded(loadOpeningsFromDisk);
+    expect(fresh.identifyGameOpening(sicilian)?.name).toMatch(/^Sicilian Defense/);
+  });
+});
+
+describe('chooseOpening', () => {
+  const detected = { eco: 'B87', name: 'Sicilian Defense: Sozin Attack' };
+
+  it('prefers the database: name and ECO code always come from the same source', () => {
+    expect(chooseOpening(detected, { opening: 'Défense sicilienne', eco: 'B20' })).toEqual(detected);
+  });
+
+  it('falls back on the PGN header, with its own ECO code', () => {
+    expect(chooseOpening(null, { opening: 'Ouverture maison', eco: 'A00' })).toEqual({
+      name: 'Ouverture maison',
+      eco: 'A00',
+    });
+    expect(chooseOpening(null, { opening: 'Ouverture maison' })).toEqual({ name: 'Ouverture maison', eco: undefined });
+  });
+
+  it('is null when nothing names the game', () => {
+    expect(chooseOpening(null, {})).toBeNull();
+    expect(chooseOpening(null, { eco: 'B20' })).toBeNull();
   });
 });

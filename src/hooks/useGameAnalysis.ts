@@ -3,6 +3,7 @@ import { GameAnalysisResult, MoveAnalysis } from '../types/chess';
 import { PlayerColor } from '../types/ui';
 import { isAbortError, stockfishService, type GameAnalysisOutput } from '../services/stockfishEngine';
 import { loadGame, loadLatestGame, saveGame } from '../services/gameStore';
+import { chooseOpening } from '../services/openingBook';
 import { parsePgnHeaders } from '../utils/pgnParser';
 import { SAMPLE_GAMES } from '../utils/sampleGames';
 
@@ -148,11 +149,10 @@ export function useGameAnalysis(userPseudo: string, userColor: PlayerColor) {
         const headers = parsePgnHeaders(pgnToAnalyze);
         const toResult = (output: GameAnalysisOutput): GameAnalysisResult => {
           const metadata = { ...headers };
-          // Auto-populate opening from Lichess database if missing in PGN headers
-          if (output.detectedOpening) {
-            if (!metadata.opening) metadata.opening = output.detectedOpening.name;
-            if (!metadata.eco) metadata.eco = output.detectedOpening.eco;
-          }
+          // Same opening name as the start screen: the database first, the PGN header as a fallback
+          const opening = chooseOpening(output.detectedOpening ?? null, headers);
+          metadata.opening = opening?.name;
+          metadata.eco = opening?.eco;
           return {
             metadata,
             moves: output.moves,
