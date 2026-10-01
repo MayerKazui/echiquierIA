@@ -126,9 +126,21 @@ Mesures en production, partie réelle, réseau « 3G rapide » simulé (1,6 Mb/s
 - [x] **Découpage du bundle** : échiquier, graphique d'évaluation, comparaison de coups, liste de coups et bilan sont des chunks chargés à la demande (`React.lazy`), préchargés au repos et au lancement de l'analyse ; React et chess.js ont chacun un chunk stable (cache conservé entre déploiements).
 - Les graphiques sont déjà du SVG maison : il n'y a pas de bibliothèque de graphiques à différer.
 
-### 9. Persistance
+### 9. Persistance des parties analysées
 
-- [ ] Sauvegarder les parties analysées (IndexedDB) pour éviter de relancer Stockfish après un rechargement.
+Proposition 1. Une analyse prend de quelques secondes à plusieurs dizaines de secondes (selon la profondeur) et est perdue au rechargement de la page.
+
+- [ ] **Service `gameStore`** (IndexedDB, sans dépendance) : enregistre le PGN, la profondeur et le résultat complet de l'analyse (y compris les explications de l'entraîneur IA déjà demandées). Clé = empreinte du PGN ; 20 parties au plus (les plus anciennes sont supprimées) ; version de schéma pour ignorer les anciens formats ; sans effet si IndexedDB est indisponible (navigation privée, quota) : l'app fonctionne comme avant.
+- [ ] **Restauration au démarrage** : la dernière partie analysée est rouverte directement sur l'échiquier, avec la perspective (Blancs/Noirs) qu'elle avait.
+- [ ] **Ré-analyse instantanée** : analyser un PGN déjà enregistré avec une profondeur égale ou inférieure à celle enregistrée réutilise le résultat sans relancer Stockfish.
+- [ ] **Tests** (`fake-indexeddb`) : aller-retour, plafond, version de schéma, données corrompues, stockage indisponible, intégration dans `useGameAnalysis`.
+- Hors périmètre, volontairement : pas d'écran « mes parties » (l'interface vient d'être allégée) et pas de synchronisation entre appareils. Les données restent dans le navigateur ; l'effacer passe par les réglages du navigateur.
+
+### 10. Retrait de l'aide des raccourcis
+
+Proposition 2. L'aide (fenêtre « Raccourcis clavier ») a été retirée à la demande dans la PR #4, puis réintroduite par le travail d'accessibilité (PR #9) : touche `?` **et** bouton (icône clavier) dans l'en-tête. Les raccourcis eux-mêmes restent actifs.
+
+- [ ] Retirer `KeyboardHelp`, le bouton de l'en-tête, la touche `?` (`onHelp`), l'état `isHelpOpen` et les tests correspondants ; mettre à jour le README.
 
 ## Ordre suggéré
 
