@@ -1,6 +1,7 @@
 import { Chess } from 'chess.js';
 import { EngineEvaluation } from './stockfishEngine';
 import { toEnglishSan } from '../utils/chessNotation';
+import { assetUrl } from '../utils/siteUrl';
 
 /**
  * Standard grandmaster opening repertoires to evaluate opening positions in 0 ms.
@@ -526,7 +527,7 @@ let datasetLoadPromise: Promise<void> | null = null;
 
 /** Where the full dataset comes from: the file served next to the app. */
 async function fetchOpenings(): Promise<Record<string, DatasetEntry>> {
-  const res = await fetch('/openings.json');
+  const res = await fetch(assetUrl('openings.json'));
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }

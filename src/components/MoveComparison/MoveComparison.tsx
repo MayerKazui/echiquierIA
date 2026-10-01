@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { MoveAnalysis } from '../../types/chess';
 import { formatPvToFrench, frenchifyMoveText, toFrenchSan } from '../../utils/chessNotation';
+import { apiUrl } from '../../utils/siteUrl';
 import { TacticalThreat } from '../../utils/tacticalThreats';
 
 /**
@@ -202,7 +203,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       try {
-        const response = await fetch('/api/coach/explain', {
+        const response = await fetch(apiUrl('/api/coach/explain'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           signal: controller.signal,

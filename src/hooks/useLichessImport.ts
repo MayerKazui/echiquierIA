@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { apiUrl } from '../utils/siteUrl';
 
 const NOTICE_DURATION_MS = 4500;
 
@@ -43,7 +44,7 @@ export function useLichessImport(pgn: string, isFlipped: boolean) {
 
     setIsImporting(true);
     try {
-      const response = await fetch('/api/lichess/import', {
+      const response = await fetch(apiUrl('/api/lichess/import'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pgn }),
