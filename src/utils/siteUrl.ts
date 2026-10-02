@@ -5,7 +5,7 @@
  */
 
 /** URL of a file served next to the app (the engine, the openings), under the site's base path. */
-export function assetUrl(path: string, base: string = import.meta.env.BASE_URL): string {
+export function assetUrl(path: string, base: string = import.meta.env?.BASE_URL ?? '/'): string {
   return `${base.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
 

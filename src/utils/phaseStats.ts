@@ -1,8 +1,12 @@
-import { MoveAnalysis } from '../types/chess';
+import type { GamePhase, MoveAnalysis } from '../types/chess';
+import { phaseOf } from './gamePhase';
 import { accuracyFromMoves } from './moveAnalysis';
 
 export interface PhaseStat {
   totalMoves: number;
+  /** Move numbers (of the game) the phase spans, null when no move was played in it. */
+  firstMove: number | null;
+  lastMove: number | null;
   whiteCount: number;
   blackCount: number;
   whiteAccuracy: number | null;
@@ -15,13 +19,7 @@ export interface PhaseStat {
   blackInaccuracies: number;
 }
 
-export type GamePhase = 'opening' | 'middlegame' | 'endgame';
-
-/** Opening: moves 1-12, middlegame: 13-30, endgame: 31+. */
-export function phaseOfMove(moveNumber: number): GamePhase {
-  if (moveNumber <= 12) return 'opening';
-  return moveNumber <= 30 ? 'middlegame' : 'endgame';
-}
+export type { GamePhase };
 
 export interface PhaseStats {
   opening: PhaseStat;
@@ -39,13 +37,16 @@ const countBlunders = (moves: MoveAnalysis[]) =>
 const countMistakes = (moves: MoveAnalysis[]) => moves.filter((m) => m.classification === 'mistake').length;
 const countInaccuracies = (moves: MoveAnalysis[]) => moves.filter((m) => m.classification === 'inaccuracy').length;
 
-function computePhase(moves: MoveAnalysis[], startMove: number, endMove: number): PhaseStat {
-  const phaseMoves = moves.filter((m) => m.moveNumber >= startMove && m.moveNumber <= endMove);
+function computePhase(moves: MoveAnalysis[], phase: GamePhase): PhaseStat {
+  const phaseMoves = moves.filter((m) => phaseOf(m) === phase);
   const white = phaseMoves.filter((m) => m.color === 'w');
   const black = phaseMoves.filter((m) => m.color === 'b');
 
+  const numbers = phaseMoves.map((m) => m.moveNumber);
   return {
     totalMoves: phaseMoves.length,
+    firstMove: numbers.length ? Math.min(...numbers) : null,
+    lastMove: numbers.length ? Math.max(...numbers) : null,
     whiteCount: white.length,
     blackCount: black.length,
     whiteAccuracy: accuracyOf(white),
@@ -59,11 +60,16 @@ function computePhase(moves: MoveAnalysis[], startMove: number, endMove: number)
   };
 }
 
-/** Opening: moves 1-12, middlegame: 13-30, endgame: 31+. */
 export function computePhaseStats(moves: MoveAnalysis[]): PhaseStats {
   return {
-    opening: computePhase(moves, 1, 12),
-    middlegame: computePhase(moves, 13, 30),
-    endgame: computePhase(moves, 31, 999),
+    opening: computePhase(moves, 'opening'),
+    middlegame: computePhase(moves, 'middlegame'),
+    endgame: computePhase(moves, 'endgame'),
   };
+}
+
+/** "coups 1 à 9", "coup 31", or null when the phase was not played. */
+export function moveRangeLabel({ firstMove, lastMove }: Pick<PhaseStat, 'firstMove' | 'lastMove'>): string | null {
+  if (firstMove === null || lastMove === null) return null;
+  return firstMove === lastMove ? `coup ${firstMove}` : `coups ${firstMove} à ${lastMove}`;
 }

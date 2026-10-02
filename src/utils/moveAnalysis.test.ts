@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MoveAnalysis, MoveClassification } from '../types/chess';
 import {
   CLASS_LIMITS,
+  GREAT_MOVE_GAP,
   MISS_LIMITS,
   accuracyFromMoves,
   accuracyFromWinDrop,
@@ -9,6 +10,7 @@ import {
   classifyMove,
   computePlayerStats,
   moveAccuracy,
+  winPercentOfEvaluation,
 } from './moveAnalysis';
 
 /** A game from the White-perspective evaluation after each move (the first value is the starting position). */
@@ -180,8 +182,36 @@ describe('accuracyFromMoves', () => {
   });
 });
 
+describe('winPercentOfEvaluation', () => {
+  it('is the Win% of the score when there is no mate', () => {
+    expect(winPercentOfEvaluation(150, null)).toBe(calculateWinPercentage(150));
+    expect(winPercentOfEvaluation(150)).toBe(calculateWinPercentage(150));
+  });
+
+  it('is a certain win or loss for a forced mate, not the 90 % of the clamped score', () => {
+    expect(calculateWinPercentage(9990)).toBeLessThan(91);
+    expect(winPercentOfEvaluation(9990, 1)).toBe(100);
+    expect(winPercentOfEvaluation(9950, 5)).toBe(100);
+    expect(winPercentOfEvaluation(-9990, -1)).toBe(0);
+  });
+});
+
+describe('moveAccuracy and forced mates', () => {
+  const white = { color: 'w', centipawnLoss: 0 } as const;
+
+  it('costs more to give a mate up for +5 pawns than the same move without the mate', () => {
+    const withMate = moveAccuracy({ ...white, evalBefore: 9970, mateBefore: 3, evalAfter: 500, mateAfter: null });
+    const withoutMate = moveAccuracy({ ...white, evalBefore: 9970, evalAfter: 500 });
+    expect(withMate).toBeLessThan(withoutMate);
+  });
+
+  it('is untouched for a move that keeps the mate', () => {
+    expect(moveAccuracy({ ...white, evalBefore: 9970, mateBefore: 3, evalAfter: 9980, mateAfter: 2 })).toBe(100);
+  });
+});
+
 describe('classifyMove', () => {
-  // classifyMove(playedSan, bestSan, winPctDrop, isSacrifice, previousOpponentDrop)
+  // classifyMove(playedSan, bestSan, winPctDrop, { isSacrifice, previousOpponentDrop, onlyMoveGap, lostForcedMate })
   it('labels the engine move (or a near-identical one) as best', () => {
     expect(classifyMove('Nf3', 'Nf3', 0)).toBe('best');
     expect(classifyMove('Nf3', 'Nf3', 6)).toBe('best'); // the engine's own move is always "best"
@@ -189,13 +219,55 @@ describe('classifyMove', () => {
   });
 
   it('labels a sacrifice that gives nothing away as brilliant', () => {
-    expect(classifyMove('Bxh7+', 'Nf3', 1, true)).toBe('brilliant');
+    expect(classifyMove('Bxh7+', 'Nf3', 1, { isSacrifice: true })).toBe('brilliant');
     // Without a sacrifice the same move is only "excellent"
-    expect(classifyMove('Bxh7+', 'Nf3', 1, false)).toBe('excellent');
+    expect(classifyMove('Bxh7+', 'Nf3', 1)).toBe('excellent');
+  });
+
+  it('labels a sacrifice as brilliant even when it is the engine move itself', () => {
+    expect(classifyMove('Bxh7+', 'Bxh7+', 0, { isSacrifice: true })).toBe('brilliant');
+  });
+
+  it('labels the only move that worked as great', () => {
+    expect(classifyMove('Kg1', 'Kg1', 0, { onlyMoveGap: GREAT_MOVE_GAP })).toBe('great');
+    expect(classifyMove('Kh1', 'Kg1', CLASS_LIMITS.best, { onlyMoveGap: 40 })).toBe('great');
+  });
+
+  it('keeps a move that was one of several good ones as best', () => {
+    expect(classifyMove('Kg1', 'Kg1', 0, { onlyMoveGap: GREAT_MOVE_GAP - 0.1 })).toBe('best');
+    expect(classifyMove('Kg1', 'Kg1', 0, { onlyMoveGap: 0 })).toBe('best');
+  });
+
+  it('does not call a move great that was not the best one', () => {
+    expect(classifyMove('Kh1', 'Kg1', 2, { onlyMoveGap: 40 })).toBe('good');
+    expect(classifyMove('Kh1', 'Kg1', 9, { onlyMoveGap: 40 })).toBe('mistake');
+  });
+
+  it('prefers brilliant to great', () => {
+    expect(classifyMove('Qxh7+', 'Qxh7+', 0, { isSacrifice: true, onlyMoveGap: 40 })).toBe('brilliant');
+  });
+
+  describe('a forced mate given up', () => {
+    it('is at least a mistake, even when the move keeps most of the advantage', () => {
+      expect(classifyMove('Qa4', 'Qxf7#', 1, { lostForcedMate: true })).toBe('mistake');
+      expect(classifyMove('Qa4', 'Qxf7#', 5, { lostForcedMate: true })).toBe('mistake');
+    });
+
+    it('is a blunder when it also costs a lot', () => {
+      expect(classifyMove('Qa4', 'Qxf7#', 25, { lostForcedMate: true })).toBe('blunder');
+    });
+
+    it('is a miss after a mistake of the opponent', () => {
+      expect(classifyMove('Qa4', 'Qxf7#', 2, { lostForcedMate: true, previousOpponentDrop: 30 })).toBe('missedWin');
+    });
+
+    it('is not a fault for the engine move itself', () => {
+      expect(classifyMove('Qxf7#', 'Qxf7#', 0, { lostForcedMate: true })).toBe('best');
+    });
   });
 
   it('does not label a costly sacrifice as brilliant', () => {
-    expect(classifyMove('Bxh7+', 'Nf3', 2, true)).toBe('good');
+    expect(classifyMove('Bxh7+', 'Nf3', 2, { isSacrifice: true })).toBe('good');
   });
 
   it.each<[number, MoveClassification]>([
@@ -224,31 +296,31 @@ describe('classifyMove', () => {
     const { opponentDrop, ownDrop } = MISS_LIMITS;
 
     it('is a move giving away enough right after a mistake of the opponent', () => {
-      expect(classifyMove('h3', 'Qxf7#', ownDrop, false, opponentDrop)).toBe('missedWin');
-      expect(classifyMove('h3', 'Qxf7#', 15, false, 30)).toBe('missedWin');
+      expect(classifyMove('h3', 'Qxf7#', ownDrop, { previousOpponentDrop: opponentDrop })).toBe('missedWin');
+      expect(classifyMove('h3', 'Qxf7#', 15, { previousOpponentDrop: 30 })).toBe('missedWin');
     });
 
     it('stays a plain error when the opponent had not just erred', () => {
-      expect(classifyMove('h3', 'Qxf7#', 10, false, opponentDrop - 0.1)).toBe('mistake');
-      expect(classifyMove('h3', 'Qxf7#', 25, false, 0)).toBe('blunder');
+      expect(classifyMove('h3', 'Qxf7#', 10, { previousOpponentDrop: opponentDrop - 0.1 })).toBe('mistake');
+      expect(classifyMove('h3', 'Qxf7#', 25, { previousOpponentDrop: 0 })).toBe('blunder');
     });
 
     it('needs the move itself to give away enough', () => {
-      expect(classifyMove('h3', 'Qxf7#', ownDrop - 0.1, false, 30)).toBe('inaccuracy');
+      expect(classifyMove('h3', 'Qxf7#', ownDrop - 0.1, { previousOpponentDrop: 30 })).toBe('inaccuracy');
       // a small slip is still a "good" move, whatever happened before
-      expect(classifyMove('h3', 'Qxf7#', 2, false, 30)).toBe('good');
+      expect(classifyMove('h3', 'Qxf7#', 2, { previousOpponentDrop: 30 })).toBe('good');
     });
 
     it('is fitted on chess.com: an opponent mistake of 8 points, then a move giving away 5', () => {
       expect([opponentDrop, ownDrop]).toEqual([8, 5]);
-      expect(classifyMove('h3', 'Qxf7#', 5, false, 8)).toBe('missedWin');
-      expect(classifyMove('h3', 'Qxf7#', 4.9, false, 8)).toBe('inaccuracy');
-      expect(classifyMove('h3', 'Qxf7#', 5, false, 7.9)).toBe('inaccuracy');
+      expect(classifyMove('h3', 'Qxf7#', 5, { previousOpponentDrop: 8 })).toBe('missedWin');
+      expect(classifyMove('h3', 'Qxf7#', 4.9, { previousOpponentDrop: 8 })).toBe('inaccuracy');
+      expect(classifyMove('h3', 'Qxf7#', 5, { previousOpponentDrop: 7.9 })).toBe('inaccuracy');
     });
 
     it('is never a move of the engine, nor a brilliant one', () => {
-      expect(classifyMove('Qxf7#', 'Qxf7#', 12, false, 30)).toBe('best');
-      expect(classifyMove('Bxh7+', 'Nf3', 1, true, 30)).toBe('brilliant');
+      expect(classifyMove('Qxf7#', 'Qxf7#', 12, { previousOpponentDrop: 30 })).toBe('best');
+      expect(classifyMove('Bxh7+', 'Nf3', 1, { isSacrifice: true, previousOpponentDrop: 30 })).toBe('brilliant');
     });
   });
 });
@@ -299,16 +371,25 @@ describe('computePlayerStats', () => {
     expect(stats.accuracy).toBe(accuracyFromMoves(moves));
   });
 
-  it('attributes mistakes and blunders to the opening, middlegame or endgame by ply', () => {
+  it('attributes mistakes and blunders to the phase stored with the move, not to its number', () => {
     const stats = computePlayerStats([
-      move({ ply: 4, classification: 'mistake' }),
-      move({ ply: 30, classification: 'blunder' }),
-      move({ ply: 31, classification: 'mistake' }),
-      move({ ply: 70, classification: 'missedWin' }),
+      move({ ply: 4, moveNumber: 3, phase: 'opening', classification: 'mistake' }),
+      move({ ply: 6, moveNumber: 4, phase: 'middlegame', classification: 'blunder' }),
+      move({ ply: 62, moveNumber: 32, phase: 'middlegame', classification: 'mistake' }),
+      move({ ply: 70, moveNumber: 36, phase: 'endgame', classification: 'missedWin' }),
     ]);
     expect(stats.openingBlunders).toBe(1);
     expect(stats.middlegameBlunders).toBe(2);
     expect(stats.endgameBlunders).toBe(1);
+  });
+
+  it('falls back on the move number for a move analysed before phases were stored', () => {
+    const stats = computePlayerStats([
+      move({ moveNumber: 2, classification: 'mistake' }),
+      move({ moveNumber: 20, classification: 'blunder' }),
+      move({ moveNumber: 40, classification: 'mistake' }),
+    ]);
+    expect([stats.openingBlunders, stats.middlegameBlunders, stats.endgameBlunders]).toEqual([1, 1, 1]);
   });
 
   it('reports think-time metrics only when clock data exists', () => {

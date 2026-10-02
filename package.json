@@ -18,7 +18,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "bun run lint && bun run typecheck && bun run format:check && bun run test",
-    "build:openings": "tsx scripts/build-openings.ts"
+    "build:openings": "tsx scripts/build-openings.ts",
+    "calibrate": "tsx scripts/calibrate.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

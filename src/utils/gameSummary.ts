@@ -1,8 +1,14 @@
 import { GameAnalysisResult } from '../types/chess';
-import { PhaseStats } from './phaseStats';
+import { moveRangeLabel, PhaseStat, PhaseStats } from './phaseStats';
 import { toFrenchOpeningName } from './openingNames';
 
 /** Plain-text summary of the game, ready to paste on Discord, WhatsApp or X. */
+/** " (coups 1 à 9)" after the name of a phase, nothing when it was not played. */
+const rangeOf = (stat: PhaseStat) => {
+  const label = moveRangeLabel(stat);
+  return label ? ` (${label})` : '';
+};
+
 export function buildGameSummary(analysis: GameAnalysisResult, phaseStats: PhaseStats): string {
   const { metadata, moves, statsWhite, statsBlack } = analysis;
   const whiteName = metadata.white || 'Blancs';
@@ -21,9 +27,9 @@ ${resultStr}${openingStr}⏱️ Durée : ${Math.ceil(moves.length / 2)} coups
 ${
   opening.whiteAccuracy !== null
     ? `\n📊 Précision par phase :
-• Ouverture (coups 1-12) : Blancs ${opening.whiteAccuracy ?? '-'}% | Noirs ${opening.blackAccuracy ?? '-'}%
-• Milieu de jeu (coups 13-30) : Blancs ${middlegame.whiteAccuracy ?? '-'}% | Noirs ${middlegame.blackAccuracy ?? '-'}%
-• Finale (coups 31+) : ${endgame.totalMoves > 0 ? `Blancs ${endgame.whiteAccuracy ?? '-'}% | Noirs ${endgame.blackAccuracy ?? '-'}%` : 'Non atteinte'}`
+• Ouverture${rangeOf(opening)} : Blancs ${opening.whiteAccuracy ?? '-'}% | Noirs ${opening.blackAccuracy ?? '-'}%
+• Milieu de jeu${rangeOf(middlegame)} : Blancs ${middlegame.whiteAccuracy ?? '-'}% | Noirs ${middlegame.blackAccuracy ?? '-'}%
+• Finale${rangeOf(endgame)} : ${endgame.totalMoves > 0 ? `Blancs ${endgame.whiteAccuracy ?? '-'}% | Noirs ${endgame.blackAccuracy ?? '-'}%` : 'Non atteinte'}`
     : ''
 }
 

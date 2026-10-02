@@ -1,6 +1,8 @@
 import { Chess, type Move } from 'chess.js';
 import { MoveAnalysis, PlayerStats } from '../types/chess';
-import { calculateWinPercentage, classifyMove, computePlayerStats } from '../utils/moveAnalysis';
+import { classifyMove, computePlayerStats, winPercentOfEvaluation } from '../utils/moveAnalysis';
+import { moveContext } from '../utils/moveContext';
+import { phasesOfPositions } from '../utils/gamePhase';
 import { extractGameClocks } from '../utils/clockUtils';
 import { assetUrl } from '../utils/siteUrl';
 import {
@@ -17,6 +19,11 @@ export interface EngineEvaluation {
   bestMoveUci: string;
   bestMoveSan: string;
   pv: string[];
+  /**
+   * The engine's second choice (the search runs with MultiPV 2), when the position has a second legal move:
+   * the gap with the best move tells an only move from a position with several good ones.
+   */
+  second?: { cp: number; mate: number | null; moveUci: string };
 }
 
 interface WorkerSlot {
@@ -211,6 +218,8 @@ export class StockfishService {
       // needed): parallelism comes from running one search per worker on different positions.
       worker.postMessage('setoption name Threads value 1');
       worker.postMessage('setoption name Hash value 16');
+      // Two lines per position: the best move and the second one (see `EngineEvaluation.second`)
+      worker.postMessage('setoption name MultiPV value 2');
       worker.postMessage('isready');
 
       const existingIdx = this.workers.findIndex((w) => w.id === id);
@@ -342,26 +351,40 @@ export class StockfishService {
           if (!isNaN(reported)) reachedDepth = Math.max(reachedDepth, reported);
         }
 
+        // With MultiPV the engine prints one line per move at each depth: `multipv 1` is the best, `multipv 2` the next
+        const multipvIdx = parts.indexOf('multipv');
+        const lineNumber = multipvIdx !== -1 ? parseInt(parts[multipvIdx + 1], 10) : 1;
+
         const scoreIdx = parts.indexOf('score');
+        let cp: number | null = null;
+        let mate: number | null = null;
         if (scoreIdx !== -1) {
           const type = parts[scoreIdx + 1];
           const val = parseInt(parts[scoreIdx + 2], 10);
 
           if (type === 'cp' && !isNaN(val)) {
-            currentEval.cp = isBlackTurn ? -val : val;
-            currentEval.mate = null;
+            cp = isBlackTurn ? -val : val;
           } else if (type === 'mate' && !isNaN(val)) {
-            currentEval.mate = isBlackTurn ? -val : val;
-            currentEval.cp = (currentEval.mate > 0 ? 10000 : -10000) - currentEval.mate * 10;
+            mate = isBlackTurn ? -val : val;
+            cp = (mate > 0 ? 10000 : -10000) - mate * 10;
           }
         }
 
         const pvIdx = parts.indexOf('pv');
-        if (pvIdx !== -1) {
-          const moves = parts.slice(pvIdx + 1);
-          currentEval.pv = moves;
-          if (moves[0]) {
-            currentEval.bestMoveUci = moves[0];
+        const moves = pvIdx !== -1 ? parts.slice(pvIdx + 1) : [];
+
+        if (lineNumber === 2) {
+          if (cp !== null && moves[0]) currentEval.second = { cp, mate, moveUci: moves[0] };
+        } else {
+          if (cp !== null) {
+            currentEval.cp = cp;
+            currentEval.mate = mate;
+          }
+          if (pvIdx !== -1) {
+            currentEval.pv = moves;
+            if (moves[0]) {
+              currentEval.bestMoveUci = moves[0];
+            }
           }
         }
       }
@@ -607,6 +630,7 @@ export class StockfishService {
     let currentOpening: { eco?: string; name?: string } = {};
     // Win% the previous move (the opponent's) gave away: a mistake it makes is a chance for the next move to miss
     let previousDrop = 0;
+    const phases = phasesOfPositions(fensBefore.slice(0, count));
     for (let ply = 0; ply < count; ply++) {
       const move = history[ply];
       const isWhite = move.color === 'w';
@@ -619,8 +643,8 @@ export class StockfishService {
       const evalBefore = evalBeforeRes.cp;
       const evalAfter = evalAfterRes.cp;
 
-      const winPctBefore = calculateWinPercentage(evalBefore);
-      const winPctAfter = calculateWinPercentage(evalAfter);
+      const winPctBefore = winPercentOfEvaluation(evalBefore, evalBeforeRes.mate);
+      const winPctAfter = winPercentOfEvaluation(evalAfter, evalAfterRes.mate);
 
       // Check if played move is recognized in the official theoretical opening book (7,800+ lines)
       let bookCheck: { isBook: boolean; eco?: string; name?: string } = { isBook: false };
@@ -649,18 +673,25 @@ export class StockfishService {
       let winPctDrop = isWhite ? winPctBefore - winPctAfter : winPctAfter - winPctBefore;
       if (winPctDrop < 0 || bookCheck.isBook) winPctDrop = 0;
 
-      // Check if played move was a piece sacrifice
-      const pieceType = move.piece;
-      const isSacrifice =
-        (pieceType === 'q' || pieceType === 'r' || pieceType === 'b' || pieceType === 'n') &&
-        move.captured === undefined &&
-        evalAfterRes.cp * (isWhite ? 1 : -1) > 100;
+      // What the position says about the move beyond the Win% it gave away
+      const context = bookCheck.isBook
+        ? {}
+        : moveContext({
+            move,
+            previous: history[ply - 1],
+            fenBefore,
+            before: evalBeforeRes,
+            after: evalAfterRes,
+            winPctBefore,
+            winPctDrop,
+            previousOpponentDrop: previousDrop,
+          });
 
       // When a move is theoretical, it is ALWAYS designated as 'book' in the notation and badge,
       // even if it also happens to be the engine's #1 move!
       const classification = bookCheck.isBook
         ? 'book'
-        : classifyMove(move.san, evalBeforeRes.bestMoveSan, winPctDrop, isSacrifice, previousDrop);
+        : classifyMove(move.san, evalBeforeRes.bestMoveSan, winPctDrop, context);
       previousDrop = winPctDrop; // what the next move (the opponent's) is measured against
 
       const moveNumber = Math.floor(ply / 2) + 1;
@@ -675,6 +706,7 @@ export class StockfishService {
       movesAnalysis.push({
         ply,
         moveNumber,
+        phase: phases[ply],
         color: move.color,
         san: move.san,
         uci: `${move.from}${move.to}${move.promotion || ''}`,

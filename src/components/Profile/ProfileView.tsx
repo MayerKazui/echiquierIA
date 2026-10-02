@@ -23,9 +23,9 @@ const whole = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
 const signed = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1, signDisplay: 'exceptZero' });
 
 const PHASES: Array<{ id: GamePhase; label: string; range: string }> = [
-  { id: 'opening', label: 'Ouverture', range: 'coups 1 à 12' },
-  { id: 'middlegame', label: 'Milieu de jeu', range: 'coups 13 à 30' },
-  { id: 'endgame', label: 'Finale', range: 'coup 31 et après' },
+  { id: 'opening', label: 'Ouverture', range: 'pièces à développer' },
+  { id: 'middlegame', label: 'Milieu de jeu', range: 'pièces en jeu' },
+  { id: 'endgame', label: 'Finale', range: 'peu de pièces' },
 ];
 
 const SPEED_LABELS: Record<TimeControlClass, string> = {

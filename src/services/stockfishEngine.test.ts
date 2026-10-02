@@ -1,3 +1,4 @@
+import { Chess } from 'chess.js';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadOpeningsFromDisk } from '../test/openings';
 import { ensureOpeningBookLoaded } from './openingBook';
@@ -7,6 +8,7 @@ import {
   defaultWorkerCount,
   isAbortError,
   searchTimeLimitMs,
+  type EngineEvaluation,
   type GameAnalysisOutput,
 } from './stockfishEngine';
 
@@ -40,6 +42,8 @@ class FakeWorker {
       answersStop?: boolean;
       /** Delay between `stop` and the bestmove line. */
       stopMs?: number;
+      /** A second line (MultiPV 2) printed after the best one, with the score of White's view in the sign of the mover. */
+      second?: { cp: number; move: string };
     },
     private readonly counter: { searches: number }
   ) {}
@@ -69,7 +73,9 @@ class FakeWorker {
 
   private finish(depth: number, move: string) {
     this.searching = false;
-    if (depth) this.emit(`info depth ${depth} score cp 30 pv ${move}`);
+    const { second } = this.behavior;
+    if (depth) this.emit(`info depth ${depth}${second ? ' multipv 1' : ''} score cp 30 pv ${move}`);
+    if (depth && second) this.emit(`info depth ${depth} multipv 2 score cp ${second.cp} pv ${second.move}`);
     this.emit(`bestmove ${move}`);
   }
 
@@ -205,7 +211,13 @@ describe('worker pool', () => {
     expect(workers).toHaveLength(3);
     for (const worker of workers) {
       expect(worker.script).toBe('/stockfish-19.js#stockfish-19.wasm'); // the only engine
-      expect(worker.sent).toEqual(['uci', 'setoption name Threads value 1', 'setoption name Hash value 16', 'isready']);
+      expect(worker.sent).toEqual([
+        'uci',
+        'setoption name Threads value 1',
+        'setoption name Hash value 16',
+        'setoption name MultiPV value 2', // the second line tells an only move from one of several
+        'isready',
+      ]);
     }
   });
 
@@ -241,6 +253,35 @@ describe('evaluatePosition', () => {
     const blackToMove = service.evaluatePosition(FEN_BLACK_TO_MOVE, 10);
     await vi.advanceTimersByTimeAsync(100);
     expect((await blackToMove).cp).toBe(-30);
+  });
+
+  describe('the second choice of the engine (MultiPV 2)', () => {
+    it('is read from the second line, which does not replace the best move or its score', async () => {
+      const { service } = setup({ workerCount: 1 }, { second: { cp: -250, move: 'e2d3' } });
+      const evaluation = service.evaluatePosition(FEN_A, 10);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(await evaluation).toMatchObject({
+        cp: 30,
+        bestMoveUci: 'e2a6',
+        pv: ['e2a6'],
+        second: { cp: -250, mate: null, moveUci: 'e2d3' },
+      });
+    });
+
+    it('is given from White’s point of view, like the best line', async () => {
+      const { service } = setup({ workerCount: 1 }, { second: { cp: -250, move: 'a6b7' } });
+      const evaluation = service.evaluatePosition(FEN_BLACK_TO_MOVE, 10);
+      await vi.advanceTimersByTimeAsync(100);
+      // The engine scored +30 and -250 for Black, who is to move
+      expect(await evaluation).toMatchObject({ cp: -30, second: { cp: 250 } });
+    });
+
+    it('is absent when the engine gives one line only', async () => {
+      const { service } = setup({ workerCount: 1 });
+      const evaluation = service.evaluatePosition(FEN_A, 10);
+      await vi.advanceTimersByTimeAsync(100);
+      expect((await evaluation).second).toBeUndefined();
+    });
   });
 
   it('answers the start position and opening book positions without the engine', async () => {
@@ -653,5 +694,89 @@ describe('analyzeFullGame', () => {
     const outcome = await service.analyzeFullGame(PGN, 10, undefined, { signal: controller.signal }).catch((e) => e);
     expect(isAbortError(outcome)).toBe(true);
     expect(searches(workers)).toBe(0);
+  });
+});
+
+describe('classification of the moves of a game', () => {
+  // Unusual moves, outside the opening book
+  const PGN = '1. a3 a6 2. b3 b6 3. c3 c6 4. d3 d6 5. e3 e6 6. f3 f6 *';
+
+  beforeAll(async () => {
+    await ensureOpeningBookLoaded(loadOpeningsFromDisk);
+  });
+
+  /** The service with the engine replaced by evaluations written per position (0 is the start, n after n plies). */
+  async function analyse(evaluations: Record<number, Partial<EngineEvaluation>>) {
+    const fens: string[] = [];
+    const replay = new Chess();
+    fens.push(replay.fen());
+    const chess = new Chess();
+    chess.loadPgn(PGN);
+    for (const move of chess.history()) {
+      replay.move(move);
+      fens.push(replay.fen());
+    }
+    const byFen = new Map(
+      fens.map((fen, ply) => [
+        fen,
+        { cp: 0, mate: null, bestMoveUci: '', bestMoveSan: '', pv: [], ...evaluations[ply] },
+      ])
+    );
+    class Scripted extends StockfishService {
+      override async evaluatePosition(fen: string): Promise<EngineEvaluation> {
+        return byFen.get(fen)!;
+      }
+    }
+    return new Scripted({ workerCount: 0 }).analyzeFullGame(PGN, 10);
+  }
+
+  it('stores the phase of every move, from the pieces on the board', async () => {
+    const { moves } = await analyse({});
+    expect(moves.map((m) => m.phase)).toEqual(Array(12).fill('opening'));
+  });
+
+  it('calls the only move that worked a great move', async () => {
+    // White finds d3 (ply 6) when the second choice of the engine was much worse
+    const { moves } = await analyse({
+      6: { cp: 100, bestMoveSan: 'd3', second: { cp: -300, mate: null, moveUci: 'e2e3' } },
+      7: { cp: 100 },
+    });
+    expect(moves[6].classification).toBe('great');
+    expect(moves[4].classification).toBe('best'); // no second choice there: nothing to find
+  });
+
+  it('keeps a best move as best when the second choice was almost as good', async () => {
+    const { moves } = await analyse({
+      6: { cp: 100, bestMoveSan: 'd3', second: { cp: 70, mate: null, moveUci: 'e2e3' } },
+      7: { cp: 100 },
+    });
+    expect(moves[6].classification).toBe('best');
+  });
+
+  it('treats a forced mate given up as a fault, even when the position stays winning', async () => {
+    // White could mate in 2 already before Black's last move (ply 7), plays e3 at ply 8 and is only +5 afterwards
+    const { moves } = await analyse({
+      7: { cp: 9980, mate: 2 },
+      8: { cp: 9980, mate: 2, bestMoveSan: 'Qh5' },
+      9: { cp: 500 },
+    });
+    expect(moves[8].classification).toBe('blunder');
+    expect(moves[8].winPercentBefore).toBe(100); // a forced mate is a certain win
+  });
+
+  it('calls it a miss when the opponent has just made the mate possible', async () => {
+    const { moves } = await analyse({
+      8: { cp: 9980, mate: 2, bestMoveSan: 'Qh5' },
+      9: { cp: 500 },
+    });
+    expect(moves[8].classification).toBe('missedWin');
+  });
+
+  it('keeps a mate that is only slower as best', async () => {
+    const { moves } = await analyse({
+      8: { cp: 9980, mate: 2, bestMoveSan: 'e3' },
+      9: { cp: 9960, mate: 4 },
+    });
+    expect(moves[8].classification).toBe('best');
   });
 });

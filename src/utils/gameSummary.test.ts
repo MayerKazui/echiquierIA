@@ -61,12 +61,12 @@ describe('buildGameSummary', () => {
   it('reports the phases, and says when the endgame was not reached', () => {
     const short = analysis({}, 24); // 12 full moves: opening only
     const text = buildGameSummary(short, computePhaseStats(short.moves));
-    expect(text).toContain('Ouverture (coups 1-12) : Blancs');
-    expect(text).toContain('Finale (coups 31+) : Non atteinte');
+    expect(text).toContain('Ouverture (coups 1 à 12) : Blancs');
+    expect(text).toContain('Finale : Non atteinte');
 
     const long = analysis({}, 80);
     expect(buildGameSummary(long, computePhaseStats(long.moves))).toMatch(
-      /Finale \(coups 31\+\) : Blancs [\d.]+% \| Noirs/
+      /Finale \(coups 31 à 40\) : Blancs [\d.]+% \| Noirs/
     );
   });
 });

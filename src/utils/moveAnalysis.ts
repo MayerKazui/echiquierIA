@@ -1,4 +1,5 @@
 import { MoveClassification, PlayerStats, MoveAnalysis } from '../types/chess';
+import { phaseOf } from './gamePhase';
 
 const LICHESS_COEFFICIENT = 0.00368208;
 // The three constants below were fitted on 66 public chess.com games (132 players, 160 to 3300 Elo) whose
@@ -21,6 +22,14 @@ export function calculateWinPercentage(cp: number): number {
 }
 
 /**
+ * Win probability (0-100) of White from an engine evaluation. A forced mate is a certain win or loss: its score is
+ * clamped like any other (90 %), which made giving up a mate for +5 pawns cost only 12 points of Win%.
+ */
+export function winPercentOfEvaluation(cp: number, mate?: number | null): number {
+  return mate ? (mate > 0 ? 100 : 0) : calculateWinPercentage(cp);
+}
+
+/**
  * Accuracy (0-100) of a single move from the Win% it gave away: Lichess' formula (with its small
  * "uncertainty bonus"), decaying faster. Based on the win probability rather than on raw centipawns, so a
  * blunder or a mate score weighs at most "the whole game lost", never thousands of centipawns.
@@ -30,13 +39,14 @@ export function accuracyFromWinDrop(winPctDrop: number): number {
   return Math.min(100, Math.max(0, raw));
 }
 
-type EvaluatedMove = Pick<MoveAnalysis, 'color' | 'evalBefore' | 'evalAfter' | 'centipawnLoss'>;
+type EvaluatedMove = Pick<MoveAnalysis, 'color' | 'evalBefore' | 'evalAfter' | 'centipawnLoss'> &
+  Partial<Pick<MoveAnalysis, 'mateBefore' | 'mateAfter'>>;
 
 /** Accuracy of one analysed move; falls back to its centipawn loss when evaluations are missing. */
 export function moveAccuracy(m: EvaluatedMove): number {
   if (typeof m.evalBefore === 'number' && typeof m.evalAfter === 'number') {
-    const before = calculateWinPercentage(m.evalBefore);
-    const after = calculateWinPercentage(m.evalAfter);
+    const before = winPercentOfEvaluation(m.evalBefore, m.mateBefore);
+    const after = winPercentOfEvaluation(m.evalAfter, m.mateAfter);
     return accuracyFromWinDrop(m.color === 'w' ? before - after : after - before);
   }
   return accuracyFromWinDrop(calculateWinPercentage(m.centipawnLoss) - 50);
@@ -69,30 +79,50 @@ export const CLASS_LIMITS = { best: 0.3, excellent: 1.2, good: 4, inaccuracy: 8,
 export const MISS_LIMITS = { opponentDrop: 8, ownDrop: 5 } as const;
 
 /**
+ * An "only move" (chess.com's "great move"): the engine's best move is worth at least this many Win% points more than
+ * its second choice, so that playing it needed finding it. Pinned by `scripts/calibration` (about one per game).
+ */
+export const GREAT_MOVE_GAP = 12;
+
+/** What the position says about a move, beyond the Win% it gave away. */
+export interface MoveContext {
+  /** The move gave up material that was not won back (see `materialSacrificed`), in a position not yet won. */
+  isSacrifice?: boolean;
+  /** What the opponent's move just before gave away (Win% points): it tells a miss from a plain error. */
+  previousOpponentDrop?: number;
+  /** Win% the best move is worth more than the engine's second choice: large for an only move. */
+  onlyMoveGap?: number;
+  /** The player had a forced mate and the move no longer has one. */
+  lostForcedMate?: boolean;
+}
+
+/**
  * Classifies a move from the Win% it gave away (from the mover's point of view, in points).
- * `previousOpponentDrop` is what the opponent's move just before gave away: it tells a miss from a plain error.
  */
 export function classifyMove(
   playedSan: string,
   bestSan: string,
   winPctDrop: number,
-  isSacrifice = false,
-  previousOpponentDrop = 0
+  { isSacrifice = false, previousOpponentDrop = 0, onlyMoveGap = 0, lostForcedMate = false }: MoveContext = {}
 ): MoveClassification {
-  // The engine's move, or one as good within its noise
-  if (playedSan === bestSan || winPctDrop <= CLASS_LIMITS.best) return 'best';
+  // Giving up a forced mate is at least a mistake, however much the move keeps (+5 pawns is not a mate)
+  const drop = lostForcedMate ? Math.max(winPctDrop, CLASS_LIMITS.inaccuracy) : winPctDrop;
+  const nearBest = playedSan === bestSan || drop <= CLASS_LIMITS.best;
 
-  // A sacrifice that gives away practically nothing
-  if (isSacrifice && winPctDrop <= CLASS_LIMITS.excellent) return 'brilliant';
+  // A sacrifice that gives away practically nothing, even when it is the engine's own move
+  if (isSacrifice && drop <= CLASS_LIMITS.excellent) return 'brilliant';
 
-  if (winPctDrop < CLASS_LIMITS.excellent) return 'excellent';
-  if (winPctDrop < CLASS_LIMITS.good) return 'good';
+  // The engine's move, or one as good within its noise; when it was the only one that worked, it was hard to find
+  if (nearBest) return onlyMoveGap >= GREAT_MOVE_GAP ? 'great' : 'best';
+
+  if (drop < CLASS_LIMITS.excellent) return 'excellent';
+  if (drop < CLASS_LIMITS.good) return 'good';
 
   // The opponent has just offered something and it is not taken
-  if (previousOpponentDrop >= MISS_LIMITS.opponentDrop && winPctDrop >= MISS_LIMITS.ownDrop) return 'missedWin';
+  if (previousOpponentDrop >= MISS_LIMITS.opponentDrop && drop >= MISS_LIMITS.ownDrop) return 'missedWin';
 
-  if (winPctDrop < CLASS_LIMITS.inaccuracy) return 'inaccuracy';
-  if (winPctDrop < CLASS_LIMITS.mistake) return 'mistake';
+  if (drop < CLASS_LIMITS.inaccuracy) return 'inaccuracy';
+  if (drop < CLASS_LIMITS.mistake) return 'mistake';
   return 'blunder';
 }
 
@@ -118,9 +148,9 @@ export function computePlayerStats(playerMoves: MoveAnalysis[]): PlayerStats {
   for (const m of playerMoves) {
     totalCpLoss += m.centipawnLoss;
 
-    // Classify game phase (approximate: ply < 20 Opening, 20-50 Middlegame, >= 50 Endgame)
-    const isOpening = m.ply < 20;
-    const isMiddlegame = m.ply >= 20 && m.ply < 50;
+    const phase = phaseOf(m);
+    const isOpening = phase === 'opening';
+    const isMiddlegame = phase === 'middlegame';
 
     switch (m.classification) {
       case 'book':

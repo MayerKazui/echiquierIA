@@ -1,6 +1,6 @@
 import type { MoveAnalysis } from '../types/chess';
 import { FAULT_CLASSIFICATIONS, type FaultKind } from './faultKinds';
-import { phaseOfMove, type GamePhase } from './phaseStats';
+import { phaseOf, type GamePhase } from './gamePhase';
 import { MIN_GAME_PLIES, faultKindOf, parsePgnDate, playerColorIn, type ProfileSource } from './weaknessProfile';
 
 /**
@@ -70,7 +70,7 @@ function toPosition(
     pv: move.pv,
     classification: move.classification as TrainingPosition['classification'],
     kind: faultKindOf(`${source.id}:${source.savedAt}`, move),
-    phase: phaseOfMove(move.moveNumber),
+    phase: phaseOf(move),
     loss: move.winPercentLoss,
     winBefore: color === 'w' ? move.winPercentBefore : 100 - move.winPercentBefore,
     opponent,

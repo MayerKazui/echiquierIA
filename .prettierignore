@@ -6,3 +6,4 @@ public
 bun.lock
 *.tsv
 metadata.json
+scripts/calibration/reference.json

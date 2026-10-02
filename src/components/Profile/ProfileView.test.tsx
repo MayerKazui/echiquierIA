@@ -89,9 +89,9 @@ describe('ProfileView', () => {
       await show(games(8, [2, 40, 70]));
       const list = within(section('Par phase de la partie')).getByRole('list');
       const [opening, middle, end] = within(list).getAllByRole('listitem');
-      expect(opening.textContent).toContain('Ouverture (coups 1 à 12)');
-      expect(middle.textContent).toContain('Milieu de jeu (coups 13 à 30)');
-      expect(end.textContent).toContain('Finale (coup 31 et après)');
+      expect(opening.textContent).toContain('Ouverture (pièces à développer)');
+      expect(middle.textContent).toContain('Milieu de jeu (pièces en jeu)');
+      expect(end.textContent).toContain('Finale (peu de pièces)');
       // 8 games × 12 moves in the opening, one blunder in each game
       expect(opening.textContent).toContain('96 coups · 8,3 erreurs pour 100 coups');
       expect(end.textContent).toContain('80 coups · 10 erreurs pour 100 coups');
