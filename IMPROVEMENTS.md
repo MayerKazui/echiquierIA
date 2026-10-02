@@ -550,6 +550,15 @@ Menu d'en-tête « Puzzles » (`src/components/Puzzles/`), au niveau et sur les 
   - Le nombre de puzzles d'une combinaison de thèmes n'est connu qu'au lancement (l'index compte par thème) : un choix vide est signalé quand l'index le sait, sinon au chargement.
   - Pas encore de Woodpecker, ni de lien depuis « Mon plan ».
 
+## Grands plateaux dans les fenêtres — fait
+
+Études, Puzzles, S'entraîner et Ouvertures (l'explorateur) s'affichaient dans une fenêtre de 56 à 64 rem avec un plateau de 24 à 26 rem (environ 400 px) : trop petit pour jouer.
+
+- [x] **Plateau dimensionné sur la hauteur de la fenêtre**, comme sur la page de partie : `--modal-board` (`src/index.css`) vaut `clamp(18rem, min(100dvh - 15rem, 100vw - 24rem), 52rem)`, la largeur laissant sa place au panneau à côté. Mesuré en production : **652 px à 1280×900** (410 avant), 824 px à 1920×1080, 520 px à 1024×768. Sur téléphone (une colonne) rien ne change.
+- [x] **Fenêtres plus larges dès qu'un plateau est affiché** (jusqu'à 84 rem ou 96 % de l'écran) et plus hautes (la hauteur de l'écran moins 1 à 2 rem) ; les écrans de réglages, de liste ou de bilan gardent leur largeur d'avant.
+- [x] **Études** : le titre de l'étude et les onglets de chapitres restent au-dessus du plateau, mais l'introduction de l'étude et les réglages du chapitre (nom, côté, ordre, export, suppression, verrouillage) passent dans la colonne à droite du plateau, pour qu'il commence plus haut. Plateau de 564 px à 1280×900 (`modal-board-tall`, qui compte ces lignes en plus), et il reste collé en haut quand on fait défiler la colonne de droite.
+- Vérifié dans Chromium (1280×900, 1920×1080, 1024×768, téléphone) sur Puzzles, Études et Ouvertures, sans erreur de console. S'entraîner utilise les mêmes classes que Puzzles mais n'a pas été ouvert dans le navigateur (il faut des parties analysées).
+
 ## Ordre suggéré
 
 1 (sécurité serveur) → 2 (Gemini) → 4 (tests sur la logique pure) → 3 (découpage de `App.tsx`), puis le reste.

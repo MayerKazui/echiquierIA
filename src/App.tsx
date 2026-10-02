@@ -648,7 +648,7 @@ export default function App() {
         <Modal
           title="S'entraîner sur mes erreurs"
           onClose={() => setIsTrainingOpen(false)}
-          className="w-full max-w-4xl"
+          className="w-full max-w-[min(96vw,84rem)]"
         >
           <Suspense fallback={null}>
             <Training
@@ -691,7 +691,7 @@ export default function App() {
       )}
 
       {isPuzzlesOpen && (
-        <Modal title="Puzzles" onClose={() => setIsPuzzlesOpen(false)} className="w-full max-w-4xl">
+        <Modal title="Puzzles" onClose={() => setIsPuzzlesOpen(false)} className="w-full max-w-[min(96vw,84rem)]">
           <Suspense fallback={null}>
             <Puzzles boardTheme={boardTheme} onClose={() => setIsPuzzlesOpen(false)} />
           </Suspense>
@@ -699,7 +699,7 @@ export default function App() {
       )}
 
       {isStudiesOpen && (
-        <Modal title="Études" onClose={() => setIsStudiesOpen(false)} className="w-full max-w-5xl">
+        <Modal title="Études" onClose={() => setIsStudiesOpen(false)} className="w-full max-w-[min(96vw,84rem)]">
           <Suspense fallback={null}>
             <Studies boardTheme={boardTheme} onClose={() => setIsStudiesOpen(false)} />
           </Suspense>
@@ -707,7 +707,7 @@ export default function App() {
       )}
 
       {isOpeningsOpen && (
-        <Modal title="Ouvertures" onClose={() => setIsOpeningsOpen(false)} className="w-full max-w-4xl">
+        <Modal title="Ouvertures" onClose={() => setIsOpeningsOpen(false)} className="w-full max-w-[min(96vw,84rem)]">
           <Suspense fallback={null}>
             <Openings
               boardTheme={boardTheme}

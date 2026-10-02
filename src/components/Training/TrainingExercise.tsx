@@ -125,8 +125,8 @@ export const TrainingExercise: React.FC<TrainingExerciseProps> = ({
   const explanation = position.explanation;
 
   return (
-    <div className="grid md:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] gap-4 items-start">
-      <div className="w-full max-w-md mx-auto md:mx-0">
+    <div className="grid md:grid-cols-[var(--modal-board)_minmax(0,1fr)] gap-4 items-start">
+      <div className="w-full max-w-md mx-auto md:max-w-none md:mx-0">
         <ChessBoard
           key={attempt}
           fen={position.fen}

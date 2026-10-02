@@ -119,7 +119,11 @@ export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme }) => {
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl flex flex-col gap-4 max-w-4xl w-full mx-auto max-h-[90dvh]">
+    <div
+      className={`bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl flex flex-col gap-4 w-full mx-auto max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] ${
+        screen.kind === 'run' ? 'max-w-[min(96vw,84rem)]' : 'max-w-4xl'
+      }`}
+    >
       <div className="flex items-start justify-between gap-3 border-b border-slate-800/80 pb-3">
         <div className="flex items-start gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">

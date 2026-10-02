@@ -15,6 +15,8 @@ interface StudyPlayProps {
   boardTheme?: BoardTheme;
   /** Unlocks the chapter: back to reading and writing. */
   onExit: () => void;
+  /** Shown at the top of the column beside the board (the settings of the study). */
+  aside?: React.ReactNode;
 }
 
 const playMove = (san: string) => chessAudio.playForMove(san, /[+#]/.test(san));
@@ -23,7 +25,7 @@ const playMove = (san: string) => chessAudio.playForMove(san, /[+#]/.test(san));
  * The chapter locked: the player plays one side and the computer answers with the moves of the study, sometimes
  * a variation. A move the study does not play is taken back. The moves of the study stay hidden.
  */
-export const StudyPlay: React.FC<StudyPlayProps> = ({ chapter, boardTheme, onExit }) => {
+export const StudyPlay: React.FC<StudyPlayProps> = ({ chapter, boardTheme, aside, onExit }) => {
   const [color, setColor] = useState<PlayerColor>(chapter.orientation);
   // Another side starts a new game
   return (
@@ -31,6 +33,7 @@ export const StudyPlay: React.FC<StudyPlayProps> = ({ chapter, boardTheme, onExi
       key={color}
       chapter={chapter}
       boardTheme={boardTheme}
+      aside={aside}
       color={color}
       onColor={setColor}
       onExit={onExit}
@@ -41,6 +44,7 @@ export const StudyPlay: React.FC<StudyPlayProps> = ({ chapter, boardTheme, onExi
 const LockedGame: React.FC<StudyPlayProps & { color: PlayerColor; onColor: (color: PlayerColor) => void }> = ({
   chapter,
   boardTheme,
+  aside,
   color,
   onColor,
   onExit,
@@ -51,8 +55,8 @@ const LockedGame: React.FC<StudyPlayProps & { color: PlayerColor; onColor: (colo
   const last = play.line.length > 0 ? play.line[play.line.length - 1] : null;
 
   return (
-    <div className="grid md:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] gap-4 items-start">
-      <div className="w-full max-w-md mx-auto md:mx-0 flex flex-col gap-2">
+    <div className="grid md:grid-cols-[var(--modal-board)_minmax(0,1fr)] gap-4 items-start">
+      <div className="w-full max-w-md mx-auto md:max-w-none md:mx-0 md:sticky md:top-0 flex flex-col gap-2">
         <ChessBoard
           fen={play.node.fen}
           isFlipped={color === 'b'}
@@ -97,6 +101,7 @@ const LockedGame: React.FC<StudyPlayProps & { color: PlayerColor; onColor: (colo
       </div>
 
       <div className="flex flex-col gap-3 min-w-0">
+        {aside}
         <div role="group" aria-label="Côté joué" className="flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] text-slate-400 mr-1">Je joue :</span>
           {(['w', 'b'] as const).map((side) => (
