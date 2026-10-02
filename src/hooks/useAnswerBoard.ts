@@ -63,9 +63,7 @@ export function useAnswerBoard(fen: string, isEnabled: boolean, onAnswer: (answe
   );
 
   const handlePieceMove = useCallback(
-    (from: string, to: string) => {
-      if (from !== to) tryMove(from, to);
-    },
+    (from: string, to: string): boolean => from !== to && tryMove(from, to),
     [tryMove]
   );
 

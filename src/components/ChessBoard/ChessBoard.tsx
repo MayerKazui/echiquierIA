@@ -27,7 +27,8 @@ interface ChessBoardProps {
   showHeatmap?: boolean;
   heatmapMode?: HeatmapMode;
   onSquareClick?: (square: string) => void;
-  onPieceMove?: (from: string, to: string) => void;
+  /** Plays a dragged piece; `false` (illegal move) sends the piece back to its square. */
+  onPieceMove?: (from: string, to: string) => boolean | void;
   selectedSquare?: string | null;
   /** A pawn move waiting for the choice of the new piece. */
   promotion?: PendingPromotion | null;
@@ -202,8 +203,8 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   const drawing = useBoardDrawing(fen, (square) => Boolean(chess.get(square as Square)));
 
   const movePiece = (from: string, to: string) => {
-    if (onPieceMove) onPieceMove(from, to);
-    else onSquareClick?.(to);
+    if (onPieceMove) return onPieceMove(from, to);
+    onSquareClick?.(to);
   };
 
   // Drag and drop with pointer events (mouse and finger): the piece follows the pointer
