@@ -1,5 +1,8 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { BoardPiece } from './boardTransition';
+
+/** The piece that follows the pointer is a little bigger than the one on the square. */
+const GHOST_SCALE = 1.1;
 
 /** The pointer must move this far (px) before a press on a piece becomes a drag; a tap stays a click. */
 const DRAG_THRESHOLD = 5;
@@ -61,8 +64,10 @@ export function usePieceDrag({
   const moveGhost = useCallback(() => {
     const ghost = ghostRef.current;
     const size = session.current?.size ?? 0;
+    // The scale goes in the same `transform`, after the translation: a separate CSS `scale` is applied before
+    // `transform`, which would scale the translation too (the piece drifts away from the pointer).
     if (ghost)
-      ghost.style.transform = `translate(${pointer.current.x - size / 2}px, ${pointer.current.y - size / 2}px)`;
+      ghost.style.transform = `translate(${pointer.current.x - size / 2}px, ${pointer.current.y - size / 2}px) scale(${GHOST_SCALE})`;
   }, []);
 
   // The piece that follows the pointer exists from the render after the drag starts: place it right away
@@ -74,6 +79,21 @@ export function usePieceDrag({
     session.current = null;
     setDrag(null);
   }, []);
+
+  // Escape gives the piece back: the drag is cancelled, nothing is played
+  const isDragging = drag !== null;
+  useEffect(() => {
+    if (!isDragging) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation(); // this Escape is spent on the drag: the app's own Escape (leave the exploration) waits
+      swallowNextClick.current = true;
+      setTimeout(() => (swallowNextClick.current = false), 0);
+      end();
+    };
+    window.addEventListener('keydown', onKeyDown, true); // capture: before the app's listeners
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [isDragging, end]);
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLElement>, from: string, piece: BoardPiece) => {
     if (e.button !== 0 || !e.isPrimary) return; // right click draws arrows

@@ -46,6 +46,10 @@ export function useAnswerBoard(fen: string, isEnabled: boolean, onAnswer: (answe
   const handleSquareClick = useCallback(
     (square: string) => {
       if (!isEnabled) return;
+      if (selectedSquare === square) {
+        setSelectedSquare(null); // a second click on the selected piece puts it down
+        return;
+      }
       if (selectedSquare && tryMove(selectedSquare, square)) return;
       try {
         const chess = new Chess(fen);

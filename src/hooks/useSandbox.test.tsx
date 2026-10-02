@@ -33,6 +33,14 @@ describe('useSandbox promotion', () => {
     expect(result.current.activeFen.split(' ')[0]).toBe('N6k/8/8/8/8/8/8/4K3');
   });
 
+  it('puts the piece down when its square is clicked a second time', () => {
+    const { result } = renderHook(() => useSandbox(BEFORE_PROMOTION));
+    act(() => result.current.handleSquareClick('a7'));
+    expect(result.current.selectedSquare).toBe('a7');
+    act(() => result.current.handleSquareClick('a7'));
+    expect(result.current.selectedSquare).toBeNull();
+  });
+
   it('works with click-to-move too, and cancel keeps the position', () => {
     const { result } = renderHook(() => useSandbox(BEFORE_PROMOTION));
     act(() => result.current.handleSquareClick('a7'));

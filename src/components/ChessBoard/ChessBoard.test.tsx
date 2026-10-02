@@ -87,6 +87,36 @@ describe('ChessBoard accessibility', () => {
     expect(onSquareClick).toHaveBeenCalledTimes(2);
   });
 
+  it('unselects with Escape, and keeps the selection when a drag starts from the selected piece', async () => {
+    const user = userEvent.setup();
+    const onSquareClick = vi.fn();
+    const { rerender } = render(<ChessBoard fen={START} selectedSquare="e2" onSquareClick={onSquareClick} />);
+    await user.keyboard('{Escape}'); // no focus on the board needed
+    expect(onSquareClick).toHaveBeenCalledWith('e2'); // clicking the selected square unselects it
+
+    onSquareClick.mockClear();
+    rerender(<ChessBoard fen={START} selectedSquare="e2" onSquareClick={onSquareClick} onPieceMove={() => {}} />);
+    const pawn = cell('e2').querySelector('[data-color]') as HTMLElement;
+    document.elementFromPoint = vi.fn(() => cell('e4'));
+    fireEvent.pointerDown(pawn, { button: 0, isPrimary: true, pointerId: 1, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(pawn, { pointerId: 1, clientX: 60, clientY: 10 });
+    expect(onSquareClick).not.toHaveBeenCalled();
+  });
+
+  it('spends Escape on the selection before the app can use it to leave the exploration', async () => {
+    const user = userEvent.setup();
+    const appEscape = vi.fn();
+    window.addEventListener('keydown', appEscape);
+    const { rerender } = render(<ChessBoard fen={START} selectedSquare="e2" onSquareClick={() => {}} />);
+    await user.keyboard('{Escape}');
+    expect(appEscape).not.toHaveBeenCalled();
+
+    rerender(<ChessBoard fen={START} selectedSquare={null} onSquareClick={() => {}} />);
+    await user.keyboard('{Escape}');
+    expect(appEscape).toHaveBeenCalledTimes(1); // nothing selected: the app gets it
+    window.removeEventListener('keydown', appEscape);
+  });
+
   it('announces the selected square and its possible destinations', () => {
     render(<ChessBoard fen={START} selectedSquare="e2" />);
     expect(cell('e2').getAttribute('aria-label')).toBe('e2, pion blanc, sélectionné');

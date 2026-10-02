@@ -406,6 +406,14 @@ Sans serveur : tout se passe dans le navigateur, le site reste sur GitHub Pages.
 - Tests : 19 pour le contexte d'un coup (sacrifice, coup unique, mat abandonné), 9 pour le calcul de l'échange, 9 pour les phases, 8 pour les fonctions de calage, 7 de régression ; classement (brillant même meilleur coup, `great`, mat abandonné), moteur (lignes `multipv`), et trois scénarios de partie complète avec évaluations écrites à la main.
 - **Limites** : le calage vaut à la profondeur 12 ; à 18 le biais sera différent (non mesuré). Les compteurs de « brillants » et d'« excellents coups » ne sont pas comparés à chess.com. Le biais de −2,3 est connu et laissé. Les parties déjà enregistrées gardent leurs étiquettes (ni brillant ni excellent coup) : relancer l'analyse les met à jour ; leur précision, elle, est recalculée à la lecture (avec les mats). Les parties de référence viennent de joueurs d'un mois donné et de listes de pays : pas de grands maîtres de haut niveau en cadence classique.
 
+## Interaction avec l'échiquier : glisser-déposer et clic-clic — fait
+
+- [x] **La pièce suivait mal le curseur** (`usePieceDrag.ts`). La pièce qui accompagne le pointeur avait `scale-110` (propriété CSS `scale`) en plus de `transform: translate(...)` : le navigateur applique `scale` avant `transform`, donc la translation était multipliée par 1,1 et l'écart grandissait avec la distance au coin de l'écran (8 px en x et 29 px en y mesurés dans Chrome, sur une pièce déjà en haut à gauche). L'échelle est maintenant dans le même `transform`, après la translation : la pièce est centrée sur le curseur.
+- [x] **Clic-clic** : un second clic sur la pièce sélectionnée la repose (aussi pour les exercices d'entraînement, `useAnswerBoard`). **Échap** repose la pièce même quand le focus n'est pas sur l'échiquier (un clic souris le retire volontairement). Ce premier Échap est consommé par l'échiquier : celui de l'application, qui quitte l'exploration « Et si ? », arrive au suivant.
+- [x] **Retour visuel** : les cases jouables grossissent leur point (ou leur anneau pour une prise) et s'entourent d'un cadre au survol. Pendant un glisser, seule la case légale sous le curseur est encadrée (avant : n'importe quelle case, même interdite).
+- [x] **Échap pendant un glisser** : la pièce revient, aucun coup n'est joué. Saisir la pièce déjà sélectionnée pour la glisser ne la désélectionne plus.
+- Tests : décalage de la pièce (le `transform` contient l'échelle), Échap pendant un glisser, Échap avec sélection (et l'application qui ne le reçoit pas), second clic dans `useSandbox` et `useAnswerBoard`. Vérifié dans Chrome sur l'analyse d'une partie : pièce centrée sur le curseur, glisser, clic-clic, Échap.
+
 ## Ordre suggéré
 
 1 (sécurité serveur) → 2 (Gemini) → 4 (tests sur la logique pure) → 3 (découpage de `App.tsx`), puis le reste.

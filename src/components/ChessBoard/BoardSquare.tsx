@@ -147,7 +147,9 @@ export const BoardSquare = memo(function BoardSquare({
       title={heatmapMode ? heatmapSquareTitle(square, heatmapMode, heatmapControl) : undefined}
       className={`relative flex items-center justify-center cursor-pointer transition-colors duration-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-indigo-500 ${
         isSelected ? 'bg-amber-300/85 ring-2 ring-inset ring-amber-500' : squareBg
-      } ${isDragOver ? 'ring-4 ring-inset ring-white/60' : ''}`}
+      } ${isLegalDestination ? 'group/dest hover:ring-4 hover:ring-inset hover:ring-amber-400/80' : ''} ${
+        isDragOver ? 'ring-4 ring-inset ring-amber-400' : ''
+      }`}
       onClick={() => onSquareClick(square)}
       onMouseDown={(e) => onSquareMouseDown(square, e)}
       onMouseEnter={() => onSquareMouseEnter(square)}
@@ -177,9 +179,9 @@ export const BoardSquare = memo(function BoardSquare({
       {isLegalDestination && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-15">
           {piece ? (
-            <div className="w-[82%] h-[82%] rounded-full border-4 border-slate-900/40 ring-2 ring-amber-400/70" />
+            <div className="w-[82%] h-[82%] rounded-full border-4 border-slate-900/40 ring-2 ring-amber-400/70 transition-transform group-hover/dest:scale-105" />
           ) : (
-            <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-slate-900/35 ring-1 ring-white/30 shadow-sm" />
+            <div className="w-4 h-4 sm:w-[1.15rem] sm:h-[1.15rem] rounded-full bg-slate-900/40 ring-1 ring-white/30 shadow-sm transition-transform group-hover/dest:scale-150 group-hover/dest:bg-slate-900/55" />
           )}
         </div>
       )}

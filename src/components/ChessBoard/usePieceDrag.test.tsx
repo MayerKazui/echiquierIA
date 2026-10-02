@@ -69,6 +69,30 @@ describe('usePieceDrag', () => {
     expect(result.current.drag).toBeNull();
   });
 
+  it('scales the piece inside its transform, so that the translation is not scaled with it', () => {
+    const { result } = setup();
+    const handlers = result.current.pieceHandlers('a1', PAWN);
+    const ghost = document.createElement('div');
+    (result.current.ghostRef as React.MutableRefObject<HTMLDivElement | null>).current = ghost;
+    act(() => handlers.onPointerDown(pointer(50, 50)));
+    act(() => handlers.onPointerMove(pointer(250, 80)));
+    expect(ghost.style.transform).toBe('translate(220px, 50px) scale(1.1)');
+  });
+
+  it('gives the piece back when Escape is pressed during a drag', () => {
+    const { result, onDrop } = setup();
+    const handlers = result.current.pieceHandlers('a1', PAWN);
+    act(() => handlers.onPointerDown(pointer(50, 50)));
+    act(() => handlers.onPointerMove(pointer(250, 50)));
+    expect(result.current.drag).not.toBeNull();
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(result.current.drag).toBeNull();
+    act(() => handlers.onPointerUp(pointer(250, 50)));
+    expect(onDrop).not.toHaveBeenCalled();
+  });
+
   it('swallows the click that follows a drag, once', () => {
     const { result } = setup();
     const handlers = result.current.pieceHandlers('a1', PAWN);
