@@ -34,6 +34,7 @@ import {
   MoveList,
   Openings,
   Plan,
+  Studies,
   Training,
   WeaknessProfile,
   prefetchViews,
@@ -72,6 +73,7 @@ export default function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isTrainingOpen, setIsTrainingOpen] = useState(false);
   const [isOpeningsOpen, setIsOpeningsOpen] = useState(false);
+  const [isStudiesOpen, setIsStudiesOpen] = useState(false);
   const [isPlanOpen, setIsPlanOpen] = useState(false);
   // Where the plan sends the player: the themes of the training, a position of the opening explorer
   const [trainingFilter, setTrainingFilter] = useState<TrainingFilter | undefined>();
@@ -548,6 +550,7 @@ export default function App() {
           setOpeningsStart(undefined);
           setIsOpeningsOpen(true);
         }}
+        onOpenStudies={() => setIsStudiesOpen(true)}
         onOpenPlan={() => setIsPlanOpen(true)}
         onInstall={canInstall ? () => void install() : undefined}
       />
@@ -680,6 +683,14 @@ export default function App() {
                 if (analysis) setIsPgnModalOpen(true);
               }}
             />
+          </Suspense>
+        </Modal>
+      )}
+
+      {isStudiesOpen && (
+        <Modal title="Études" onClose={() => setIsStudiesOpen(false)} className="w-full max-w-5xl">
+          <Suspense fallback={null}>
+            <Studies boardTheme={boardTheme} onClose={() => setIsStudiesOpen(false)} />
           </Suspense>
         </Modal>
       )}

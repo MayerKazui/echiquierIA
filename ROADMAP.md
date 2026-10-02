@@ -71,3 +71,15 @@ Fait : voir `IMPROVEMENTS.md` (« Fiabilité de l'analyse : calage reproductible
 - [ ] Lecteur d'écran réel (NVDA, VoiceOver) : l'accessibilité n'est vérifiée qu'avec axe-core, des tests DOM et le navigateur.
 - [ ] Vrai téléphone (iOS Safari surtout : zone de sécurité, balayage) : le mobile n'est vérifié que sur Chrome émulé.
 - [ ] Coach IA : passer à Gemini la variante du moteur et la menace détectée pour qu'il nomme la pièce touchée au lieu de paraphraser l'évaluation.
+
+## E. Études (à la manière de Lichess)
+
+Fait : voir `IMPROVEMENTS.md` (« Études »).
+
+- [x] Études privées dans le navigateur : chapitres, introduction, variantes, commentaires, glyphes.
+- [x] Import et export PGN au format Lichess (étude entière ou un chapitre).
+- [x] Chapitre verrouillable : l'ordinateur joue les coups de l'étude, parfois une variante ; un coup hors étude est annulé.
+- [ ] Dessiner les flèches et les cercles (`[%cal]`, `[%csl]`), déjà lus et conservés.
+- [ ] Mettre les études dans la sauvegarde JSON et la synchronisation Drive (format de sauvegarde à faire évoluer, suppressions à propager).
+- [ ] Réordonner les chapitres et les variantes (seule la promotion en ligne principale existe) ; copier un chapitre.
+- [ ] Mode verrouillé : mémoriser les erreurs par ligne et les rejouer (répétition espacée, comme « S'entraîner »).

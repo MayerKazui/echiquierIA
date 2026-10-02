@@ -6,6 +6,7 @@ import {
   Download,
   Dumbbell,
   FileText,
+  GraduationCap,
   History,
   Volume2,
   VolumeX,
@@ -34,6 +35,7 @@ interface AppHeaderProps {
   onOpenProfile: () => void;
   onOpenTraining: () => void;
   onOpenOpenings: () => void;
+  onOpenStudies: () => void;
   onOpenPlan: () => void;
   /** Installs the app: given only when the browser offers it. */
   onInstall?: () => void;
@@ -56,6 +58,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onOpenProfile,
   onOpenTraining,
   onOpenOpenings,
+  onOpenStudies,
   onOpenPlan,
   onInstall,
 }) => {
@@ -95,6 +98,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       hint: 'Explorer les ouvertures et voir mon répertoire',
       icon: <BookOpen className={ICON} />,
       onSelect: onOpenOpenings,
+    },
+    {
+      id: 'studies',
+      label: 'Études',
+      hint: 'Mes chapitres de coups commentés, à jouer contre l’ordinateur',
+      icon: <GraduationCap className={ICON} />,
+      onSelect: onOpenStudies,
     },
     {
       id: 'sound',

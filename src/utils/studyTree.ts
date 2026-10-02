@@ -195,3 +195,25 @@ export function moveLabel(fenBefore: string, san: string): string {
 export function turnOf(node: StudyNode): PlayerColor {
   return node.fen.split(' ')[1] === 'b' ? 'b' : 'w';
 }
+
+const NAG_LABELS: Record<number, string> = {
+  1: 'Bon coup',
+  2: 'Erreur',
+  3: 'Très bon coup',
+  4: 'Gaffe',
+  5: 'Coup intéressant',
+  6: 'Coup douteux',
+  10: 'Position égale',
+  13: 'Position floue',
+  14: 'Léger avantage aux Blancs',
+  15: 'Léger avantage aux Noirs',
+  16: 'Avantage aux Blancs',
+  17: 'Avantage aux Noirs',
+  18: 'Les Blancs gagnent',
+  19: 'Les Noirs gagnent',
+};
+
+/** What a glyph means, in French (the name of its button, for a screen reader). */
+export function nagLabel(nag: number): string {
+  return NAG_LABELS[nag] ?? `Annotation ${nag}`;
+}

@@ -469,6 +469,26 @@ Fin du point 3 de `ROADMAP.md`. Second onglet de la fenêtre « Ouvertures » (l
   - Pas d'objectif affiché à l'ouverture de l'application (voulu : l'écran de départ reste sobre).
   - Les seuils (5 parties, 8 points de coût, 5 points pour les coups rapides) sont des choix, pas des mesures.
 
+## Études — fait
+
+Étape 5 de `COMPARATIF_PATCHCHESS.md`, commencée avant les puzzles à la demande du projet. Tout reste dans le navigateur (pas de partage, voir les décisions du comparatif).
+
+- [x] **Analyseur PGN d'étude** (`utils/studyPgn.ts`) : `chess.js` écarte les variantes, donc le texte est lu à la main et `chess.js` ne sert qu'à jouer chaque coup. Variantes imbriquées, commentaires `{}` et `;`, glyphes (`$14`, `!?`), roque écrit `0-0`, numéros collés (`1.e4`), position de départ (`FEN`), plusieurs parties dans un texte (un chapitre chacune, avec `ChapterName`, `StudyName`, `Orientation` de Lichess). `[%cal]` et `[%csl]` sont lus en flèches et cercles, l'horloge est ignorée. Un coup illégal coupe sa ligne (la variante, ou la suite de la ligne principale) et il est signalé en français ; une variante qui répète un coup de la ligne principale est fusionnée ; une autre variante que « Standard » ou un `FEN` invalide écarte le chapitre.
+- [x] **Écriture PGN** (`chapterToPgn`, `studyToPgn`) au format Lichess ; relire ce qui a été écrit redonne le même arbre (testé).
+- [x] **Arbre d'un chapitre** (`utils/studyTree.ts`, `types/study.ts`) : un nœud par coup (SAN, case de départ et d'arrivée, position après le coup, commentaire, glyphes, formes), la première suite est la ligne principale, les autres sont des variantes. Mises à jour sans mutation (les branches non touchées sont partagées) : ajout, suppression avec la suite, promotion d'une variante en ligne principale, commentaire, glyphes (un seul glyphe de coup à la fois).
+- [x] **Stockage** (`services/studyStore.ts`) : base IndexedDB `echiquier-ia-studies`, séparée des parties et de l'entraînement ; entrées illisibles ou d'une autre version ignorées. Écriture 500 ms après la dernière modification (on tape un commentaire lettre à lettre) et à la fermeture de la fenêtre ; un message prévient si le navigateur refuse l'écriture.
+- [x] **Fenêtre « Études »** (menu d'en-tête, `components/Studies/`) : liste (créer, importer, supprimer après confirmation), étude (nom, introduction, chapitres, côté du chapitre), éditeur (échiquier, arbre des coups avec variantes en blocs et commentaires, annotations, commentaire, supprimer, « faire de cette variante la ligne principale »). Jouer un coup sur l'échiquier l'ajoute (variante si la suite existe déjà) ; promotion au choix. Flèches du clavier, Début et Fin pour se déplacer dans l'arbre (prises avant les raccourcis de la partie qui est derrière la fenêtre).
+- [x] **Chapitre verrouillé** (`useStudyPlay`, `utils/studyPlay.ts`) : le joueur prend un côté, l'ordinateur joue les coups de l'étude (la ligne principale 60 % du temps, une variante sinon), un coup légal mais hors étude est annulé et compté, « Indice » dessine le coup de l'étude, fin de ligne annoncée avec le nombre de coups hors étude. L'arbre est caché pendant le jeu ; « Déverrouiller » ramène à l'éditeur.
+- Tests : 16 pour l'analyseur et l'écriture, 7 pour l'arbre, 4 pour le choix de la réponse et le jugement d'un coup, 7 pour le stockage, 13 pour la fenêtre (création, variantes, promotion, suppression, clavier, import, export, jeu verrouillé) : 1 650 tests au total.
+- Vérifié dans Chrome (Playwright) : import d'une étude avec variante, arbre, jeu verrouillé (coup de l'étude puis réponse de l'ordinateur, flèche d'indice). Pas essayé : téléphone, lecteur d'écran, étude de grande taille.
+- **Limites** :
+  - Les flèches et les cercles sont lus et réécrits, mais pas dessinés.
+  - Les études ne sont **pas** dans la sauvegarde JSON ni dans la synchronisation Drive (le format de sauvegarde devrait passer à 3, et les suppressions d'études se propager) : l'export PGN est la seule copie hors du navigateur.
+  - On ne peut pas réordonner les chapitres ni les variantes (seulement promouvoir une variante) ni copier un chapitre.
+  - Le chapitre verrouillé ne retient pas les erreurs d'une séance à l'autre.
+  - Pas de moteur dans les études (ni évaluation, ni analyse d'une ligne).
+  - Seules les parties « Standard » sont lues (pas de Chess960 ni d'autre variante).
+
 ## Ordre suggéré
 
 1 (sécurité serveur) → 2 (Gemini) → 4 (tests sur la logique pure) → 3 (découpage de `App.tsx`), puis le reste.
