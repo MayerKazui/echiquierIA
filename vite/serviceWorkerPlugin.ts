@@ -11,10 +11,15 @@ import type { SwConfig } from '../src/pwa/swCore';
  *
  * The engine and the openings database are cached too, so that a game can be analysed offline; they are optional
  * for the installation (a failure to download them does not stop the app from being usable offline).
+ *
+ * The puzzles (about 30 MB in all) are neither: each file is cached the first time it is asked for. They still count
+ * in the version, so that a new selection of puzzles replaces the cached files.
  */
 
 /** The heavy files: cached when possible, never a reason to fail the installation. */
 const OPTIONAL = [/^stockfish-[\w.-]+\.(js|wasm)$/, /^openings\.json$/];
+/** Cached when used, not before. */
+const ON_DEMAND = /^puzzles\//;
 
 async function listFiles(directory: string, root = directory): Promise<string[]> {
   const files: string[] = [];
@@ -34,10 +39,11 @@ export async function describeBuild(dist: string): Promise<SwConfig> {
     hash.update(file);
     hash.update(await readFile(path.join(dist, file)));
   }
+  const preloaded = files.filter((file) => !ON_DEMAND.test(file));
   return {
     version: hash.digest('hex').slice(0, 12),
-    critical: files.filter((file) => !OPTIONAL.some((pattern) => pattern.test(file))),
-    optional: files.filter((file) => OPTIONAL.some((pattern) => pattern.test(file))),
+    critical: preloaded.filter((file) => !OPTIONAL.some((pattern) => pattern.test(file))),
+    optional: preloaded.filter((file) => OPTIONAL.some((pattern) => pattern.test(file))),
   };
 }
 
