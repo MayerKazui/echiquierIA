@@ -645,7 +645,7 @@ export default function App() {
       )}
 
       {isOpeningsOpen && (
-        <Modal title="Explorateur d'ouvertures" onClose={() => setIsOpeningsOpen(false)} className="w-full max-w-4xl">
+        <Modal title="Ouvertures" onClose={() => setIsOpeningsOpen(false)} className="w-full max-w-4xl">
           <Suspense fallback={null}>
             <Openings
               boardTheme={boardTheme}

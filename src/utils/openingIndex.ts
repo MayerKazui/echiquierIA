@@ -16,7 +16,7 @@ export interface IndexSource {
 }
 
 /** Plies of a game that are indexed: the opening (a deeper line is rarely shared by two games). */
-export const INDEX_PLIES = 30;
+export const INDEX_PLIES = 35;
 
 export type OpeningIndex = Map<string, Map<string, Record<'w' | 'b', Tally>>>;
 

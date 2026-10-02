@@ -34,7 +34,7 @@ Application qui permet soit d'importer une partie pour l'analyser, soit de rense
 | Mise à jour de l'étude avec les dernières parties              | 🟡   | Manuelle, à la demande (la mise à jour automatique est abandonnée). Réimport et nouvelle analyse en lot possibles ; pas vu de bouton « n'analyser que les nouvelles ». |
 | Profil : faiblesses                                            | ✅   | « Mon profil » : phase, type d'erreur, zeitnot, couleur, force de l'adversaire, cadence, évolution.                                                                    |
 | Profil : points forts                                          | 🟡   | Les chiffres existent, aucun écran ne dit « voici ce que tu fais bien ».                                                                                               |
-| Ouvertures jouées et % de victoire                             | 🟡   | Dans l'explorateur, résultats de ses parties par coup et par couleur. Pas encore de liste « mes ouvertures » avec % de victoire. Point 3 de `ROADMAP.md`.              |
+| Ouvertures jouées et % de victoire                             | ✅   | Onglet « Mes ouvertures » : par couleur, familles et variantes, résultats, sorties de la théorie et leur coût. Pas de précision par ouverture.                         |
 | Analyse détaillée d'une partie                                 | ✅   | Gaffes, bons coups, « brillant », « excellent coup », graphique d'évaluation, précision.                                                                               |
 | Ouverture / milieu / finale bien exécutés                      | ✅   | Précision par phase, phases calculées d'après le matériel.                                                                                                             |
 | Thèmes tactiques manqués                                       | 🟡   | Fourchette, clouage, enfilade, pièce en prise, plus mat manqué et avantage gâché. Lichess a une soixantaine de thèmes.                                                 |
@@ -95,7 +95,7 @@ Une fois les puzzles disponibles, le reste est modeste : timer, cycle Woodpecker
 
 ## 5. Ordre recommandé
 
-1. **Ouvertures** : explorateur en arbre fait (résultats de ses parties par coup, coups hors du livre). Reste : liste « mes ouvertures » avec % de victoire et coût du coup de sortie, déjà dans `ROADMAP.md`.
+1. ~~**Ouvertures**~~ : fait. Explorateur en arbre (résultats de ses parties par coup) et onglet « Mes ouvertures » (% de victoire, coup de sortie qui coûte cher).
 2. **Points forts et programme d'entraînement** : écran « forces » et plan hebdomadaire tiré du profil. Les données existent, c'est surtout de l'interface.
 3. **Mise à jour manuelle du profil** : bouton « n'analyser que les nouvelles parties », puisque la mise à jour automatique est abandonnée.
 4. **Puzzles, thèmes, Elo, timer, puzzles ratés**, puis **Woodpecker** juste après. À cadrer ensemble d'abord (sous-ensemble embarqué).
