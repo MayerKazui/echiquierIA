@@ -182,7 +182,7 @@ interface CountedGame {
 const sameName = (a: string | undefined, b: string | undefined) =>
   Boolean(a && b && a.trim().toLowerCase() === b.trim().toLowerCase());
 
-function parseElo(raw: string | undefined): number | null {
+export function parseElo(raw: string | undefined): number | null {
   const value = raw ? parseInt(raw, 10) : NaN;
   return Number.isFinite(value) && value > 0 ? value : null;
 }

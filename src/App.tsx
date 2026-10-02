@@ -34,6 +34,7 @@ import {
   MoveList,
   Openings,
   Plan,
+  Puzzles,
   Studies,
   Training,
   WeaknessProfile,
@@ -74,6 +75,7 @@ export default function App() {
   const [isTrainingOpen, setIsTrainingOpen] = useState(false);
   const [isOpeningsOpen, setIsOpeningsOpen] = useState(false);
   const [isStudiesOpen, setIsStudiesOpen] = useState(false);
+  const [isPuzzlesOpen, setIsPuzzlesOpen] = useState(false);
   const [isPlanOpen, setIsPlanOpen] = useState(false);
   // Where the plan sends the player: the themes of the training, a position of the opening explorer
   const [trainingFilter, setTrainingFilter] = useState<TrainingFilter | undefined>();
@@ -550,6 +552,7 @@ export default function App() {
           setOpeningsStart(undefined);
           setIsOpeningsOpen(true);
         }}
+        onOpenPuzzles={() => setIsPuzzlesOpen(true)}
         onOpenStudies={() => setIsStudiesOpen(true)}
         onOpenPlan={() => setIsPlanOpen(true)}
         onInstall={canInstall ? () => void install() : undefined}
@@ -683,6 +686,14 @@ export default function App() {
                 if (analysis) setIsPgnModalOpen(true);
               }}
             />
+          </Suspense>
+        </Modal>
+      )}
+
+      {isPuzzlesOpen && (
+        <Modal title="Puzzles" onClose={() => setIsPuzzlesOpen(false)} className="w-full max-w-4xl">
+          <Suspense fallback={null}>
+            <Puzzles boardTheme={boardTheme} onClose={() => setIsPuzzlesOpen(false)} />
           </Suspense>
         </Modal>
       )}

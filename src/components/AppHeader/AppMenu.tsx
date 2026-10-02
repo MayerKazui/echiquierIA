@@ -109,7 +109,7 @@ export const AppMenu: React.FC<AppMenuProps> = ({ items, label = 'Menu' }) => {
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
         aria-label={label}
-        title="Mes parties, profil, plan, entraînement, ouvertures, études…"
+        title="Mes parties, profil, plan, entraînement, puzzles, ouvertures, études…"
         className={`p-2 sm:px-2.5 sm:py-1.5 rounded-xl border text-xs font-medium transition-colors cursor-pointer flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
           isOpen
             ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-200'

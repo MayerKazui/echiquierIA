@@ -13,8 +13,8 @@ import {
 
 const report = (over: Partial<DriveSyncReport> = {}): DriveSyncReport => ({
   restore: null,
-  rejected: { games: 0, cards: 0, studies: 0 },
-  sent: { games: 1, cards: 0, studies: 0, bytes: 100 },
+  rejected: { games: 0, cards: 0, studies: 0, puzzles: 0 },
+  sent: { games: 1, cards: 0, studies: 0, puzzles: 0, bytes: 100 },
   ...over,
 });
 
@@ -410,7 +410,9 @@ describe('syncNow', () => {
     const restored = vi.fn();
     t.manager.subscribeRestored(restored);
     const games = { added: 1, replaced: 0, kept: 0, trimmed: 0, deleted: 0 };
-    t.run.mockResolvedValueOnce(report({ restore: { games, cards: null, studies: null, preferencesApplied: 0 } }));
+    t.run.mockResolvedValueOnce(
+      report({ restore: { games, cards: null, studies: null, puzzles: null, preferencesApplied: 0 } })
+    );
     await t.manager.syncNow();
     expect(restored).toHaveBeenCalledTimes(1);
     expect(t.manager.getStatus()).toMatchObject({ phase: 'off', lastSync: t.clock.now() });

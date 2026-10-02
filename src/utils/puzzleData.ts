@@ -87,3 +87,20 @@ export function decodePuzzle(record: unknown): Puzzle | null {
     themes: themes === '' ? [] : themes.split(' '),
   };
 }
+
+/** Whether a value read from storage is a puzzle (the data can come from another version or be damaged). */
+export function isPuzzle(value: unknown): value is Puzzle {
+  if (typeof value !== 'object' || value === null) return false;
+  const puzzle = value as Record<string, unknown>;
+  return (
+    typeof puzzle.id === 'string' &&
+    typeof puzzle.fen === 'string' &&
+    typeof puzzle.rating === 'number' &&
+    Number.isFinite(puzzle.rating) &&
+    Array.isArray(puzzle.moves) &&
+    puzzle.moves.length >= 2 &&
+    puzzle.moves.every((move) => typeof move === 'string' && UCI_MOVE.test(move)) &&
+    Array.isArray(puzzle.themes) &&
+    puzzle.themes.every((theme) => typeof theme === 'string')
+  );
+}

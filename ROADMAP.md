@@ -92,8 +92,8 @@ Cadré dans `COMPARATIF_PATCHCHESS.md` (section 4). Voir `IMPROVEMENTS.md` (« P
 
 - [x] 200 000 puzzles Lichess embarqués (13 fichiers par tranche d'Elo, chargés à la demande, hors ligne une fois vus) et leur script de génération (`bun run build:puzzles`).
 - [x] Logique d'un puzzle (premier coup automatique, mat alternatif accepté) et chargeur filtré par Elo et par thèmes.
-- [ ] Écran Tactique : thèmes (avec noms français), tranche d'Elo, timer sans pénalité, puzzles ratés.
-- [ ] Puzzles ratés en répétition espacée (cartes existantes, puzzle complet stocké).
+- [x] Écran « Puzzles » : thèmes (noms français), tranche d'Elo, timer sans pénalité, bilan.
+- [x] Puzzles ratés en répétition espacée (puzzle complet stocké), dans la sauvegarde JSON (format 4) et Drive.
 - [ ] Woodpecker : lot figé, nombre de puzzles par cycle, temps total (pause, reprises comprises) comparé au cycle précédent.
 - [ ] Plan et profil : objectifs de puzzles par thème d'après les erreurs de ses parties.
 - [ ] Historique des puzzles (second temps) : scores, précision par thème, temps de cycle.

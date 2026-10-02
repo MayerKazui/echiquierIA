@@ -40,9 +40,9 @@ Application qui permet soit d'importer une partie pour l'analyser, soit de rense
 | Thèmes tactiques manqués                                       | 🟡   | Fourchette, clouage, enfilade, pièce en prise, plus mat manqué et avantage gâché. Lichess a une soixantaine de thèmes.                                                                                      |
 | Erreurs évitables avec explication tactique                    | ✅   | Coach IA (Gemini) sur les moments clés, repli local sans clé. Pas d'extension du coach aux puzzles et aux études (sujet clos).                                                                              |
 | Programme d'entraînement sur ses faiblesses                    | ✅   | « Mon plan » : trois objectifs au plus (erreurs qui reviennent, sortie d'ouverture coûteuse, habitude, phase fragile), avec progression sur 7 jours et le bouton qui lance chacun.                          |
-| Woodpecker                                                     | ❌   | Cadré (section 4) : lot figé, cycles, temps total. Les données sont prêtes, l'écran reste à faire.                                                                                                          |
-| Puzzles : thèmes, Elo, timer                                   | 🟡   | Données (200 000 puzzles Lichess, tranches d'Elo, thèmes) et logique d'un puzzle faites ; chargeur à la demande fait. Reste l'écran avec les filtres et le timer.                                           |
-| Puzzles ratés à refaire                                        | 🟡   | Décidé : répétition espacée (`spacedRepetition`, `trainingStore`) étendue aux puzzles, en stockant le puzzle complet. Mécanique prête pour les parties, à brancher sur les puzzles.                         |
+| Woodpecker                                                     | ❌   | Cadré (section 4) : lot figé, cycles, temps total. Les données et l'écran de puzzles sont prêts, le mode Woodpecker reste à faire.                                                                          |
+| Puzzles : thèmes, Elo, timer                                   | ✅   | Menu « Puzzles » : 200 000 puzzles Lichess, tranche d'Elo, 73 thèmes en français (un ou tous), timer de 3 à 15 minutes ou sans limite, sans pénalité. Pas encore d'historique des scores.                   |
+| Puzzles ratés à refaire                                        | ✅   | Répétition espacée : un puzzle raté revient demain, puis après 1, 3 et 7 jours ; « Revoir mes puzzles ratés » et « Réviser en avance ». Dans la sauvegarde JSON (format 4) et la synchronisation Drive.     |
 | Explorateur d'ouvertures                                       | ✅   | Bouton « Ouvertures » : arbre coup par coup (~3 800 lignes lichess, noms français), échiquier, résultats de ses parties, coups hors du livre. Pas de stats mondiales.                                       |
 | Études : création, chapitres, intro, commentaires, annotations | ✅   | Menu « Études » : études privées dans le navigateur (IndexedDB), chapitres, introduction, variantes, commentaires, glyphes (!, ?, ±…). Flèches et cercles dessinés (clic droit) et gardés avec la position. |
 | Étude verrouillable, jeu contre l'ordinateur avec variantes    | ✅   | « Jouer ce chapitre (verrouiller) » : l'ordinateur joue les coups de l'étude, parfois une variante (40 %) ; un coup hors étude est annulé. Indice, choix du côté, « Déverrouiller ».                        |
@@ -108,7 +108,7 @@ Une fois les puzzles disponibles, le reste est modeste : timer, cycle Woodpecker
 3. **Mise à jour manuelle du profil** : bouton « n'analyser que les nouvelles parties », puisque la mise à jour automatique est abandonnée.
 4. **Puzzles, thèmes, Elo, timer, puzzles ratés**, puis **Woodpecker** juste après. Cadrés (section 4). Avancement :
    1. ~~Données, chargeur et logique d'un puzzle, avec tests~~ : fait.
-   2. Écran Tactique (filtres, timer sans pénalité, puzzles ratés en répétition espacée).
+   2. ~~Écran Puzzles (filtres, timer sans pénalité, puzzles ratés en répétition espacée, sauvegarde)~~ : fait.
    3. Woodpecker.
    4. Liens avec « Mon plan » et le profil, puis historique des puzzles (second temps).
 5. ~~**Études privées**~~ : fait (commencées avant les puzzles, à la demande). Éditeur de chapitres, import et export PGN, chapitre verrouillé contre l'ordinateur.
@@ -118,7 +118,8 @@ Une fois les puzzles disponibles, le reste est modeste : timer, cycle Woodpecker
 
 - [x] **Puzzles** : sous-ensemble embarqué de 200 000 puzzles, découpé par tranche d'Elo de 200 (pas par thème : le filtrage par thème se fait côté navigateur sur la tranche chargée). L'API Lichess est écartée (hors ligne impossible, tranche d'Elo non choisissable).
 - [ ] **Historique des puzzles** (second temps) : scores, précision par thème, temps de cycle, branchés sur le profil et « Mon plan ».
-- [ ] **Puzzles : numéro de version des données.** Si une nouvelle sélection est publiée, les puzzles ratés déjà stockés gardent leur copie complète ; à vérifier que la répétition espacée n'en souffre pas.
+- [x] **Puzzles : nouvelle sélection de données.** Les puzzles ratés gardent leur copie complète (FEN, coups, thèmes) : une nouvelle sélection ne les fait pas disparaître.
+- [ ] **Puzzles : sans répétition.** Un puzzle déjà joué peut revenir dans une séance d'entraînement (tirage au hasard dans la tranche) ; un historique des puzzles vus (second temps) permettrait de l'éviter.
 - [ ] **Stats mondiales d'ouverture** : l'API Explorer de Lichess exige-t-elle un jeton ? Si oui, s'en passe-t-on et garde-t-on seulement ses propres stats ?
 - [ ] **Mise à jour manuelle du profil** : bouton « n'analyser que les nouvelles parties » ? Sous quelle forme ?
 - [x] **Parser PGN** : analyseur maison (`utils/studyPgn.ts`), `chess.js` ne servant qu'à jouer les coups. Variantes imbriquées, commentaires, glyphes, `[%cal]` et `[%csl]`.
@@ -134,6 +135,7 @@ Une fois les puzzles disponibles, le reste est modeste : timer, cycle Woodpecker
 - `src/services/openingBook.ts`, `src/data/openings/*.tsv`, `public/openings.json` : livre d'ouvertures.
 - `src/utils/pgnParser.ts` : import PGN d'une partie (ligne principale seulement) ; `src/utils/studyPgn.ts` : PGN d'étude avec variantes.
 - `src/utils/studyTree.ts`, `src/utils/studyPlay.ts`, `src/services/studyStore.ts`, `src/components/Studies/` : études (arbre, jeu verrouillé, stockage, écrans).
+- `src/components/Puzzles/` (écran, réglages, séance, bilan), `src/utils/puzzleThemes.ts` (noms français), `src/utils/puzzleReview.ts` et `src/services/puzzleStore.ts` (puzzles ratés et leur répétition espacée), `src/utils/puzzleRun.ts` (tranche d'Elo, durée, ordre), `src/hooks/usePuzzleReview.ts`, `src/hooks/usePlayerElo.ts`.
 - `scripts/build-puzzles.ts`, `scripts/puzzlesDataset.ts`, `public/puzzles/` : génération du sous-ensemble de puzzles (`bun run build:puzzles`) et son résultat ; `src/utils/puzzleData.ts` (format, tranches), `src/utils/puzzle.ts` (jouer un puzzle), `src/services/puzzleBook.ts` (chargement à la demande).
 - `src/hooks/useSandbox.ts` : exploration libre (point de départ possible pour l'éditeur d'étude).
 - `src/services/gameStore.ts` : stockage IndexedDB (modèle pour stocker les études).

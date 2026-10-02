@@ -33,7 +33,7 @@ export function describeSync(report: DriveSyncReport): string {
   if (report.sent) {
     const kb = Math.max(1, Math.round(report.sent.bytes / 1024));
     parts.push(
-      `Copie envoyée : ${plural(report.sent.games, 'partie', 'parties')}, ${plural(report.sent.cards, 'position', 'positions')} d'entraînement${report.sent.studies > 0 ? `, ${plural(report.sent.studies, 'étude', 'études')}` : ''} (${kb} Ko).`
+      `Copie envoyée : ${plural(report.sent.games, 'partie', 'parties')}, ${plural(report.sent.cards, 'position', 'positions')} d'entraînement${report.sent.studies > 0 ? `, ${plural(report.sent.studies, 'étude', 'études')}` : ''}${report.sent.puzzles > 0 ? `, ${plural(report.sent.puzzles, 'puzzle raté', 'puzzles ratés')}` : ''} (${kb} Ko).`
     );
   } else {
     parts.push("Rien à envoyer : ce navigateur n'a encore aucune donnée.");

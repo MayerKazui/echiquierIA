@@ -30,7 +30,7 @@ const plural = (count: number, one: string, many: string) => `${count} ${count >
 /** What a restore did, in a sentence. */
 export function describeRestore(
   report: RestoreReport,
-  rejected: { games: number; cards: number; studies: number }
+  rejected: { games: number; cards: number; studies: number; puzzles: number }
 ): string {
   const parts: string[] = [];
   if (report.games) {
@@ -73,12 +73,20 @@ export function describeRestore(
   } else if (report.studies === null) {
     parts.push("Les études n'ont pas pu être écrites dans ce navigateur.");
   }
+  if (report.puzzles) {
+    const { added, replaced } = report.puzzles;
+    if (added + replaced > 0) {
+      parts.push(`Puzzles ratés : ${plural(added + replaced, 'puzzle restauré', 'puzzles restaurés')}.`);
+    }
+  } else if (report.puzzles === null) {
+    parts.push("Les puzzles ratés n'ont pas pu être écrits dans ce navigateur.");
+  }
   if (report.preferencesApplied > 0) {
     parts.push(
       `${plural(report.preferencesApplied, 'réglage restauré', 'réglages restaurés')} (rechargez la page pour les appliquer).`
     );
   }
-  const unreadable = rejected.games + rejected.cards + rejected.studies;
+  const unreadable = rejected.games + rejected.cards + rejected.studies + rejected.puzzles;
   if (unreadable > 0) {
     parts.push(`${plural(unreadable, 'élément illisible ignoré', 'éléments illisibles ignorés')}.`);
   }
@@ -104,7 +112,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({
       download(backupFileName(), serializeBackup(backup));
       setNotice({
         kind: 'success',
-        text: `Sauvegarde exportée : ${plural(backup.games.length, 'partie', 'parties')}, ${plural(backup.cards.length, 'position', 'positions')} d'entraînement${backup.studies.length > 0 ? `, ${plural(backup.studies.length, 'étude', 'études')}` : ''}.`,
+        text: `Sauvegarde exportée : ${plural(backup.games.length, 'partie', 'parties')}, ${plural(backup.cards.length, 'position', 'positions')} d'entraînement${backup.studies.length > 0 ? `, ${plural(backup.studies.length, 'étude', 'études')}` : ''}${backup.puzzles.length > 0 ? `, ${plural(backup.puzzles.length, 'puzzle raté', 'puzzles ratés')}` : ''}.`,
       });
     } catch (err) {
       console.error('Backup export failed:', err);

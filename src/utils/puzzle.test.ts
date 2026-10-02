@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerPuzzle, expectedMove, solverColor, startPuzzle } from './puzzle';
+import { answerPuzzle, expectedMove, sanOf, solverColor, startPuzzle } from './puzzle';
 import type { Puzzle } from './puzzleData';
 
 // Lichess puzzle 00008: black takes the rook on g3, then white has to find three moves
@@ -49,6 +49,9 @@ describe('answerPuzzle', () => {
     expect(answer.correct).toBe(true);
     if (!answer.correct) return;
     expect(answer.reply).toMatchObject({ from: 'b2', to: 'b1' });
+    // The position after the move of the player alone, then after the reply of the opponent as well
+    expect(answer.playedFen.split(' ')[1]).toBe('b');
+    expect(answer.playedFen).not.toBe(answer.state.fen);
     expect(answer.state.step).toBe(3);
     expect(answer.state.solved).toBe(false);
     expect(answer.state.lastMove).toEqual({ from: 'b2', to: 'b1' });
@@ -110,5 +113,17 @@ describe('answerPuzzle', () => {
   it('does nothing once solved', () => {
     const state = { ...startPuzzle(puzzle)!, solved: true };
     expect(answerPuzzle(puzzle, state, { from: 'e6', to: 'e7' }).correct).toBe(false);
+  });
+});
+
+describe('sanOf', () => {
+  it('writes a legal move in algebraic notation', () => {
+    const state = startPuzzle(puzzle)!;
+    expect(sanOf(state.fen, 'e6e7')).toBe('Rxe7');
+  });
+
+  it('gives null for an illegal move', () => {
+    const state = startPuzzle(puzzle)!;
+    expect(sanOf(state.fen, 'a1a8')).toBeNull();
   });
 });

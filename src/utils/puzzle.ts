@@ -19,8 +19,16 @@ export interface PuzzleState {
 }
 
 export type PuzzleAnswer =
-  /** `reply` is the opponent's answer, null when the puzzle is solved with this move. */
-  | { correct: true; state: PuzzleState; reply: { from: string; to: string; promotion?: string } | null }
+  /**
+   * `playedFen` is the position right after the player's move; `state` is the one after the opponent's reply too
+   * (`reply`, null when the puzzle is solved with this move). The screen shows the two in turn.
+   */
+  | {
+      correct: true;
+      playedFen: string;
+      state: PuzzleState;
+      reply: { from: string; to: string; promotion?: string } | null;
+    }
   | { correct: false; state: PuzzleState };
 
 interface UciMove {
@@ -82,6 +90,7 @@ export function answerPuzzle(puzzle: Puzzle, state: PuzzleState, answer: UciMove
   if (mates || replyUci === undefined) {
     return {
       correct: true,
+      playedFen: chess.fen(),
       reply: null,
       state: { fen: chess.fen(), step: state.step + 1, lastMove: played, solved: true },
     };
@@ -94,7 +103,17 @@ export function answerPuzzle(puzzle: Puzzle, state: PuzzleState, answer: UciMove
   const solved = step >= puzzle.moves.length;
   return {
     correct: true,
+    playedFen: chess.fen(),
     reply,
     state: { fen: afterReply.fen(), step, lastMove: { from: reply.from, to: reply.to }, solved },
   };
+}
+
+/** A move (UCI) in standard algebraic notation, from the position it is played in; null if it is not legal there. */
+export function sanOf(fen: string, uci: string): string | null {
+  try {
+    return new Chess(fen).move(parseUci(uci)).san;
+  } catch {
+    return null;
+  }
 }
