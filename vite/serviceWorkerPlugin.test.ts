@@ -42,6 +42,15 @@ describe('describeBuild', () => {
     expect(config.optional).toEqual(['openings.json', 'stockfish-19.js', 'stockfish-19.wasm']);
   });
 
+  it('leaves the puzzles to be cached when used, but a new selection changes the version', async () => {
+    await write('puzzles/index.json', '{}');
+    await write('puzzles/1000.json', '{}');
+    const config = await describeBuild(dist);
+    expect([...config.critical, ...config.optional].some((file) => file.startsWith('puzzles/'))).toBe(false);
+    await write('puzzles/1000.json', '{"band":1000}');
+    expect((await describeBuild(dist)).version).not.toBe(config.version);
+  });
+
   it('leaves out the worker itself and the source maps', async () => {
     await write('sw.js', 'old worker');
     await write('assets/index-abc.js.map', '{}');

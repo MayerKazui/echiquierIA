@@ -75,7 +75,7 @@ describe('DataBackup', () => {
       const [name, text] = download.mock.calls[0] as [string, string];
       expect(name).toMatch(/^echiquier-ia-sauvegarde-\d{4}-\d{2}-\d{2}\.json$/);
       const data = JSON.parse(text);
-      expect(data).toMatchObject({ app: BACKUP_APP, format: 3, preferences: { chess_board_theme: 'wood' } });
+      expect(data).toMatchObject({ app: BACKUP_APP, format: 4, preferences: { chess_board_theme: 'wood' } });
       expect(data.games).toHaveLength(1);
       expect(data.cards).toHaveLength(1);
     });
@@ -251,14 +251,16 @@ describe('DataBackup', () => {
 });
 
 describe('describeRestore', () => {
-  const none = { games: 0, cards: 0, studies: 0 };
+  const none = { games: 0, cards: 0, studies: 0, puzzles: 0 };
   const games = (over = {}) => ({ added: 0, replaced: 0, kept: 0, trimmed: 0, deleted: 0, ...over });
   const cards = (over = {}) => ({ added: 0, replaced: 0, kept: 0, ...over });
   const studies = (over = {}) => ({ added: 0, replaced: 0, kept: 0, deleted: 0, ...over });
+  const puzzles = (over = {}) => ({ added: 0, replaced: 0, kept: 0, ...over });
   const report = (over: Partial<Parameters<typeof describeRestore>[0]> = {}) => ({
     games: games(),
     cards: cards(),
     studies: studies(),
+    puzzles: puzzles(),
     preferencesApplied: 0,
     ...over,
   });
@@ -328,10 +330,28 @@ describe('describeRestore', () => {
     );
   });
 
+  it('counts the missed puzzles restored, and the ones that could not be written', () => {
+    expect(describeRestore(report({ puzzles: puzzles({ added: 2, replaced: 1 }) }), none)).toContain(
+      'Puzzles ratés : 3 puzzles restaurés.'
+    );
+    expect(describeRestore(report({ puzzles: null }), none)).toContain(
+      "Les puzzles ratés n'ont pas pu être écrits dans ce navigateur."
+    );
+  });
+
   it('counts the items that could not be read', () => {
-    expect(describeRestore(report(), { games: 1, cards: 0, studies: 0 })).toContain('1 élément illisible ignoré.');
-    expect(describeRestore(report(), { games: 2, cards: 1, studies: 0 })).toContain('3 éléments illisibles ignorés.');
-    expect(describeRestore(report(), { games: 0, cards: 0, studies: 2 })).toContain('2 éléments illisibles ignorés.');
+    expect(describeRestore(report(), { games: 1, cards: 0, studies: 0, puzzles: 0 })).toContain(
+      '1 élément illisible ignoré.'
+    );
+    expect(describeRestore(report(), { games: 2, cards: 1, studies: 0, puzzles: 0 })).toContain(
+      '3 éléments illisibles ignorés.'
+    );
+    expect(describeRestore(report(), { games: 0, cards: 0, studies: 2, puzzles: 0 })).toContain(
+      '2 éléments illisibles ignorés.'
+    );
+    expect(describeRestore(report(), { games: 0, cards: 0, studies: 0, puzzles: 1 })).toContain(
+      '1 élément illisible ignoré.'
+    );
   });
 
   it('says which part could not be written', () => {

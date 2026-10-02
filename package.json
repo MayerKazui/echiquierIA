@@ -19,6 +19,7 @@
     "format:check": "prettier --check .",
     "check": "bun run lint && bun run typecheck && bun run format:check && bun run test",
     "build:openings": "tsx scripts/build-openings.ts",
+    "build:puzzles": "tsx scripts/build-puzzles.ts",
     "calibrate": "tsx scripts/calibrate.ts"
   },
   "dependencies": {

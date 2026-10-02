@@ -85,3 +85,15 @@ Fait : voir `IMPROVEMENTS.md` (« Études »).
 - [ ] Copier un chapitre.
 - [ ] Fusion fine des études : aujourd'hui une étude est prise en entier (la version modifiée en dernier gagne), deux appareils qui modifient des chapitres différents en même temps perdent l'une des modifications.
 - [ ] Mode verrouillé : mémoriser les erreurs par ligne et les rejouer (répétition espacée, comme « S'entraîner »).
+
+## F. Puzzles, Tactique et Woodpecker
+
+Cadré dans `COMPARATIF_PATCHCHESS.md` (section 4). Voir `IMPROVEMENTS.md` (« Puzzles : les données »).
+
+- [x] 200 000 puzzles Lichess embarqués (13 fichiers par tranche d'Elo, chargés à la demande, hors ligne une fois vus) et leur script de génération (`bun run build:puzzles`).
+- [x] Logique d'un puzzle (premier coup automatique, mat alternatif accepté) et chargeur filtré par Elo et par thèmes.
+- [x] Écran « Puzzles » : thèmes (noms français), tranche d'Elo, timer sans pénalité, bilan.
+- [x] Puzzles ratés en répétition espacée (puzzle complet stocké), dans la sauvegarde JSON (format 4) et Drive.
+- [ ] Woodpecker : lot figé, nombre de puzzles par cycle, temps total (pause, reprises comprises) comparé au cycle précédent.
+- [ ] Plan et profil : objectifs de puzzles par thème d'après les erreurs de ses parties.
+- [ ] Historique des puzzles (second temps) : scores, précision par thème, temps de cycle.

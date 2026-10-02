@@ -516,6 +516,40 @@ Fin du point 3 de `ROADMAP.md`. Second onglet de la fenêtre « Ouvertures » (l
   - Les études lourdes (des centaines de chapitres) alourdissent la copie Drive, compressée mais renvoyée en entier.
   - Pas essayé avec un vrai compte Google : la synchronisation est vérifiée avec un Drive simulé, comme le reste.
 
+## Puzzles : les données (étape 4 du comparatif) — fait
+
+Étape 4 de `COMPARATIF_PATCHCHESS.md`, premier volet : les données et la logique, sans écran. Décisions : 200 000 puzzles, répétition espacée pour les ratés, timer sans pénalité, Woodpecker à lot figé (voir le comparatif, section 4).
+
+- [x] **`bun run build:puzzles`** (`scripts/build-puzzles.ts`, `scripts/puzzlesDataset.ts`) : lit `lichess_db_puzzle.csv.zst` (fichier donné, ou téléchargé, 307 Mo) et écrit `public/puzzles/`. Résultat identique à chaque exécution (vérifié par somme de contrôle). Une minute environ.
+  - La base compte 6 157 341 puzzles ; 4 100 899 passent le filtre de qualité (écart-type de l'Elo ≤ 100, ≥ 100 joueurs, popularité ≥ 80).
+  - Sélection par quotas (case = tranche d'Elo × thème, les thèmes qui ne disent rien de la tactique, comme `short` ou `crushing`, ne font pas de case) : 200 000 puzzles, les 73 thèmes présents, le plus rare (`superGM`) avec 78 puzzles.
+  - Le fichier de Lichess est fait de 34 trames Zstandard, précédées d'une trame « à ignorer » : le décodeur de Node s'arrête à la première, le script les enchaîne avec `bytesWritten`. Il faut Node 22.15 ou plus.
+- [x] **Format** (`src/utils/puzzleData.ts`) : un fichier par tranche de 200 Elo (13 fichiers, 0,6 à 2,9 Mo en JSON, 0,2 à 1 Mo compressés ; 9 Mo compressés en tout) et un index de 11 Ko (nombre de puzzles par tranche et par thème, pour afficher des compteurs sans rien charger). Le FEN est gardé sans les compteurs de coups.
+- [x] **Logique d'un puzzle** (`src/utils/puzzle.ts`) : sans moteur. Le premier coup (celui de l'adversaire) est joué, puis chaque réponse est comparée à la solution ; **tout mat est accepté**, comme sur Lichess. Les 200 000 puzzles ont été rejoués de bout en bout avec cette logique : aucun enregistrement abîmé, aucun puzzle sans solution.
+- [x] **Chargement à la demande** (`src/services/puzzleBook.ts`) : l'index, puis une tranche à la fois la première fois qu'elle est demandée, gardée en mémoire ; un échec n'est pas retenu (un nouvel essai repart). Filtre par Elo et par thèmes (« l'un d'eux » ou « tous »).
+- [x] **Service worker** : les puzzles ne sont ni préchargés ni obligatoires (28 Mo) ; chaque fichier est gardé la première fois qu'on le demande, donc une tranche déjà vue marche hors ligne. Ils comptent dans la version du cache, pour qu'une nouvelle sélection remplace les anciens fichiers.
+- Tests : 14 pour la sélection et la construction du jeu de données, 11 pour la logique d'un puzzle (dont le mat alternatif et la promotion), 11 pour le format, 9 pour le chargeur, 1 pour le service worker.
+- **À faire ensuite** : écran Tactique, puzzles ratés en répétition espacée, Woodpecker, liens avec le plan et le profil, historique des puzzles.
+- **Limites** :
+  - Le dépôt grossit d'environ 9 Mo (compressé) : à ne régénérer que rarement.
+  - Les Elo de puzzles Lichess ne sont pas ceux des parties.
+
+### Suite : l'écran « Puzzles » — fait
+
+Menu d'en-tête « Puzzles » (`src/components/Puzzles/`), au niveau et sur les thèmes choisis. Décisions : répétition espacée pour les ratés, timer sans pénalité (voir le comparatif, section 4).
+
+- [x] **Réglages** : tranche d'Elo en bandes de 200 (« de 1000 à 1600 », le haut exclu, « et plus » au sommet), thèmes groupés (motifs, mats, phases et finales, autres) avec le nombre de puzzles de chacun dans la tranche, « l'un des thèmes » ou « tous à la fois », durée (sans limite, 3, 5, 10, 15 minutes). Les choix sont gardés dans le navigateur. Si les parties stockées donnent un Elo (médiane des 30 dernières), une suggestion de trois bandes est proposée en un clic ; les Elo de puzzles ne sont pas ceux des parties, et l'écran le dit.
+- [x] **Séance** : puzzles de la tranche tirés au hasard, jusqu'à la fin ou au chrono (relevé toutes les 250 ms sur l'horloge, pas par comptage de ticks). Le premier coup de l'adversaire est joué, puis la réponse du joueur ; le coup de réponse apparaît 0,4 s après (il reste à l'écran un instant). Un puzzle réussi du premier coup laisse la place au suivant au bout de 0,8 s. Raté (mauvais coup ou solution demandée) : coup attendu en flèche, thèmes révélés, « Réessayer » possible pour s'entraîner sans changer le résultat.
+- [x] **Puzzles ratés** (`puzzleStore`, base IndexedDB propre) : un puzzle n'a une carte qu'une fois raté ; il revient demain, puis après 1, 3 et 7 jours (les mêmes règles que « S'entraîner »), et est retiré après 4 réussites de suite. Le puzzle complet est gardé avec sa carte. « Revoir mes puzzles ratés » (20 au plus) et « Réviser en avance ».
+- [x] **Bilan** : réussis sur joués, durée, rythme par minute, puzzles ratés avec leur Elo et leurs thèmes.
+- [x] **Sauvegarde** : les puzzles ratés sont dans le fichier JSON et la synchronisation Drive, au **format 4** (une application de format 3 refuse un fichier de format 4 plutôt que de renvoyer une copie sans les puzzles et d'écraser Drive). Fusion : l'entrée travaillée en dernier gagne. Un fichier de format 3 se lit sans puzzles.
+- Vérifié dans Chromium (bureau et mobile) sur la version de production : réglages, séance, solution, bilan, aucune erreur de console ; les fichiers de puzzles sont servis compressés (872 Ko pour la tranche 1000).
+- Tests : 23 pour l'écran (réglages, séance, mat alternatif, rater et réessayer, chrono, puzzles ratés), 23 pour les thèmes, la répétition et le stockage, 12 pour la tranche d'Elo et la durée, 5 pour l'Elo du joueur, 10 pour la sauvegarde et Drive.
+- **Limites** :
+  - Le tirage est au hasard : un puzzle déjà joué peut revenir (l'historique des puzzles vus, prévu dans un second temps, l'évitera).
+  - Le nombre de puzzles d'une combinaison de thèmes n'est connu qu'au lancement (l'index compte par thème) : un choix vide est signalé quand l'index le sait, sinon au chargement.
+  - Pas encore de Woodpecker, ni de lien depuis « Mon plan ».
+
 ## Ordre suggéré
 
 1 (sécurité serveur) → 2 (Gemini) → 4 (tests sur la logique pure) → 3 (découpage de `App.tsx`), puis le reste.

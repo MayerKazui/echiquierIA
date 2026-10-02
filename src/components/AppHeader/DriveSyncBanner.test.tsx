@@ -7,7 +7,7 @@ import { AuthError, type TokenProvider } from '../../services/googleAuth';
 import { AUTO_SYNC_KEY, createDriveSyncManager, type DriveSyncManagerDeps } from '../../services/driveSyncManager';
 import { DriveSyncBanner } from './DriveSyncBanner';
 
-const ok: DriveSyncReport = { restore: null, rejected: { games: 0, cards: 0, studies: 0 }, sent: null };
+const ok: DriveSyncReport = { restore: null, rejected: { games: 0, cards: 0, studies: 0, puzzles: 0 }, sent: null };
 
 function setup(run: DriveSyncManagerDeps['run'], enabled = true) {
   if (enabled) localStorage.setItem(AUTO_SYNC_KEY, '1');

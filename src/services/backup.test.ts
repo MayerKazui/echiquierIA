@@ -17,10 +17,12 @@ import {
   type Backup,
 } from './backup';
 import { deleteGame, gameId, listGames, loadGame, onGamesChanged, saveGame } from './gameStore';
+import { loadPuzzleEntries, savePuzzleEntry } from './puzzleStore';
 import { loadCards, saveCard } from './trainingStore';
 import { deleteStudy, listStudies, listStudyDeletions, saveStudy, STUDY_SCHEMA_VERSION } from './studyStore';
 import { createChapter } from '../utils/studyTree';
 import type { Study } from '../types/study';
+import type { PuzzleEntry } from '../utils/puzzleReview';
 
 const move = {
   san: 'e4',
@@ -40,6 +42,12 @@ const result = (white: string): GameAnalysisResult => ({
   statsBlack: computePlayerStats([]),
   userColor: 'w',
   userPseudo: white,
+});
+
+const puzzleEntry = (id: string, over: Partial<Card> = {}): PuzzleEntry => ({
+  id,
+  puzzle: { id, fen: '8/8/8/8/8/8/8/8 w - - 0 1', moves: ['e2e4', 'e7e5'], rating: 1000, themes: ['fork'] },
+  card: card(id, { level: 0, failures: 1, ...over }),
 });
 
 const card = (id: string, over: Partial<Card> = {}): Card => ({
@@ -134,8 +142,14 @@ describe('createBackup', () => {
     expect(backup.deletions).toEqual([{ id: gameId('1. e4 *'), deletedAt: expect.any(Number) }]);
   });
 
-  it('is of format 3', () => {
-    expect(BACKUP_FORMAT).toBe(3);
+  it('holds the missed puzzles', async () => {
+    await savePuzzleEntry(puzzleEntry('p1'));
+    const backup = await createBackup(0, fakeStorage());
+    expect(backup.puzzles.map((entry) => entry.id)).toEqual(['p1']);
+  });
+
+  it('is of format 4', () => {
+    expect(BACKUP_FORMAT).toBe(4);
   });
 });
 
@@ -153,7 +167,7 @@ describe('parseBackup', () => {
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     expect(parsed.backup.cards[0].dueAt).toBe(Number.MAX_SAFE_INTEGER);
-    expect(parsed.rejected).toEqual({ games: 0, cards: 0, studies: 0 });
+    expect(parsed.rejected).toEqual({ games: 0, cards: 0, studies: 0, puzzles: 0 });
   });
 
   describe('refuses a file that is not a backup', () => {
@@ -264,7 +278,7 @@ describe('parseBackup', () => {
     if (!parsed.ok) return;
     expect(parsed.backup.games).toHaveLength(1);
     expect(parsed.backup.cards).toHaveLength(1);
-    expect(parsed.rejected).toEqual({ games: 2, cards: 3, studies: 0 });
+    expect(parsed.rejected).toEqual({ games: 2, cards: 3, studies: 0, puzzles: 0 });
   });
 
   it('keeps only the settings of the app, with sane values', () => {
@@ -396,6 +410,7 @@ describe('restoreBackup', () => {
       deletions: [],
       studies: [],
       studyDeletions: [],
+      puzzles: [],
       preferences: { chess_board_theme: 'wood', chess_sound_enabled: 'false' },
     };
     const data = new Map<string, string>();
@@ -475,6 +490,45 @@ describe('backup of the studies', () => {
     expect(parsed.ok && parsed.rejected.studies).toBe(3);
   });
 
+  it('reads a file from before the missed puzzles as having none', () => {
+    const parsed = parseBackup(JSON.stringify({ app: BACKUP_APP, format: 3, cards: [card('a')] }));
+    expect(parsed.ok && parsed.backup.puzzles).toEqual([]);
+  });
+
+  it('is not empty when it holds only missed puzzles', () => {
+    expect(parseBackup(JSON.stringify({ app: BACKUP_APP, format: 4, puzzles: [puzzleEntry('a')] })).ok).toBe(true);
+  });
+
+  it('leaves out, and counts, the missed puzzles that are not valid', () => {
+    const parsed = parseBackup(
+      JSON.stringify({
+        app: BACKUP_APP,
+        format: 4,
+        puzzles: [puzzleEntry('ok'), { id: 'x' }, 3, { ...puzzleEntry('bad'), puzzle: { id: 'bad' } }],
+      })
+    );
+    expect(parsed.ok && parsed.backup.puzzles.map((entry) => entry.id)).toEqual(['ok']);
+    expect(parsed.ok && parsed.rejected.puzzles).toBe(3);
+  });
+
+  it('refuses a file with too many missed puzzles', () => {
+    const puzzles = Array.from({ length: 20_001 }, () => 0);
+    expect(parseBackup(JSON.stringify({ app: BACKUP_APP, format: 4, puzzles })).ok).toBe(false);
+  });
+
+  it('puts the missed puzzles back, keeping the entry worked on last', async () => {
+    await savePuzzleEntry(puzzleEntry('here', { lastSeen: 50, level: 3 }));
+    const backup: Backup = {
+      ...(await createBackup(0, fakeStorage())),
+      puzzles: [puzzleEntry('here', { lastSeen: 20 }), puzzleEntry('new')],
+    };
+    const report = await restoreBackup(backup, fakeStorage());
+    expect(report.puzzles).toEqual({ added: 1, replaced: 0, kept: 1 });
+    const entries = await loadPuzzleEntries();
+    expect(entries.get('here')?.card.level).toBe(3);
+    expect(entries.has('new')).toBe(true);
+  });
+
   it('refuses a file with too many studies', () => {
     const studies = Array.from({ length: 20_001 }, () => 0);
     expect(parseBackup(JSON.stringify({ app: BACKUP_APP, format: 3, studies })).ok).toBe(false);
@@ -493,6 +547,7 @@ describe('backup of the studies', () => {
       deletions: [],
       studies: [studyOf('deleted', 'Du fichier'), studyOf('local', 'Ancienne', 1), studyOf('new', 'Nouvelle')],
       studyDeletions: [{ id: 'new', deletedAt: 999_999_999_999_999 }], // ignored when importing a file
+      puzzles: [],
       preferences: {},
     };
     const report = await restoreBackup(backup, fakeStorage());
@@ -515,6 +570,7 @@ describe('backup of the studies', () => {
       deletions: [],
       studies: [studyOf('deleted-here', 'Revenue', 1)],
       studyDeletions: [{ id: 'here', deletedAt: updatedAt }],
+      puzzles: [],
       preferences: {},
     };
     const report = await restoreBackup(backup, fakeStorage(), { mode: 'sync', silent: true });

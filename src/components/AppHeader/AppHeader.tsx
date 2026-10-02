@@ -8,6 +8,7 @@ import {
   FileText,
   GraduationCap,
   History,
+  Puzzle,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -34,6 +35,7 @@ interface AppHeaderProps {
   onOpenHistory: () => void;
   onOpenProfile: () => void;
   onOpenTraining: () => void;
+  onOpenPuzzles: () => void;
   onOpenOpenings: () => void;
   onOpenStudies: () => void;
   onOpenPlan: () => void;
@@ -57,6 +59,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onOpenHistory,
   onOpenProfile,
   onOpenTraining,
+  onOpenPuzzles,
   onOpenOpenings,
   onOpenStudies,
   onOpenPlan,
@@ -91,6 +94,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       hint: 'Rejouer mes erreurs, au bon rythme',
       icon: <Dumbbell className={ICON} />,
       onSelect: onOpenTraining,
+    },
+    {
+      id: 'puzzles',
+      label: 'Puzzles',
+      hint: 'Des puzzles par niveau et par thème, avec chronomètre',
+      icon: <Puzzle className={ICON} />,
+      onSelect: onOpenPuzzles,
     },
     {
       id: 'openings',

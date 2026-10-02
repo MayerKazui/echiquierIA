@@ -19,15 +19,16 @@ import {
   type StudyMergeReport,
 } from './studyStore';
 import type { Study } from '../types/study';
+import { isPuzzleEntry, loadPuzzleEntries, mergePuzzleEntries, type PuzzleMergeReport } from './puzzleStore';
 import { isCard, loadCards, mergeCards, type CardMergeReport } from './trainingStore';
+import type { PuzzleEntry } from '../utils/puzzleReview';
 
 /**
  * A backup of everything the app keeps in the browser, as one JSON file the player can save and bring back (a
  * cleared cache or another browser would otherwise lose the games, the training progress and the settings).
  *
- * The file holds the analysed games (as stored, light versions included), the training cards, the studies and the
- * settings; it
- * does not hold the queue of a running batch analysis (it is transient). It is plain text: anyone who has it can
+ * The file holds the analysed games (as stored, light versions included), the training cards, the studies, the
+ * missed puzzles and the settings; it does not hold the queue of a running batch analysis (it is transient). It is plain text: anyone who has it can
  * read the games and the pseudo.
  */
 
@@ -40,7 +41,11 @@ export const BACKUP_APP = 'echiquier-ia';
  * 3 added the studies and the traces of deleted studies (`studies`, `studyDeletions`), for the same reason: an
  * application of format 2 would send back a copy without them and overwrite the studies kept in Drive.
  */
-export const BACKUP_FORMAT = 3;
+/**
+ * 4 added the puzzles the player missed (`puzzles`), for the same reason: an application of format 3 would send back
+ * a copy without them and overwrite the ones kept in Drive.
+ */
+export const BACKUP_FORMAT = 4;
 
 /** The settings kept in the backup (localStorage keys): nothing else is read or written there. */
 export const PREFERENCE_KEYS = [
@@ -81,6 +86,8 @@ export interface Backup {
   studies: Study[];
   /** Traces of the studies deleted (empty before format 3). */
   studyDeletions: StudyDeletion[];
+  /** The puzzles missed, each with its card of spaced repetition (empty before format 4). */
+  puzzles: PuzzleEntry[];
   preferences: Record<string, string>;
 }
 
@@ -114,12 +121,13 @@ export async function createBackup(
   now: number = Date.now(),
   storage: ReadableStorage | undefined = defaultStorage()
 ): Promise<Backup> {
-  const [games, cards, deletions, studies, studyDeletions] = await Promise.all([
+  const [games, cards, deletions, studies, studyDeletions, puzzles] = await Promise.all([
     exportGames(),
     loadCards(),
     listDeletions(),
     listStudies(),
     listStudyDeletions(),
+    loadPuzzleEntries(),
   ]);
   return {
     app: BACKUP_APP,
@@ -130,6 +138,7 @@ export async function createBackup(
     deletions,
     studies,
     studyDeletions,
+    puzzles: [...puzzles.values()],
     preferences: readPreferences(storage),
   };
 }
@@ -147,7 +156,7 @@ export type ParsedBackup =
       ok: true;
       backup: Backup;
       /** Items of the file that were not valid (damaged, or from an older format): they are left out. */
-      rejected: { games: number; cards: number; studies: number };
+      rejected: { games: number; cards: number; studies: number; puzzles: number };
     }
   | { ok: false; error: string };
 
@@ -180,12 +189,14 @@ export function parseBackup(text: string): ParsedBackup {
   const deletions: unknown[] = Array.isArray(data.deletions) ? data.deletions : [];
   const studies: unknown[] = Array.isArray(data.studies) ? data.studies : [];
   const studyDeletions: unknown[] = Array.isArray(data.studyDeletions) ? data.studyDeletions : [];
+  const puzzles: unknown[] = Array.isArray(data.puzzles) ? data.puzzles : [];
   if (
     games.length > MAX_ITEMS ||
     cards.length > MAX_ITEMS ||
     deletions.length > MAX_ITEMS ||
     studies.length > MAX_ITEMS ||
-    studyDeletions.length > MAX_ITEMS
+    studyDeletions.length > MAX_ITEMS ||
+    puzzles.length > MAX_ITEMS
   ) {
     return { ok: false, error: 'Cette sauvegarde contient trop de données pour être valide.' };
   }
@@ -194,6 +205,7 @@ export function parseBackup(text: string): ParsedBackup {
   const validDeletions = deletions.filter(isDeletion);
   const validStudies = studies.filter(isStudy);
   const validStudyDeletions = studyDeletions.filter(isStudyDeletion);
+  const validPuzzles = puzzles.filter(isPuzzleEntry);
 
   const preferences: Record<string, string> = {};
   if (isObject(data.preferences)) {
@@ -209,6 +221,7 @@ export function parseBackup(text: string): ParsedBackup {
     validDeletions.length === 0 &&
     validStudies.length === 0 &&
     validStudyDeletions.length === 0 &&
+    validPuzzles.length === 0 &&
     Object.keys(preferences).length === 0
   ) {
     return { ok: false, error: EMPTY_BACKUP_ERROR };
@@ -224,12 +237,14 @@ export function parseBackup(text: string): ParsedBackup {
       deletions: validDeletions,
       studies: validStudies,
       studyDeletions: validStudyDeletions,
+      puzzles: validPuzzles,
       preferences,
     },
     rejected: {
       games: games.length - validGames.length,
       cards: cards.length - validCards.length,
       studies: studies.length - validStudies.length,
+      puzzles: puzzles.length - validPuzzles.length,
     },
   };
 }
@@ -240,6 +255,8 @@ export interface RestoreReport {
   cards: CardMergeReport | null;
   /** Null when the studies could not be written. */
   studies: StudyMergeReport | null;
+  /** Null when the missed puzzles could not be written. */
+  puzzles: PuzzleMergeReport | null;
   /** Settings written: the ones the browser did not have yet (the settings chosen here are not overwritten). */
   preferencesApplied: number;
 }
@@ -261,7 +278,7 @@ export async function restoreBackup(
   storage: WritableStorage | undefined = defaultStorage(),
   { mode = 'import', silent }: RestoreOptions = {}
 ): Promise<RestoreReport> {
-  const [games, cards, studies] = await Promise.all([
+  const [games, cards, studies, puzzles] = await Promise.all([
     mode === 'sync'
       ? mergeGames(backup.games, undefined, backup.deletions, { silent })
       : mergeGames(backup.games, undefined, [], { silent, override: true }),
@@ -269,6 +286,7 @@ export async function restoreBackup(
     mode === 'sync'
       ? mergeStudies(backup.studies, backup.studyDeletions, { silent })
       : mergeStudies(backup.studies, [], { silent, override: true }),
+    mergePuzzleEntries(backup.puzzles),
   ]);
   let preferencesApplied = 0;
   for (const key of PREFERENCE_KEYS) {
@@ -283,5 +301,5 @@ export async function restoreBackup(
       // Storage unavailable or full: this setting is not restored
     }
   }
-  return { games, cards, studies, preferencesApplied };
+  return { games, cards, studies, puzzles, preferencesApplied };
 }

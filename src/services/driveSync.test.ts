@@ -8,10 +8,12 @@ import { SyncError, describeSyncError, syncWithDrive } from './driveSync';
 import { AuthError, type TokenProvider } from './googleAuth';
 import { DRIVE_FILE_NAME, DriveError, type FetchFn } from './googleDrive';
 import { deleteGame, gameId, listGames, saveGame, clearGames, onGamesChanged } from './gameStore';
+import { loadPuzzleEntries, savePuzzleEntry } from './puzzleStore';
 import { loadCards, saveCard } from './trainingStore';
 import { deleteStudy, listStudies, saveStudy, STUDY_SCHEMA_VERSION } from './studyStore';
 import { createChapter } from '../utils/studyTree';
 import type { Study } from '../types/study';
+import type { PuzzleEntry } from '../utils/puzzleReview';
 
 const move = {
   san: 'e4',
@@ -116,6 +118,38 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('syncWithDrive, missed puzzles', () => {
+  const entryOf = (id: string, lastSeen: number, level = 0): PuzzleEntry => ({
+    id,
+    puzzle: { id, fen: '8/8/8/8/8/8/8/8 w - - 0 1', moves: ['e2e4', 'e7e5'], rating: 1000, themes: ['fork'] },
+    card: { id, level, dueAt: 1000, lastSeen, attempts: 1, failures: 1 },
+  });
+
+  it('sends the missed puzzles, alone if that is all there is', async () => {
+    await savePuzzleEntry(entryOf('a', 1));
+    const drive = fakeDrive();
+    const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
+    expect(report.sent).toMatchObject({ games: 0, cards: 0, studies: 0, puzzles: 1 });
+    const parsed = parseBackup(await unpackText(drive.files.get('file-2') as Uint8Array));
+    expect(parsed.ok && parsed.backup.puzzles.map((entry) => entry.id)).toEqual(['a']);
+  });
+
+  it('merges the missed puzzles of Drive with the ones here, the one worked on last winning', async () => {
+    await savePuzzleEntry(entryOf('same', 50, 3));
+    await savePuzzleEntry(entryOf('only-here', 1));
+    const drive = fakeDrive(
+      await bytesOf(remoteBackup({ puzzles: [entryOf('same', 20, 1), entryOf('only-there', 5)] }))
+    );
+    const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
+    expect(report.restore?.puzzles).toEqual({ added: 1, replaced: 0, kept: 1 });
+    const entries = await loadPuzzleEntries();
+    expect([...entries.keys()].sort()).toEqual(['only-here', 'only-there', 'same']);
+    expect(entries.get('same')?.card.level).toBe(3);
+    const parsed = parseBackup(await unpackText(drive.files.get('file-1') as Uint8Array));
+    expect(parsed.ok && parsed.backup.puzzles).toHaveLength(3);
+  });
+});
+
 describe('syncWithDrive, studies', () => {
   const studyOf = (id: string, name: string, updatedAt: number): Study => ({
     id,
@@ -177,7 +211,7 @@ describe('syncWithDrive, studies', () => {
   it('counts the studies of the copy that were not valid', async () => {
     const drive = fakeDrive(await bytesOf(remoteBackup({ studies: [studyOf('ok', 'Ok', 5), { id: 'broken' }] })));
     const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
-    expect(report.rejected).toEqual({ games: 0, cards: 0, studies: 1 });
+    expect(report.rejected).toEqual({ games: 0, cards: 0, studies: 1, puzzles: 0 });
   });
 });
 
@@ -237,7 +271,7 @@ describe('syncWithDrive', () => {
   it('counts the items of the copy that were not valid', async () => {
     const drive = fakeDrive(await bytesOf(remoteBackup({ games: [{ broken: true }], cards: [cardOf('ok'), 3] })));
     const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
-    expect(report.rejected).toEqual({ games: 1, cards: 1, studies: 0 });
+    expect(report.rejected).toEqual({ games: 1, cards: 1, studies: 0, puzzles: 0 });
   });
 
   it('reads a copy written without compression', async () => {
@@ -250,7 +284,7 @@ describe('syncWithDrive', () => {
   it('sends nothing when there is nothing here and nothing there', async () => {
     const drive = fakeDrive();
     const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
-    expect(report).toEqual({ restore: null, rejected: { games: 0, cards: 0, studies: 0 }, sent: null });
+    expect(report).toEqual({ restore: null, rejected: { games: 0, cards: 0, studies: 0, puzzles: 0 }, sent: null });
     expect(drive.calls).toEqual(['GET /drive/v3/files']);
   });
 
