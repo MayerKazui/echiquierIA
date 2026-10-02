@@ -415,6 +415,25 @@ Sans serveur : tout se passe dans le navigateur, le site reste sur GitHub Pages.
 - [x] **Retour animé** (`usePieceDrag.ts`) : un coup refusé, une pièce lâchée hors de l'échiquier ou sur sa case, ou un Échap, fait glisser la pièce jusqu'à sa case (160 ms) avant de la faire disparaître ; la pièce de la case reste estompée jusqu'à l'arrivée. Un nouvel appui pendant le retour le termine aussitôt. `onPieceMove` et `handlePieceMove` renvoient maintenant `false` pour un coup illégal. Mesuré dans Chrome : de e4 à a7 en cinq images.
 - Tests : décalage de la pièce (le `transform` contient l'échelle), Échap pendant un glisser, Échap avec sélection (et l'application qui ne le reçoit pas), second clic dans `useSandbox` et `useAnswerBoard`. Vérifié dans Chrome sur l'analyse d'une partie : pièce centrée sur le curseur, glisser, clic-clic, Échap.
 
+## Explorateur d'ouvertures — « Ouvertures »
+
+Premier morceau du point 3 de `ROADMAP.md` (suivi d'ouvertures) et de l'étape 1 de `COMPARATIF_PATCHCHESS.md`. Bouton « Ouvertures » dans l'en-tête (fenêtre, chargée à la demande, comme « Mon profil » et « S'entraîner »).
+
+- [x] **Arbre des ouvertures** (`components/Openings/Openings.tsx`, `utils/openingExplorer.ts`) : on part de la position initiale et on avance coup par coup, à la souris (liste des coups) ou sur l'échiquier (clic-clic et glisser-déposer : seuls les coups proposés sont suivis, un autre coup légal est refusé avec un message). Le nom de l'ouverture atteinte (en français, avec le code ECO) suit la ligne ; il est conservé tant que la ligne continue sans nom propre. Le fil des coups est cliquable pour revenir en arrière ; « Coup précédent », « Début », « Retourner ».
+- [x] **Coups proposés** : les suites connues de la base lichess (`public/openings.json`, ~3 800 lignes), la plus fréquente en premier. Le classement est le nombre de variantes référencées qui passent par le coup, pas une fréquence de parties jouées (la base n'en contient pas). Un coup sans nom propre dit « mène à … » (premier nom rencontré sur sa ligne principale, 8 demi-coups au plus).
+- [x] **Mes parties** (`utils/openingIndex.ts`) : pour chaque position, les coups joués dans les parties enregistrées qui nomment le joueur (même règle que le profil : `playerColorIn`), avec parties, victoires, nulles et défaites **du point de vue du joueur**, barre de résultat et score. Les 30 premiers demi-coups de chaque partie sont rejoués avec `chess.js` (les parties allégées n'ont plus leurs positions : seul leur SAN est utilisé). Les transpositions partagent la même entrée (position sans compteurs de coups). Choix « Toutes / Avec les Blancs / Avec les Noirs » (le plateau se tourne avec la couleur).
+- [x] **Coups hors du livre** : un coup joué dans une de vos parties que la base ne connaît pas apparaît dans la liste, marqué « hors du livre », après les coups de la théorie. C'est la première moitié du « coup de sortie qui coûte cher » (on voit où l'on sort de la théorie, pas encore ce que cela coûte).
+- [x] **Sans connexion** : la base est déjà préchargée à l'ouverture de l'application et mise en cache ; si elle manque (hors ligne, jamais chargée), l'écran le dit et propose « Réessayer ». Sans partie enregistrée, l'explorateur fonctionne sur la théorie seule et propose d'importer ses parties.
+- `openingBook.ts` garde maintenant les entrées brutes de la base (`getOpeningPosition`, `isOpeningDatasetLoaded`) : l'explorateur a besoin des suites dans leur ordre, ce que le livre d'analyse (qui les range dans un ensemble) ne conserve pas.
+- Tests : 19 pour l'arbre (nom conservé, « mène à », coups hors livre, coup illégal ignoré), 10 pour l'index des parties (côté du joueur, résultat, couleur, transposition, rejeu interrompu, 30 demi-coups, pauses), 13 pour l'écran (navigation, plateau, tableau de résultats, filtre de couleur, base indisponible puis réessai) : 1 501 tests au total.
+- Vérifié dans Chrome (Playwright, serveur de développement) : ouverture de la fenêtre, ligne 1.e4 c5 2.Cf3 avec ses 14 suites nommées, rendu à 1 100 px et à 390 px. **Pas vérifié dans le vrai navigateur avec des parties enregistrées** : les barres de résultat ne sont couvertes que par les tests jsdom.
+- **Limites** :
+  - Pas de statistiques mondiales par coup : l'API Explorer de Lichess n'a pas été essayée (question ouverte du comparatif). Seules vos parties donnent des chiffres.
+  - Pas de précision ni de perte d'évaluation par ouverture, ni de liste « mes ouvertures avec % de victoire » : ce qui reste du point 3 de la feuille de route.
+  - Ce qui est compté n'est que ce que le navigateur garde : 500 parties au plus, dont les plus anciennes allégées.
+  - La base ne contient que des lignes nommées : une ouverture rare ou une position atteinte hors de ces lignes apparaît comme « hors du livre » même si c'est de la théorie.
+  - Le nom d'une position atteinte par transposition est celui de la première ligne qui y arrive (règle du jeu de données), pas forcément celui de l'ordre de coups suivi.
+
 ## Ordre suggéré
 
 1 (sécurité serveur) → 2 (Gemini) → 4 (tests sur la logique pure) → 3 (découpage de `App.tsx`), puis le reste.

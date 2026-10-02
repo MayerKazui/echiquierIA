@@ -29,6 +29,7 @@ Une vue « Mon profil » qui agrège les parties enregistrées : « qu'est-ce qu
 
 ### 3. Suivi d'ouvertures
 
+- [x] **Explorateur d'ouvertures** : arbre coup par coup de la base lichess, avec ses propres résultats (parties, victoires, nulles, défaites) par coup, et les coups hors du livre : voir `IMPROVEMENTS.md`.
 - [ ] **Répertoire réel** : ouvertures jouées avec score, précision et coup où l'on sort de la théorie (livre de ~3 800 lignes déjà intégré).
 - [ ] **Coup de sortie qui coûte cher**, partie après partie : « 4 fois sur 6, tu dévies à 8.h3 et tu perds 0,5 point ».
 

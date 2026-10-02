@@ -179,7 +179,7 @@ function parseElo(raw: string | undefined): number | null {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
-function parseOutcome(result: string | undefined, color: 'w' | 'b'): Outcome | null {
+export function parseOutcome(result: string | undefined, color: 'w' | 'b'): Outcome | null {
   if (result === '1/2-1/2') return 'draw';
   if (result !== '1-0' && result !== '0-1') return null;
   return (result === '1-0') === (color === 'w') ? 'win' : 'loss';

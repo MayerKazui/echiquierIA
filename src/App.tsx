@@ -31,6 +31,7 @@ import {
   EvaluationChart,
   MoveComparison,
   MoveList,
+  Openings,
   Training,
   WeaknessProfile,
   prefetchViews,
@@ -68,6 +69,7 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isTrainingOpen, setIsTrainingOpen] = useState(false);
+  const [isOpeningsOpen, setIsOpeningsOpen] = useState(false);
   const { announcement, announce } = useAnnouncer();
 
   // While the user reads the start screen: download the engine, the openings database and the game views
@@ -533,6 +535,7 @@ export default function App() {
         onOpenHistory={() => setIsHistoryOpen(true)}
         onOpenProfile={() => setIsProfileOpen(true)}
         onOpenTraining={() => setIsTrainingOpen(true)}
+        onOpenOpenings={() => setIsOpeningsOpen(true)}
         onInstall={canInstall ? () => void install() : undefined}
       />
 
@@ -633,6 +636,22 @@ export default function App() {
               onClose={() => setIsTrainingOpen(false)}
               onImport={() => {
                 setIsTrainingOpen(false);
+                // Without a game on screen the start screen already shows the import form
+                if (analysis) setIsPgnModalOpen(true);
+              }}
+            />
+          </Suspense>
+        </Modal>
+      )}
+
+      {isOpeningsOpen && (
+        <Modal title="Explorateur d'ouvertures" onClose={() => setIsOpeningsOpen(false)} className="w-full max-w-4xl">
+          <Suspense fallback={null}>
+            <Openings
+              boardTheme={boardTheme}
+              onClose={() => setIsOpeningsOpen(false)}
+              onImport={() => {
+                setIsOpeningsOpen(false);
                 // Without a game on screen the start screen already shows the import form
                 if (analysis) setIsPgnModalOpen(true);
               }}

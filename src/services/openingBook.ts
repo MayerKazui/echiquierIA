@@ -353,6 +353,8 @@ export interface BookEntry {
 }
 
 const bookCache = new Map<string, BookEntry>();
+/** The openings database as it was loaded, kept for the explorer (it needs the continuations in their order). */
+let datasetEntries: Record<string, DatasetEntry> | null = null;
 let isBookInitialized = false;
 let isFullDatasetLoaded = false;
 
@@ -552,6 +554,7 @@ export async function ensureOpeningBookLoaded(
     datasetLoadPromise = (async () => {
       try {
         const data = await load();
+        datasetEntries = data;
 
         for (const [normFen, [bestMoveSan, bestMoveUci, eco, name, pv, nextSans]] of Object.entries(data)) {
           let entry = bookCache.get(normFen);
@@ -599,6 +602,28 @@ export async function ensureOpeningBookLoaded(
   }
 
   await datasetLoadPromise;
+}
+
+/** What the openings database says of a position (null before it is loaded, or for an unknown position). */
+export interface OpeningPosition {
+  /** The opening that ends exactly on this position; empty when no named line ends here. */
+  eco: string;
+  name: string;
+  /** Every known continuation (English SAN), the one found in the most lines first. */
+  nextSans: string[];
+}
+
+/** The openings database entry of a position, for the explorer. The FEN may carry move counters. */
+export function getOpeningPosition(fen: string): OpeningPosition | null {
+  const entry = datasetEntries?.[normalizeFen(fen)];
+  if (!entry) return null;
+  const [, , eco, name, , nextSans] = entry;
+  return { eco, name, nextSans: nextSans ?? [] };
+}
+
+/** Whether the full openings database is in memory (the explorer is empty without it). */
+export function isOpeningDatasetLoaded(): boolean {
+  return isFullDatasetLoaded;
 }
 
 /**
