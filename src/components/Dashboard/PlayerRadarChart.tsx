@@ -95,7 +95,7 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
         Math.min(100, Math.round(30 + bestRatio * 110 + (stats.brilliant > 0 ? 10 : 0)))
       );
 
-      // 3. 📚 Préparation d'Ouverture (Précision et régularité coups 1 à 12)
+      // 3. 📚 Préparation d'Ouverture (Précision et régularité en ouverture)
       const openingAcc = color === 'w' ? phaseStats.opening.whiteAccuracy : phaseStats.opening.blackAccuracy;
       const openingFails =
         color === 'w'
@@ -109,7 +109,7 @@ export const PlayerRadarChart: React.FC<PlayerRadarChartProps> = ({
             )
           : Math.round(stats.accuracy);
 
-      // 4. 👑 Technique en Finale (Précision coups 31+ ou conversion de gain)
+      // 4. 👑 Technique en Finale (Précision en finale ou conversion de gain)
       const endgameAcc = color === 'w' ? phaseStats.endgame.whiteAccuracy : phaseStats.endgame.blackAccuracy;
       let finaleScore: number;
       if (endgameAcc !== null) {

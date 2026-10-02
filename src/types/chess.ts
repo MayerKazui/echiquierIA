@@ -1,6 +1,8 @@
 export type MoveClassification =
   'brilliant' | 'great' | 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder' | 'missedWin' | 'book';
 
+export type GamePhase = 'opening' | 'middlegame' | 'endgame';
+
 export interface MoveAnalysis {
   ply: number;
   moveNumber: number;
@@ -26,6 +28,8 @@ export interface MoveAnalysis {
   winPercentAfter: number;
   winPercentLoss: number;
   classification: MoveClassification;
+  /** The phase of the game the move was played in, from the material on the board (see `phaseOfPosition`). */
+  phase?: GamePhase;
   /** What kind of fault this is (mistake, blunder, miss only); filled in when the game is stored, see `faultKinds`. */
   faultKind?: 'mate' | 'hanging' | 'tactic' | 'wasted' | 'other';
   clock?: string;

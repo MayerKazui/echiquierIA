@@ -34,17 +34,18 @@ Sans clé Gemini, l'application fonctionne : les explications de l'entraîneur I
 
 ## Commandes
 
-| Commande                 | Rôle                                                                               |
-| ------------------------ | ---------------------------------------------------------------------------------- |
-| `bun run dev`            | Serveur de développement (Express + Vite, rechargement à chaud)                    |
-| `bun run build`          | Construit l'interface (`dist/`) et compile le serveur en `server.js`               |
-| `bun run start`          | Sert `dist/` en production (`NODE_ENV=production`, via tsx) : lancer `build` avant |
-| `bun run test`           | Tests unitaires (Vitest)                                                           |
-| `bun run lint`           | ESLint                                                                             |
-| `bun run typecheck`      | `tsc --noEmit` (mode `strict`)                                                     |
-| `bun run format`         | Formate avec Prettier (`format:check` pour seulement vérifier)                     |
-| `bun run check`          | lint + typecheck + format + tests, comme la CI                                     |
-| `bun run build:openings` | Régénère `public/openings.json` depuis `src/data/openings/*.tsv`                   |
+| Commande                 | Rôle                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| `bun run dev`            | Serveur de développement (Express + Vite, rechargement à chaud)                       |
+| `bun run build`          | Construit l'interface (`dist/`) et compile le serveur en `server.js`                  |
+| `bun run start`          | Sert `dist/` en production (`NODE_ENV=production`, via tsx) : lancer `build` avant    |
+| `bun run test`           | Tests unitaires (Vitest)                                                              |
+| `bun run lint`           | ESLint                                                                                |
+| `bun run typecheck`      | `tsc --noEmit` (mode `strict`)                                                        |
+| `bun run format`         | Formate avec Prettier (`format:check` pour seulement vérifier)                        |
+| `bun run check`          | lint + typecheck + format + tests, comme la CI                                        |
+| `bun run build:openings` | Régénère `public/openings.json` depuis `src/data/openings/*.tsv`                      |
+| `bun run calibrate`      | Écart de la précision avec chess.com sur les parties de référence (`fetch`, `record`) |
 
 La CI (GitHub Actions) exécute lint, typecheck, format, tests et build à chaque pull request.
 

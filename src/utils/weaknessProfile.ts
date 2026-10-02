@@ -2,7 +2,7 @@ import type { GameAnalysisResult, MoveAnalysis } from '../types/chess';
 import { FAULT_CLASSIFICATIONS, FAULT_KINDS, classifyFault, type FaultKind } from './faultKinds';
 import { parseDurationToSeconds, parseTimeControl } from './clockUtils';
 import { accuracyFromMoves } from './moveAnalysis';
-import { phaseOfMove, type GamePhase } from './phaseStats';
+import { phaseOf, type GamePhase } from './gamePhase';
 
 /**
  * What the games kept in the browser say about the player: where the accuracy is lost (phase of the game, kind of
@@ -328,7 +328,7 @@ export async function buildProfile(
 
   const everyMove = games.flatMap((g) => g.moves);
   const baseline = bucketOf(everyMove);
-  const phaseMoves = (phase: GamePhase) => everyMove.filter((m) => phaseOfMove(m.moveNumber) === phase);
+  const phaseMoves = (phase: GamePhase) => everyMove.filter((m) => phaseOf(m) === phase);
   const phases = {
     opening: bucketOf(phaseMoves('opening')),
     middlegame: bucketOf(phaseMoves('middlegame')),

@@ -1,10 +1,9 @@
 import React from 'react';
 import { Trophy } from 'lucide-react';
-import { PhaseStat, PhaseStats } from '../../utils/phaseStats';
+import { moveRangeLabel, PhaseStat, PhaseStats } from '../../utils/phaseStats';
 
 interface PhaseCardProps {
   title: string;
-  range: string;
   description: string;
   stat: PhaseStat;
   /** Shown instead of the accuracy bars when no move was played in this phase. */
@@ -27,12 +26,20 @@ const AccuracyBar: React.FC<{ label: string; accuracy: number | null; barClass: 
   </div>
 );
 
-const PhaseCard: React.FC<PhaseCardProps> = ({ title, range, description, stat, emptyMessage }) => (
+/** "Coups 1 à 9": where the phase really was in this game (it depends on the pieces left, not on a move number). */
+const rangeOf = (stat: PhaseStat) => {
+  const label = moveRangeLabel(stat);
+  return label ? label[0].toUpperCase() + label.slice(1) : '-';
+};
+
+const PhaseCard: React.FC<PhaseCardProps> = ({ title, description, stat, emptyMessage }) => (
   <div className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-xl flex flex-col justify-between gap-3">
     <div>
       <div className="flex items-center justify-between mb-1.5">
         <span className="font-bold text-slate-200 text-sm">{title}</span>
-        <span className="text-[10px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-full font-mono">{range}</span>
+        <span className="text-[10px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-full font-mono">
+          {rangeOf(stat)}
+        </span>
       </div>
       <p className="text-[11px] text-slate-400">{description}</p>
     </div>
@@ -71,20 +78,17 @@ export const PhaseBreakdown: React.FC<{ phaseStats: PhaseStats }> = ({ phaseStat
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
       <PhaseCard
         title="Ouverture"
-        range="Coups 1 à 12"
         description="Développement des pièces, contrôle du centre et roque."
         stat={phaseStats.opening}
       />
       <PhaseCard
         title="Milieu de Jeu"
-        range="Coups 13 à 30"
         description="Calculs tactiques, plans stratégiques et attaques de roque."
         stat={phaseStats.middlegame}
         emptyMessage="Partie conclue avant le milieu de jeu"
       />
       <PhaseCard
         title="Finale"
-        range="Coups 31+"
         description="Promotion de pions, technique de roi actif et conversion."
         stat={phaseStats.endgame}
         emptyMessage="Finale non atteinte dans cette partie"

@@ -6,7 +6,7 @@ Ce fichier suit ce qui reste à faire. `IMPROVEMENTS.md` garde l'historique de c
 
 Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait
 
-Ordre conseillé : le point 3, puis 5 (les points 1, 2, 4 et 6 sont faits). L'import et l'analyse en lot (4) alimentent le profil (1), qui alimente l'entraînement (2).
+Ordre conseillé : le point 3, puis 5 (les points 1, 2, 4 et 6 et la partie C sont faits). L'import et l'analyse en lot (4) alimentent le profil (1), qui alimente l'entraînement (2).
 
 ## A. Outil d'entraînement (priorité)
 
@@ -56,14 +56,14 @@ Une vue « Mon profil » qui agrège les parties enregistrées : « qu'est-ce qu
 
 ## C. Fiabilité de l'analyse
 
-À traiter en parallèle, surtout le premier point (il protège le calage).
+Fait : voir `IMPROVEMENTS.md` (« Fiabilité de l'analyse : calage reproductible »).
 
-- [ ] **Calage reproductible** : `scripts/calibrate.ts`, un fichier de parties de référence (PGN et précision chess.com) et un test de régression (écart moyen < 5 points). Aucun script de calage n'est dans le dépôt : sans lui, on ne peut pas vérifier que les 4,4 points d'écart tiennent après un changement.
-- [ ] **« Brillant » trop généreux** : le critère (`stockfishEngine.ts`, `isSacrifice`) ne vérifie pas que la pièce est en prise. Exiger un vrai sacrifice (échange net perdant, test SEE avec `chess.js`) et exclure les positions déjà largement gagnées (> +5).
-- [ ] **« Excellent coup » (`great`) jamais attribué** : le type existe mais `classifyMove` ne le renvoie jamais. Demande MultiPV 2 (~1,3 à 1,5 fois plus de temps), ce qui servirait aussi à « Brillant ».
-- [ ] **Mats aplatis** : un mat plafonné à ±1000 cp vaut 90 % de victoire ; abandonner un mat forcé pour +5 pions ne coûte que 12 points. Ajouter un cas « mat forcé abandonné ».
-- [ ] **Phases par matériel** plutôt que par numéro de coup (< 20, < 50 aujourd'hui).
-- [ ] **Débutants à ~6 points d'écart** (< 700 Elo) : pistes (positions instables, coups forcés) à n'essayer qu'une fois le calage reproductible.
+- [x] **Calage reproductible** : `bun run calibrate` (rapport), `calibrate fetch` (parties de chess.com), `calibrate record` (évaluations Stockfish). 132 parties, 264 joueurs, écart moyen **3,85 points** à la profondeur 12 ; un test de régression échoue au-delà de 4,5 (6 par tranche d'Elo, biais 3).
+- [x] **« Brillant »** : un vrai sacrifice (échange net perdant d'au moins 200 cp, calculé avec `chess.js`), joué dans une position pas déjà gagnée (≤ +5) et qui laisse l'avantage ; compté aussi quand c'est le coup du moteur.
+- [x] **« Excellent coup » (`great`)** : MultiPV 2 ; attribué au coup unique (le deuxième choix du moteur perd au moins 12 points de victoire), hors reprise évidente. Environ un par joueur et par partie.
+- [x] **Mats** : un mat forcé vaut 100 % / 0 % de victoire ; abandonner un mat forcé est au moins une erreur.
+- [x] **Phases par matériel** : ouverture, milieu de jeu, finale d'après les pièces restantes et leur développement, mémorisées par coup.
+- [x] **Débutants** : essayé (coups forcés, nouveau réglage de la décroissance) sans gain solide ; l'écart des moins de 700 Elo est de 4,2 points sur l'échantillon actuel.
 
 ## D. Vérifications manuelles restantes
 
