@@ -334,3 +334,63 @@ describe('Studies, arrows and circles', () => {
     vi.restoreAllMocks();
   });
 });
+
+describe('Studies, order', () => {
+  it('moves the chapters', async () => {
+    const user = userEvent.setup();
+    renderStudies();
+    await createStudy(user);
+    const chapters = () => screen.getByRole('group', { name: 'Chapitres' });
+    const names = () =>
+      within(chapters())
+        .getAllByRole('button')
+        .map((b) => b.textContent)
+        .filter((t) => /^Chapitre \d$/.test(t ?? ''));
+    expect(screen.queryByRole('group', { name: 'Ordre du chapitre' })).toBeNull(); // one chapter: nothing to move
+
+    await user.click(screen.getByRole('button', { name: /^Chapitre$/ }));
+    await user.click(screen.getByRole('button', { name: /^Chapitre$/ }));
+    expect(names()).toEqual(['Chapitre 1', 'Chapitre 2', 'Chapitre 3']);
+
+    // Chapitre 3 is open
+    const order = screen.getByRole('group', { name: 'Ordre du chapitre' });
+    expect((within(order).getByRole('button', { name: 'Après' }) as HTMLButtonElement).disabled).toBe(true);
+    await user.click(within(order).getByRole('button', { name: 'Avant' }));
+    expect(names()).toEqual(['Chapitre 1', 'Chapitre 3', 'Chapitre 2']);
+    await user.click(within(order).getByRole('button', { name: 'Avant' }));
+    expect(names()).toEqual(['Chapitre 3', 'Chapitre 1', 'Chapitre 2']);
+    expect((within(order).getByRole('button', { name: 'Avant' }) as HTMLButtonElement).disabled).toBe(true);
+    // The chapter that moved is still the open one
+    expect(within(chapters()).getByRole('button', { name: 'Chapitre 3', pressed: true })).toBeTruthy();
+  });
+
+  it('moves the variations of a move, and the first one is the main line', async () => {
+    const user = userEvent.setup();
+    renderStudies();
+    await createStudy(user);
+    await movePiece(user, 'e2', 'e4');
+    await movePiece(user, 'e7', 'e5');
+    const tree = screen.getByRole('group', { name: "Coups de l'étude" });
+    await user.click(within(tree).getByRole('button', { name: '1.e4' }));
+    await movePiece(user, 'c7', 'c5');
+    expect(screen.queryByRole('button', { name: 'Descendre' })).not.toBeNull();
+
+    // c5 is the second continuation: up makes it the main line
+    await user.click(screen.getByRole('button', { name: 'Monter' }));
+    expect(within(tree).getByRole('button', { name: 'c5' })).toBeTruthy();
+    expect(within(tree).getByRole('button', { name: '1…e5' })).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Monter' }) as HTMLButtonElement).disabled).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: 'Descendre' }));
+    expect(within(tree).getByRole('button', { name: 'e5' })).toBeTruthy();
+    expect(within(tree).getByRole('button', { name: '1…c5' })).toBeTruthy();
+  });
+
+  it('offers no move for a move that has no variation', async () => {
+    const user = userEvent.setup();
+    renderStudies();
+    await createStudy(user);
+    await movePiece(user, 'e2', 'e4');
+    expect(screen.queryByRole('button', { name: 'Monter' })).toBeNull();
+  });
+});

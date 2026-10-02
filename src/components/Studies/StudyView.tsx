@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Download, FileUp, Lock, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, FileUp, Lock, Plus, Trash2 } from 'lucide-react';
 import type { Study, StudyChapter } from '../../types/study';
 import type { BoardTheme } from '../../types/ui';
 import { downloadTextFile } from '../../utils/download';
 import type { ParsedStudyPgn } from '../../utils/studyPgn';
 import { chapterToPgn, studyToPgn } from '../../utils/studyPgn';
-import { countMoves, createChapter } from '../../utils/studyTree';
+import { countMoves, createChapter, moveItem } from '../../utils/studyTree';
 import { BUTTON, SECONDARY } from '../Openings/shared';
 import { StudyEditor } from './StudyEditor';
 import { StudyImport } from './StudyImport';
@@ -61,6 +61,11 @@ export const StudyView: React.FC<StudyViewProps> = ({ study, boardTheme, onChang
     setIsConfirmingDelete(false);
     setChapterId(remaining[0].id);
     onChange({ ...study, chapters: remaining });
+  };
+
+  const moveChapter = (offset: number) => {
+    const index = study.chapters.findIndex((c) => c.id === chapter.id);
+    onChange({ ...study, chapters: moveItem(study.chapters, index, offset) });
   };
 
   const chooseChapter = (id: string) => {
@@ -171,6 +176,28 @@ export const StudyView: React.FC<StudyViewProps> = ({ study, boardTheme, onChang
               </button>
             ))}
           </div>
+          {study.chapters.length > 1 && (
+            <div role="group" aria-label="Ordre du chapitre" className="flex items-center gap-1.5">
+              <button
+                type="button"
+                className={SECONDARY}
+                disabled={study.chapters[0].id === chapter.id}
+                onClick={() => moveChapter(-1)}
+              >
+                <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
+                Avant
+              </button>
+              <button
+                type="button"
+                className={SECONDARY}
+                disabled={study.chapters[study.chapters.length - 1].id === chapter.id}
+                onClick={() => moveChapter(1)}
+              >
+                Après
+                <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            </div>
+          )}
           <button
             type="button"
             className={SECONDARY}

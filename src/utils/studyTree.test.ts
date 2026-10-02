@@ -7,6 +7,8 @@ import {
   isVariation,
   makeNode,
   mainLine,
+  moveItem,
+  moveNode,
   moveLabel,
   nagText,
   pathTo,
@@ -100,5 +102,37 @@ describe('setShapes', () => {
     const drawn = setShapes(root, e4.id, shapes);
     expect(findNode(drawn, e4.id)?.shapes).toEqual(shapes);
     expect(findNode(setShapes(drawn, e4.id, []), e4.id)).not.toHaveProperty('shapes');
+  });
+});
+
+describe('moveItem and moveNode', () => {
+  it('moves an item by one place and leaves the list alone at either end', () => {
+    expect(moveItem(['a', 'b', 'c'], 1, -1)).toEqual(['b', 'a', 'c']);
+    expect(moveItem(['a', 'b', 'c'], 1, 1)).toEqual(['a', 'c', 'b']);
+    expect(moveItem(['a', 'b', 'c'], 0, -1)).toEqual(['a', 'b', 'c']);
+    expect(moveItem(['a', 'b', 'c'], 2, 1)).toEqual(['a', 'b', 'c']);
+    expect(moveItem(['a'], 5, 1)).toEqual(['a']);
+  });
+
+  it('reorders the variations of a move, the first one being the main line', () => {
+    const { root, e4, e5, c5 } = build();
+    const down = moveNode(root, e5.id, 1);
+    expect(findNode(down, e4.id)?.children.map((n) => n.san)).toEqual(['c5', 'e5']);
+    expect(mainLine(down).map((n) => n.san)).toEqual(['e4', 'c5']);
+    const up = moveNode(down, e5.id, -1);
+    expect(findNode(up, e4.id)?.children.map((n) => n.san)).toEqual(['e5', 'c5']);
+    expect(moveNode(root, c5.id, 1)).toBe(root); // already last
+    expect(moveNode(root, e5.id, -1)).toBe(root); // already first
+    expect(moveNode(root, root.id, 1)).toBe(root);
+    expect(moveNode(root, 'nope', 1)).toBe(root);
+  });
+
+  it('keeps what follows each move when they change places', () => {
+    const { root, e4, e5, c5 } = build();
+    const down = moveNode(addChild(root, e5.id, makeNode(e5, 'Nf3')!), e5.id, 1);
+    expect(findNode(down, e5.id)?.children).toHaveLength(1);
+    expect(findNode(down, c5.id)?.children).toHaveLength(0);
+    expect(countMoves(down)).toBe(countMoves(root) + 1);
+    expect(findNode(down, e4.id)?.children).toHaveLength(2);
   });
 });

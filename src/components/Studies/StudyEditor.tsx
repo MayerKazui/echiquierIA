@@ -1,5 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, ChevronsLeft, ChevronsRight, Eraser, FlipVertical2, Trash2 } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  ChevronsLeft,
+  ChevronsRight,
+  Eraser,
+  FlipVertical2,
+  Trash2,
+} from 'lucide-react';
 import type { StudyChapter } from '../../types/study';
 import type { BoardTheme } from '../../types/ui';
 import { chessAudio } from '../../utils/chessAudio';
@@ -12,6 +22,7 @@ import {
   isVariation,
   makeNode,
   moveLabel,
+  moveNode,
   nagLabel,
   nagSymbol,
   pathTo,
@@ -246,6 +257,30 @@ export const StudyEditor: React.FC<StudyEditorProps> = ({ chapter, selectedId, b
                 >
                   Faire de cette variante la ligne principale
                 </button>
+              )}
+              {siblings.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    className={SECONDARY}
+                    disabled={siblingIndex <= 0}
+                    title="Change l'ordre parmi les variantes de ce coup (la première est la ligne principale)"
+                    onClick={() => onChange({ ...chapter, root: moveNode(root, selected.id, -1) })}
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
+                    Monter
+                  </button>
+                  <button
+                    type="button"
+                    className={SECONDARY}
+                    disabled={siblingIndex < 0 || siblingIndex >= siblings.length - 1}
+                    title="Change l'ordre parmi les variantes de ce coup (la première est la ligne principale)"
+                    onClick={() => onChange({ ...chapter, root: moveNode(root, selected.id, 1) })}
+                  >
+                    <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
+                    Descendre
+                  </button>
+                </>
               )}
               {isConfirmingDelete ? (
                 <>

@@ -225,3 +225,26 @@ export function setShapes(root: StudyNode, id: string, shapes: readonly StudySha
     return shapes.length === 0 ? rest : { ...rest, shapes: [...shapes] };
   });
 }
+
+/** The list with the item at `index` moved by `offset` places (-1 earlier, 1 later); unchanged at either end. */
+export function moveItem<T>(list: readonly T[], index: number, offset: number): T[] {
+  const target = index + offset;
+  if (index < 0 || index >= list.length || target < 0 || target >= list.length) return [...list];
+  const next = [...list];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+/**
+ * The node `id` moved by `offset` places among the continuations of its parent: the first one is the main line,
+ * so moving the main line later makes the next variation the main line. Unchanged when there is nowhere to go.
+ */
+export function moveNode(root: StudyNode, id: string, offset: number): StudyNode {
+  const path = pathTo(root, id);
+  if (!path || path.length < 2) return root;
+  const parent = path[path.length - 2];
+  const index = parent.children.findIndex((c) => c.id === id);
+  const children = moveItem(parent.children, index, offset);
+  if (children.every((c, i) => c === parent.children[i])) return root;
+  return updateNode(root, parent.id, (node) => ({ ...node, children }));
+}
