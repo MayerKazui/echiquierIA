@@ -91,8 +91,59 @@ Recommandation : les options 1 et 2. Les études restent privées dans le naviga
 - [ ] **Mise à jour du profil** : faut-il un bouton « n'analyser que les nouvelles parties » ?
 - [ ] **Parser PGN** : confirmer que `chess.js` perd les variantes, puis choisir entre une bibliothèque et un analyseur maison.
 - [ ] **Programme d'entraînement** : quel format (plan hebdomadaire, objectif unique à l'ouverture de l'appli) ?
+- [ ] **Coach IA sans serveur** : le garder optionnel avec repli local, passer en « serverless », ou demander à chaque utilisateur sa propre clé Gemini ?
+- [ ] **Lichess comme hébergeur de partage** : import d'une étude publique par lien, export vers Lichess avec le jeton de l'utilisateur. À vérifier : droits, limites, connexion sans serveur.
+- [ ] **Partage via Google Drive** : le dossier caché utilisé par la synchronisation n'est pas partageable ; un partage demanderait des fichiers visibles et des droits plus larges (validation Google plus lourde, à vérifier).
 
-## 6. Fichiers du projet utiles pour la suite
+## 6. Contrainte : éviter tout serveur permanent
+
+Hypothèse de travail : on veut le moins possible de serveur qui tourne en arrière-plan. Les points marqués « à vérifier » dépendent de règles externes (Lichess, Google) non testées.
+
+### Infaisable sans serveur
+
+| Besoin                                                                                 | Pourquoi                                                                | Contournement                                                                                 |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Partage d'études « à la Lichess » (lien permanent, mise à jour par le destinataire)    | Il faut un endroit où stocker l'étude, accessible à d'autres personnes. | Fichier PGN, lien contenant l'étude compressée, ou Lichess comme hébergeur (à vérifier).      |
+| Étude collaborative en direct, commentaires entre utilisateurs                         | Il faut synchroniser plusieurs personnes.                               | Aucun.                                                                                        |
+| Classements, comparaison avec d'autres joueurs, stats globales propres à l'application | Il faudrait agréger les données de plusieurs utilisateurs.              | Aucun.                                                                                        |
+| Clé Gemini secrète pour le coach IA                                                    | Une clé placée dans le navigateur est visible par tout le monde.        | Repli heuristique local (déjà en place), ou clé saisie par chaque utilisateur, à ses risques. |
+
+### Possible mais limité
+
+| Besoin                            | Limite sans serveur                                                                                                                                                                                                 |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mise à jour automatique du profil | Rien ne tourne quand l'application est fermée : mise à jour à l'ouverture ou à la demande (ce qui correspond au besoin). Les synchronisations en arrière-plan des navigateurs sont peu fiables, surtout sur iPhone. |
+| Analyse de beaucoup de parties    | Stockfish tourne dans le navigateur : onglet ouvert, batterie, lenteur sur téléphone. Un joueur avec plusieurs milliers de parties dépasse déjà le plafond de 500.                                                  |
+| Puzzles                           | La base Lichess complète (plusieurs millions) ne tient pas dans un site statique. Sous-ensemble embarqué (quelques dizaines de milliers), figé à la publication : arbitrage taille / variété par thème et par Elo.  |
+| Explorateur d'ouvertures          | Arbre local (~3 800 lignes) possible partout. Stats mondiales par coup : l'API Explorer de Lichess exige un jeton d'après mes informations (à vérifier). Sans cela, on se limite à ses propres stats par ouverture. |
+| Partage par lien                  | Les données voyagent dans l'URL : taille limitée (une étude courte). Au-delà, un fichier.                                                                                                                           |
+| Partage via Google Drive          | Le dossier caché de la synchronisation actuelle n'est pas partageable (voir questions ouvertes).                                                                                                                    |
+| Conservation des données          | Tout vit dans le navigateur ; Safari peut vider les données d'un site peu utilisé. Parades : PWA installée, stockage persistant, copie Drive déjà en place.                                                         |
+| Import des parties                | Appels directs aux API Lichess et chess.com, soumis à leurs limites de débit : un très gros historique s'importe lentement.                                                                                         |
+| Explications du coach IA étendues | Les étendre aux puzzles et aux études ferait appeler Gemini plus souvent : même problème de clé.                                                                                                                    |
+
+### Sans changement : aucun serveur nécessaire
+
+- Import PGN et comptes Lichess / chess.com (déjà en place).
+- Analyse Stockfish, profil, entraînement et répétition espacée.
+- Explorateur d'ouvertures sur les données locales.
+- Puzzles, timer, Woodpecker et puzzles ratés, une fois le sous-ensemble embarqué.
+- Études privées : création, chapitres, commentaires, import PGN avec variantes, mode verrouillé contre l'ordinateur.
+- Hors ligne, sauvegarde JSON et Drive.
+
+### Le serveur actuel
+
+`server.ts` ne sert qu'au coach IA (clé Gemini) et à un import Lichess. Avec l'objectif « zéro processus permanent », le coach IA est la seule vraie dépendance. Trois options :
+
+1. le garder optionnel, avec repli heuristique (situation actuelle) ;
+2. passer à une fonction « serverless » : rien ne tourne en continu, mais c'est encore de l'infrastructure à héberger ;
+3. demander à chaque utilisateur sa propre clé.
+
+### Conséquence sur l'ordre recommandé
+
+Les points 1 à 3 de la section 4 (ouvertures, points forts et programme, puzzles et Woodpecker) restent entièrement faisables sans serveur. Les études aussi, **sauf le partage**, qui devient la décision à prendre : fichier, lien encodé ou passage par Lichess.
+
+## 7. Fichiers du projet utiles pour la suite
 
 - `ROADMAP.md`, `IMPROVEMENTS.md` : état et historique.
 - `src/utils/weaknessProfile.ts`, `src/components/Profile/` : profil de faiblesses.
