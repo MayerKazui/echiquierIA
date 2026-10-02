@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, Shield, Target } from 'lucide-react';
+import { Shield, Target } from 'lucide-react';
 import { BoardTheme, HeatmapMode } from '../../types/ui';
 
 interface BoardToolbarProps {
@@ -10,9 +10,6 @@ interface BoardToolbarProps {
   onHeatmapModeChange: (mode: HeatmapMode) => void;
   boardTheme: BoardTheme;
   onBoardThemeChange: (theme: BoardTheme) => void;
-  isImportingLichess: boolean;
-  lichessOpened: boolean;
-  onOpenLichess: () => void;
 }
 
 const GROUP_CLASS = 'flex items-center rounded-lg bg-slate-950 border border-slate-800 p-0.5';
@@ -83,7 +80,7 @@ const THEME_OPTIONS: Array<{ theme: BoardTheme; label: string; title: string; sw
   },
 ];
 
-/** Annotations, space control, board theme and Lichess import buttons. */
+/** Annotations, space control and board theme. */
 export const BoardToolbar: React.FC<BoardToolbarProps> = ({
   showAnnotations,
   threatCount,
@@ -92,9 +89,6 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
   onHeatmapModeChange,
   boardTheme,
   onBoardThemeChange,
-  isImportingLichess,
-  lichessOpened,
-  onOpenLichess,
 }) => (
   // One scrollable row on a phone, a wrapping bar from `sm` up
   <div
@@ -177,34 +171,6 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
           </button>
         ))}
       </div>
-    </div>
-
-    {/* Lichess Options */}
-    <div className={`${GROUP_CLASS} shrink-0`}>
-      <button
-        onClick={onOpenLichess}
-        aria-label="Ouvrir la partie sur Lichess"
-        disabled={isImportingLichess}
-        className="flex items-center gap-1 px-2 py-1.5 sm:py-1 rounded text-[11px] font-medium text-indigo-300 hover:text-white hover:bg-indigo-600/30 transition-colors cursor-pointer disabled:opacity-60"
-        title="Importer automatiquement et ouvrir la partie complète sur Lichess.org"
-      >
-        {isImportingLichess ? (
-          <span className="flex items-center gap-1 text-amber-300">
-            <span className="w-2.5 h-2.5 border-2 border-amber-300/40 border-t-amber-300 rounded-full animate-spin" />
-            <span>Import...</span>
-          </span>
-        ) : lichessOpened ? (
-          <span className="text-emerald-400 font-bold flex items-center gap-1">
-            <Check className="w-3 h-3 text-emerald-400" />
-            <span>Ouvert !</span>
-          </span>
-        ) : (
-          <span>
-            <span className="sm:hidden">Lichess</span>
-            <span className="hidden sm:inline">Partie Lichess</span>
-          </span>
-        )}
-      </button>
     </div>
   </div>
 );

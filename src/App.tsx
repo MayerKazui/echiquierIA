@@ -19,7 +19,6 @@ import { useGamePosition } from './hooks/useGamePosition';
 import { useMoveAnnotations } from './hooks/useMoveAnnotations';
 import { isPauseWorthy, useCriticalMoments } from './hooks/useCriticalMoments';
 import { useSandbox } from './hooks/useSandbox';
-import { useLichessImport } from './hooks/useLichessImport';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useSwipe } from './hooks/useSwipe';
 import { useMediaQuery } from './hooks/useMediaQuery';
@@ -55,7 +54,7 @@ import { OpeningStrip } from './components/GameView/OpeningStrip';
 import { PlayerBar } from './components/GameView/PlayerBar';
 import { BoardToolbar } from './components/GameView/BoardToolbar';
 import { HeatmapSummary } from './components/GameView/HeatmapSummary';
-import { LichessNotice, SandboxBanner } from './components/GameView/BoardNotices';
+import { SandboxBanner } from './components/GameView/BoardNotices';
 import { PlaybackControls } from './components/GameView/PlaybackControls';
 import { SidePanel } from './components/GameView/SidePanel';
 import { ViewFallback } from './components/GameView/ViewFallback';
@@ -153,8 +152,6 @@ export default function App() {
     () => (heatmapMode === 'none' ? null : computeBoardHeatmap(activeBoardFen)),
     [heatmapMode, activeBoardFen]
   );
-
-  const lichess = useLichessImport(pgn, isFlipped);
 
   const handleUpdateUserColor = useCallback(
     (color: PlayerColor) => {
@@ -318,7 +315,8 @@ export default function App() {
   const currentOpening = openingAtPly(moves, currentPly);
 
   // The pieces of the game view. A phone stacks them (see `gameView`); from `lg` up the board and the players
-  // are on the left, the opening, tools, move panel and evaluation chart on the right.
+  // are on the left, the opening, tools, evaluation chart and move panel on the right (the panel takes the height
+  // that is left, so the chart does not end up alone at the bottom of the window).
   const openingStrip = currentOpening && <OpeningStrip opening={currentOpening.name} eco={currentOpening.eco} />;
 
   const topPlayer = (
@@ -335,16 +333,11 @@ export default function App() {
         onHeatmapModeChange={changeHeatmapMode}
         boardTheme={boardTheme}
         onBoardThemeChange={setBoardTheme}
-        isImportingLichess={lichess.isImporting}
-        lichessOpened={lichess.showNotice}
-        onOpenLichess={lichess.openOnLichess}
       />
 
       {heatmapMode !== 'none' && boardHeatmapData && (
         <HeatmapSummary mode={heatmapMode} data={boardHeatmapData} onModeChange={changeHeatmapMode} />
       )}
-
-      {lichess.showNotice && <LichessNotice onDismiss={lichess.dismissNotice} />}
 
       {sandbox.isSandboxMode && <SandboxBanner moves={sandbox.history} onUndo={undoSandbox} onExit={leaveSandbox} />}
     </>
@@ -498,8 +491,8 @@ export default function App() {
       <div className="flex flex-col gap-3 min-w-0 h-[calc(100dvh-6.5rem)] min-h-[28rem]">
         {openingStrip}
         {toolbar}
-        {panel}
         {chart}
+        {panel}
       </div>
     </div>
   ) : (

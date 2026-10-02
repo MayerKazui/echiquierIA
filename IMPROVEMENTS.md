@@ -18,7 +18,9 @@ Fonctionnalités retirées pour alléger l'app (≈4 200 lignes supprimées) :
 - [x] **Export PDF** (boutons de l'en-tête et du Dashboard, `pdfExport.ts`, dépendance `jspdf`).
 - [x] **Flèches + Menaces fusionnés** en un seul bouton « Annotations » (touche `E` ; la touche `T` est supprimée).
 
-Conservés : « Partie Lichess » (`/api/lichess/import`), le graphique radar du joueur (`PlayerRadarChart`), « Clavier », le thème, la taille de l'échiquier, le contrôle de l'espace et « Partager le Bilan » (copie d'un résumé texte).
+Conservés : le graphique radar du joueur (`PlayerRadarChart`), « Clavier », le thème, la taille de l'échiquier, le contrôle de l'espace et « Partager le Bilan » (copie d'un résumé texte).
+
+Retiré depuis : le bouton « Partie Lichess » (et son avis de confirmation) ; la route `/api/lichess/import` du serveur n'est plus appelée par l'interface. La colonne de droite de l'écran de partie place le graphique d'évaluation sous la barre d'outils et laisse le panneau « Coup / Liste » prendre la hauteur restante, au lieu de coller le graphique en bas de la fenêtre avec un grand vide au-dessus.
 
 ## Priorité haute
 
