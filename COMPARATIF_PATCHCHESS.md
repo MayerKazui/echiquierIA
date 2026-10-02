@@ -109,7 +109,7 @@ Une fois les puzzles disponibles, le reste est modeste : timer, cycle Woodpecker
 - [ ] **Mise à jour manuelle du profil** : bouton « n'analyser que les nouvelles parties » ? Sous quelle forme ?
 - [x] **Parser PGN** : analyseur maison (`utils/studyPgn.ts`), `chess.js` ne servant qu'à jouer les coups. Variantes imbriquées, commentaires, glyphes, `[%cal]` et `[%csl]`.
 - [x] **Programme d'entraînement** : plan de trois objectifs au plus, dans une fenêtre du menu, recalculé à chaque ouverture. Pas d'objectif unique à l'ouverture de l'appli (l'écran de départ reste sobre).
-- [x] **Export PGN d'une étude** : fait (étude entière ou chapitre), au format Lichess. La sauvegarde JSON et la synchronisation Drive ne contiennent **pas** encore les études : à décider (voir `IMPROVEMENTS.md`, « Études »).
+- [x] **Export PGN d'une étude** : fait (étude entière ou chapitre), au format Lichess. Les études sont aussi dans la sauvegarde JSON (format 3) et la synchronisation Drive (voir `IMPROVEMENTS.md`, « Études »).
 
 ## 7. Fichiers du projet utiles pour la suite
 

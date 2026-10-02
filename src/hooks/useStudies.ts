@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Study } from '../types/study';
 import { deleteStudy, listStudies, saveStudy } from '../services/studyStore';
+import { getDriveSync } from '../services/driveSyncInstance';
 
 /** How long a change waits for the next one before it is written (typing a comment changes the study at every key). */
 export const SAVE_DELAY_MS = 500;
@@ -9,9 +10,10 @@ export type StudiesStatus = 'loading' | 'ready';
 
 /**
  * The studies of the player: read once, then changed in memory at once and written to the browser a moment
- * later (and when the view closes). `saveFailed` tells the player when the browser refused a write.
+ * later (and when the view closes). `saveFailed` tells the player when the browser refused a write. The list is
+ * read again when a Drive sync brought something in while the view is open.
  */
-export function useStudies() {
+export function useStudies(subscribeRestored: (listener: () => void) => () => void = getDriveSync().subscribeRestored) {
   const [studies, setStudies] = useState<Study[]>([]);
   const [status, setStatus] = useState<StudiesStatus>('loading');
   const [saveFailed, setSaveFailed] = useState(false);
@@ -40,6 +42,17 @@ export function useStudies() {
       void flush();
     };
   }, [flush]);
+
+  // A sync that brought studies in: what is waiting to be written goes first, so that it is not lost to the reload
+  useEffect(
+    () =>
+      subscribeRestored(() => {
+        void flush()
+          .then(listStudies)
+          .then((all) => setStudies(all));
+      }),
+    [subscribeRestored, flush]
+  );
 
   /** Replaces a study (or adds it) in memory and schedules its write. */
   const update = useCallback(

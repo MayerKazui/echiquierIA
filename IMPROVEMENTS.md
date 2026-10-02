@@ -482,8 +482,7 @@ Fin du point 3 de `ROADMAP.md`. Second onglet de la fenêtre « Ouvertures » (l
 - Tests : 16 pour l'analyseur et l'écriture, 7 pour l'arbre, 4 pour le choix de la réponse et le jugement d'un coup, 7 pour le stockage, 13 pour la fenêtre (création, variantes, promotion, suppression, clavier, import, export, jeu verrouillé) : 1 650 tests au total.
 - Vérifié dans Chrome (Playwright) : import d'une étude avec variante, arbre, jeu verrouillé (coup de l'étude puis réponse de l'ordinateur, flèche d'indice). Pas essayé : téléphone, lecteur d'écran, étude de grande taille.
 - **Limites** :
-  - Les études ne sont **pas** dans la sauvegarde JSON ni dans la synchronisation Drive (le format de sauvegarde devrait passer à 3, et les suppressions d'études se propager) : l'export PGN est la seule copie hors du navigateur.
-  - On ne peut pas réordonner les chapitres ni les variantes (seulement promouvoir une variante) ni copier un chapitre.
+  - On ne peut pas copier un chapitre. (Les études sont dans la sauvegarde et la synchronisation Drive, et on peut réordonner : voir plus bas.)
   - Le chapitre verrouillé ne retient pas les erreurs d'une séance à l'autre.
   - Pas de moteur dans les études (ni évaluation, ni analyse d'une ligne).
   - Seules les parties « Standard » sont lues (pas de Chess960 ni d'autre variante).
@@ -502,6 +501,20 @@ Fin du point 3 de `ROADMAP.md`. Second onglet de la fenêtre « Ouvertures » (l
 - [x] La touche peut être pressée **pendant** le tracé : l'aperçu de la flèche change de couleur au moment où on la presse ou la relâche (avant, la couleur était fixée au début du clic), et la forme prend la couleur au relâchement du bouton. Alt seul n'ouvre plus le menu du navigateur pendant un tracé.
 - Tests : 12 de plus pour le plateau (chaque touche pour une flèche et pour un rond, quatre couleurs côte à côte, touche pressée en cours de tracé) : 1 675 tests au total. Vérifié dans Chrome avec de vraies touches (Maj, Alt, Ctrl, y compris pressée en cours de glisser).
 - **Limite** : certains gestionnaires de fenêtres (Linux) réservent Alt + clic ; la couleur bleue est alors inaccessible depuis le clavier de ce poste.
+
+### Suite : réordonner, sauvegarde JSON et Drive — fait
+
+- [x] **Réordonner** : « Avant » / « Après » déplacent le chapitre ouvert (désactivés aux extrémités, absents s'il n'y a qu'un chapitre) ; « Monter » / « Descendre » changent l'ordre des variantes du coup sélectionné (`moveNode`, `moveItem` dans `utils/studyTree.ts`). La première continuation est la ligne principale : monter une variante la fait passer en ligne principale, comme « Faire de cette variante la ligne principale ». Boutons plutôt que glisser-déposer : ils marchent au clavier et au doigt.
+- [x] **Études dans la sauvegarde** : le format passe à **3** (`studies`, `studyDeletions`). Un fichier de format 1 ou 2 se lit toujours (pas d'études). Une application de format 2 qui trouve une copie Drive de format 3 refuse de l'écraser (« mettez l'application à jour ») : sans cela elle renverrait une copie sans études et les effacerait de Drive. Même règle que pour le format 2 et les suppressions de parties.
+- [x] **Fusion** (`mergeStudies` dans `services/studyStore.ts`) : une étude est prise **en entier** ; la version modifiée en dernier (`updatedAt`) gagne, à égalité on garde celle d'ici. Les suppressions voyagent comme celles des parties : une trace `{ id, deletedAt }` (jamais antérieure à la dernière modification de l'étude) est gardée dans une base `deletions` de `echiquier-ia-studies` (version 2, mise à niveau sans perte des études de la version 1), 1 000 traces au plus. Une synchronisation supprime ici l'étude dont la dernière modification n'est pas postérieure à la trace, et ne ramène pas une étude supprimée ici ; une étude modifiée après la suppression, ailleurs, survit. Importer un fichier choisi par le joueur ramène ses études même supprimées ici (datées juste après la suppression pour que celle-ci ne les efface pas à nouveau ailleurs), et ignore les traces du fichier.
+- [x] **Synchronisation automatique** : toute modification d'étude (enregistrée 500 ms après la frappe) prévient le gestionnaire Drive comme une partie ajoutée (`onStudiesChanged`, `onLocalDataChanged`) : copie 30 s après le dernier changement. La fenêtre « Études » relit sa liste quand une synchronisation a apporté des études pendant qu'elle est ouverte (après avoir écrit ce qui attendait).
+- [x] **Messages** : « Sauvegarde exportée : … , 1 étude », « Études : 2 études restaurées », « 1 étude supprimée (supprimée sur un autre appareil) », « Copie envoyée : … , 2 études (20 Ko) », éléments illisibles comptés avec les parties et les cartes, texte d'explication de la sauvegarde.
+- Tests : 12 pour le stockage (traces, mise à niveau de la base, fusion, notifications), 6 pour le fichier de sauvegarde (études, format 2, fichier choisi, synchronisation), 4 pour la synchronisation Drive, 4 pour la fenêtre (ordre), 3 pour les utilitaires d'ordre, 4 pour le hook `useStudies`, 1 pour `onLocalDataChanged`, plus les messages : 1 713 tests au total. Vérifié dans Chrome : deux chapitres réordonnés, export JSON (format 3, ordre B puis A), base des études effacée, import du fichier : « 1 étude restaurée », ordre conservé.
+- **Limites** :
+  - Deux appareils qui modifient des chapitres **différents** d'une même étude entre deux synchronisations perdent l'une des modifications (la version modifiée en dernier gagne, étude entière). Fusionner chapitre par chapitre demanderait une horloge par chapitre.
+  - L'horloge de chaque appareil décide de « modifié en dernier » : un appareil dont l'heure est très en avance l'emporte.
+  - Les études lourdes (des centaines de chapitres) alourdissent la copie Drive, compressée mais renvoyée en entier.
+  - Pas essayé avec un vrai compte Google : la synchronisation est vérifiée avec un Drive simulé, comme le reste.
 
 ## Ordre suggéré
 

@@ -75,7 +75,7 @@ describe('DataBackup', () => {
       const [name, text] = download.mock.calls[0] as [string, string];
       expect(name).toMatch(/^echiquier-ia-sauvegarde-\d{4}-\d{2}-\d{2}\.json$/);
       const data = JSON.parse(text);
-      expect(data).toMatchObject({ app: BACKUP_APP, format: 2, preferences: { chess_board_theme: 'wood' } });
+      expect(data).toMatchObject({ app: BACKUP_APP, format: 3, preferences: { chess_board_theme: 'wood' } });
       expect(data.games).toHaveLength(1);
       expect(data.cards).toHaveLength(1);
     });
@@ -251,12 +251,14 @@ describe('DataBackup', () => {
 });
 
 describe('describeRestore', () => {
-  const none = { games: 0, cards: 0 };
+  const none = { games: 0, cards: 0, studies: 0 };
   const games = (over = {}) => ({ added: 0, replaced: 0, kept: 0, trimmed: 0, deleted: 0, ...over });
   const cards = (over = {}) => ({ added: 0, replaced: 0, kept: 0, ...over });
+  const studies = (over = {}) => ({ added: 0, replaced: 0, kept: 0, deleted: 0, ...over });
   const report = (over: Partial<Parameters<typeof describeRestore>[0]> = {}) => ({
     games: games(),
     cards: cards(),
+    studies: studies(),
     preferencesApplied: 0,
     ...over,
   });
@@ -307,9 +309,29 @@ describe('describeRestore', () => {
     expect(describeRestore(report({ preferencesApplied: 4 }), none)).toContain('4 réglages restaurés');
   });
 
+  it('counts the studies restored (added or replaced) and the ones deleted on another device', () => {
+    expect(describeRestore(report({ studies: studies({ added: 2, replaced: 1, kept: 5 }) }), none)).toBe(
+      'Études : 3 études restaurées.'
+    );
+    expect(describeRestore(report({ studies: studies({ added: 1 }) }), none)).toBe('Études : 1 étude restaurée.');
+    expect(describeRestore(report({ studies: studies({ deleted: 2 }) }), none)).toBe(
+      '2 études supprimées (supprimées sur un autre appareil).'
+    );
+    expect(describeRestore(report({ studies: studies({ kept: 3 }) }), none)).toBe(
+      'Tout était déjà à jour : rien à restaurer.'
+    );
+  });
+
+  it('says when the studies could not be written', () => {
+    expect(describeRestore(report({ studies: null }), none)).toContain(
+      "Les études n'ont pas pu être écrites dans ce navigateur."
+    );
+  });
+
   it('counts the items that could not be read', () => {
-    expect(describeRestore(report(), { games: 1, cards: 0 })).toContain('1 élément illisible ignoré.');
-    expect(describeRestore(report(), { games: 2, cards: 1 })).toContain('3 éléments illisibles ignorés.');
+    expect(describeRestore(report(), { games: 1, cards: 0, studies: 0 })).toContain('1 élément illisible ignoré.');
+    expect(describeRestore(report(), { games: 2, cards: 1, studies: 0 })).toContain('3 éléments illisibles ignorés.');
+    expect(describeRestore(report(), { games: 0, cards: 0, studies: 2 })).toContain('2 éléments illisibles ignorés.');
   });
 
   it('says which part could not be written', () => {

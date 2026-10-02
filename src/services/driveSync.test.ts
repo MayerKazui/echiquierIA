@@ -9,6 +9,9 @@ import { AuthError, type TokenProvider } from './googleAuth';
 import { DRIVE_FILE_NAME, DriveError, type FetchFn } from './googleDrive';
 import { deleteGame, gameId, listGames, saveGame, clearGames, onGamesChanged } from './gameStore';
 import { loadCards, saveCard } from './trainingStore';
+import { deleteStudy, listStudies, saveStudy, STUDY_SCHEMA_VERSION } from './studyStore';
+import { createChapter } from '../utils/studyTree';
+import type { Study } from '../types/study';
 
 const move = {
   san: 'e4',
@@ -113,6 +116,71 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('syncWithDrive, studies', () => {
+  const studyOf = (id: string, name: string, updatedAt: number): Study => ({
+    id,
+    name,
+    description: '',
+    chapters: [createChapter('C')],
+    createdAt: 1,
+    updatedAt,
+    schemaVersion: STUDY_SCHEMA_VERSION,
+  });
+
+  it('sends the studies, alone if that is all there is', async () => {
+    await saveStudy(studyOf('a', 'A', 1));
+    const drive = fakeDrive();
+    const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
+    expect(report.sent).toMatchObject({ games: 0, cards: 0, studies: 1 });
+    const parsed = parseBackup(await unpackText(drive.files.get('file-2') as Uint8Array));
+    expect(parsed.ok && parsed.backup.studies.map((s) => s.name)).toEqual(['A']);
+  });
+
+  it('merges the studies of Drive with the ones here, the more recent version of a study winning', async () => {
+    await saveStudy(studyOf('same', 'Locale', 1)); // stamped now by the save
+    await saveStudy(studyOf('only-here', 'Ici', 1));
+    const drive = fakeDrive(
+      await bytesOf(
+        remoteBackup({
+          studies: [studyOf('same', 'Distante ancienne', 5), studyOf('only-there', 'Là', 5)],
+        })
+      )
+    );
+    const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
+    expect(report.restore?.studies).toMatchObject({ added: 1, kept: 1 });
+    expect((await listStudies()).map((s) => s.name).sort()).toEqual(['Ici', 'Locale', 'Là']);
+    const parsed = parseBackup(await unpackText(drive.files.get('file-1') as Uint8Array));
+    expect(parsed.ok && parsed.backup.studies).toHaveLength(3);
+  });
+
+  it('deletes here what was deleted on another device, and sends the deletion of what was deleted here', async () => {
+    await saveStudy(studyOf('gone-there', 'G', 1));
+    const [{ updatedAt }] = await listStudies();
+    await saveStudy(studyOf('gone-here', 'H', 1));
+    await deleteStudy('gone-here');
+    const drive = fakeDrive(
+      await bytesOf(
+        remoteBackup({
+          studies: [studyOf('gone-here', 'H', 1)],
+          studyDeletions: [{ id: 'gone-there', deletedAt: updatedAt }],
+        })
+      )
+    );
+    const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
+    expect(report.restore?.studies).toMatchObject({ deleted: 1, added: 0 });
+    expect(await listStudies()).toEqual([]);
+    const parsed = parseBackup(await unpackText(drive.files.get('file-1') as Uint8Array));
+    expect(parsed.ok && parsed.backup.studies).toEqual([]);
+    expect(parsed.ok && parsed.backup.studyDeletions.map((d) => d.id).sort()).toEqual(['gone-here', 'gone-there']);
+  });
+
+  it('counts the studies of the copy that were not valid', async () => {
+    const drive = fakeDrive(await bytesOf(remoteBackup({ studies: [studyOf('ok', 'Ok', 5), { id: 'broken' }] })));
+    const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
+    expect(report.rejected).toEqual({ games: 0, cards: 0, studies: 1 });
+  });
+});
+
 describe('syncWithDrive', () => {
   it('creates the copy when Drive has none', async () => {
     await saveGame({ pgn: '1. e4 *', depth: 14, result: result('Alice') });
@@ -169,7 +237,7 @@ describe('syncWithDrive', () => {
   it('counts the items of the copy that were not valid', async () => {
     const drive = fakeDrive(await bytesOf(remoteBackup({ games: [{ broken: true }], cards: [cardOf('ok'), 3] })));
     const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
-    expect(report.rejected).toEqual({ games: 1, cards: 1 });
+    expect(report.rejected).toEqual({ games: 1, cards: 1, studies: 0 });
   });
 
   it('reads a copy written without compression', async () => {
@@ -182,7 +250,7 @@ describe('syncWithDrive', () => {
   it('sends nothing when there is nothing here and nothing there', async () => {
     const drive = fakeDrive();
     const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
-    expect(report).toEqual({ restore: null, rejected: { games: 0, cards: 0 }, sent: null });
+    expect(report).toEqual({ restore: null, rejected: { games: 0, cards: 0, studies: 0 }, sent: null });
     expect(drive.calls).toEqual(['GET /drive/v3/files']);
   });
 

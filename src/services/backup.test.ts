@@ -18,6 +18,9 @@ import {
 } from './backup';
 import { deleteGame, gameId, listGames, loadGame, onGamesChanged, saveGame } from './gameStore';
 import { loadCards, saveCard } from './trainingStore';
+import { deleteStudy, listStudies, listStudyDeletions, saveStudy, STUDY_SCHEMA_VERSION } from './studyStore';
+import { createChapter } from '../utils/studyTree';
+import type { Study } from '../types/study';
 
 const move = {
   san: 'e4',
@@ -131,8 +134,8 @@ describe('createBackup', () => {
     expect(backup.deletions).toEqual([{ id: gameId('1. e4 *'), deletedAt: expect.any(Number) }]);
   });
 
-  it('is of format 2', () => {
-    expect(BACKUP_FORMAT).toBe(2);
+  it('is of format 3', () => {
+    expect(BACKUP_FORMAT).toBe(3);
   });
 });
 
@@ -150,7 +153,7 @@ describe('parseBackup', () => {
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     expect(parsed.backup.cards[0].dueAt).toBe(Number.MAX_SAFE_INTEGER);
-    expect(parsed.rejected).toEqual({ games: 0, cards: 0 });
+    expect(parsed.rejected).toEqual({ games: 0, cards: 0, studies: 0 });
   });
 
   describe('refuses a file that is not a backup', () => {
@@ -261,7 +264,7 @@ describe('parseBackup', () => {
     if (!parsed.ok) return;
     expect(parsed.backup.games).toHaveLength(1);
     expect(parsed.backup.cards).toHaveLength(1);
-    expect(parsed.rejected).toEqual({ games: 2, cards: 3 });
+    expect(parsed.rejected).toEqual({ games: 2, cards: 3, studies: 0 });
   });
 
   it('keeps only the settings of the app, with sane values', () => {
@@ -391,6 +394,8 @@ describe('restoreBackup', () => {
       games: [],
       cards: [],
       deletions: [],
+      studies: [],
+      studyDeletions: [],
       preferences: { chess_board_theme: 'wood', chess_sound_enabled: 'false' },
     };
     const data = new Map<string, string>();
@@ -417,5 +422,104 @@ describe('restoreBackup', () => {
   it('works without a storage for the settings', async () => {
     const backup = await sampleBackup();
     expect((await restoreBackup(backup, undefined)).preferencesApplied).toBe(0);
+  });
+});
+
+const studyOf = (id: string, name = 'Italienne', updatedAt = 10): Study => ({
+  id,
+  name,
+  description: 'Intro',
+  chapters: [createChapter('Chapitre 1')],
+  createdAt: 1,
+  updatedAt,
+  schemaVersion: STUDY_SCHEMA_VERSION,
+});
+
+describe('backup of the studies', () => {
+  it('holds the studies and the traces of the deleted ones, and reads them back', async () => {
+    await saveStudy(studyOf('kept'));
+    await saveStudy(studyOf('gone'));
+    await deleteStudy('gone');
+    const backup = await createBackup(0, fakeStorage());
+    expect(backup.studies.map((s) => s.id)).toEqual(['kept']);
+    expect(backup.studyDeletions.map((d) => d.id)).toEqual(['gone']);
+
+    const parsed = parseBackup(serializeBackup(backup));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.backup.studies[0].chapters[0].name).toBe('Chapitre 1');
+    expect(parsed.backup.studyDeletions).toEqual(backup.studyDeletions);
+  });
+
+  it('reads a file of format 2, which has no studies', () => {
+    const parsed = parseBackup(JSON.stringify({ app: BACKUP_APP, format: 2, cards: [card('a')] }));
+    expect(parsed.ok && parsed.backup).toMatchObject({ studies: [], studyDeletions: [] });
+  });
+
+  it('is not empty when it holds only studies or only traces of deleted ones', () => {
+    expect(parseBackup(JSON.stringify({ app: BACKUP_APP, format: 3, studies: [studyOf('a')] })).ok).toBe(true);
+    expect(
+      parseBackup(JSON.stringify({ app: BACKUP_APP, format: 3, studyDeletions: [{ id: 'a', deletedAt: 5 }] })).ok
+    ).toBe(true);
+  });
+
+  it('leaves out, and counts, the studies that are not valid', () => {
+    const parsed = parseBackup(
+      JSON.stringify({
+        app: BACKUP_APP,
+        format: 3,
+        studies: [studyOf('ok'), { id: 'x' }, 3, { ...studyOf('old'), schemaVersion: 0 }],
+      })
+    );
+    expect(parsed.ok && parsed.backup.studies.map((s) => s.id)).toEqual(['ok']);
+    expect(parsed.ok && parsed.rejected.studies).toBe(3);
+  });
+
+  it('refuses a file with too many studies', () => {
+    const studies = Array.from({ length: 20_001 }, () => 0);
+    expect(parseBackup(JSON.stringify({ app: BACKUP_APP, format: 3, studies })).ok).toBe(false);
+  });
+
+  it('puts the studies of a file the user chose back, even one deleted here since, and keeps a newer local one', async () => {
+    await saveStudy(studyOf('deleted', 'Locale'));
+    await deleteStudy('deleted');
+    await saveStudy({ ...studyOf('local', 'Récente'), updatedAt: 0 }); // stamped now by the save
+    const backup: Backup = {
+      app: BACKUP_APP,
+      format: BACKUP_FORMAT,
+      exportedAt: '',
+      games: [],
+      cards: [],
+      deletions: [],
+      studies: [studyOf('deleted', 'Du fichier'), studyOf('local', 'Ancienne', 1), studyOf('new', 'Nouvelle')],
+      studyDeletions: [{ id: 'new', deletedAt: 999_999_999_999_999 }], // ignored when importing a file
+      preferences: {},
+    };
+    const report = await restoreBackup(backup, fakeStorage());
+    expect(report.studies).toMatchObject({ added: 2, kept: 1 });
+    const names = (await listStudies()).map((s) => s.name).sort();
+    expect(names).toEqual(['Du fichier', 'Nouvelle', 'Récente']);
+  });
+
+  it('applies the deletions of another device in a sync, and does not take back a study deleted here', async () => {
+    await saveStudy(studyOf('here'));
+    const [{ updatedAt }] = await listStudies();
+    await saveStudy(studyOf('deleted-here'));
+    await deleteStudy('deleted-here');
+    const backup: Backup = {
+      app: BACKUP_APP,
+      format: BACKUP_FORMAT,
+      exportedAt: '',
+      games: [],
+      cards: [],
+      deletions: [],
+      studies: [studyOf('deleted-here', 'Revenue', 1)],
+      studyDeletions: [{ id: 'here', deletedAt: updatedAt }],
+      preferences: {},
+    };
+    const report = await restoreBackup(backup, fakeStorage(), { mode: 'sync', silent: true });
+    expect(report.studies).toMatchObject({ added: 0, deleted: 1 });
+    expect(await listStudies()).toEqual([]);
+    expect((await listStudyDeletions()).map((d) => d.id).sort()).toEqual(['deleted-here', 'here']);
   });
 });

@@ -28,7 +28,10 @@ type Notice = { kind: 'busy' | 'success' | 'error'; text: string; canReload?: bo
 const plural = (count: number, one: string, many: string) => `${count} ${count > 1 ? many : one}`;
 
 /** What a restore did, in a sentence. */
-export function describeRestore(report: RestoreReport, rejected: { games: number; cards: number }): string {
+export function describeRestore(
+  report: RestoreReport,
+  rejected: { games: number; cards: number; studies: number }
+): string {
   const parts: string[] = [];
   if (report.games) {
     const { added, replaced, kept, trimmed, deleted } = report.games;
@@ -57,12 +60,25 @@ export function describeRestore(report: RestoreReport, rejected: { games: number
   } else if (report.cards === null) {
     parts.push("La progression d'entraînement n'a pas pu être écrite dans ce navigateur.");
   }
+  if (report.studies) {
+    const { added, replaced, deleted } = report.studies;
+    if (added + replaced > 0) {
+      parts.push(`Études : ${plural(added + replaced, 'étude restaurée', 'études restaurées')}.`);
+    }
+    if (deleted > 0) {
+      parts.push(
+        `${plural(deleted, 'étude supprimée', 'études supprimées')} (${deleted > 1 ? 'supprimées' : 'supprimée'} sur un autre appareil).`
+      );
+    }
+  } else if (report.studies === null) {
+    parts.push("Les études n'ont pas pu être écrites dans ce navigateur.");
+  }
   if (report.preferencesApplied > 0) {
     parts.push(
       `${plural(report.preferencesApplied, 'réglage restauré', 'réglages restaurés')} (rechargez la page pour les appliquer).`
     );
   }
-  const unreadable = rejected.games + rejected.cards;
+  const unreadable = rejected.games + rejected.cards + rejected.studies;
   if (unreadable > 0) {
     parts.push(`${plural(unreadable, 'élément illisible ignoré', 'éléments illisibles ignorés')}.`);
   }
@@ -88,7 +104,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({
       download(backupFileName(), serializeBackup(backup));
       setNotice({
         kind: 'success',
-        text: `Sauvegarde exportée : ${plural(backup.games.length, 'partie', 'parties')}, ${plural(backup.cards.length, 'position', 'positions')} d'entraînement.`,
+        text: `Sauvegarde exportée : ${plural(backup.games.length, 'partie', 'parties')}, ${plural(backup.cards.length, 'position', 'positions')} d'entraînement${backup.studies.length > 0 ? `, ${plural(backup.studies.length, 'étude', 'études')}` : ''}.`,
       });
     } catch (err) {
       console.error('Backup export failed:', err);
@@ -110,7 +126,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({
       }
       const report = await restoreBackup(parsed.backup);
       onRestored();
-      const failed = report.games === null && report.cards === null;
+      const failed = report.games === null && report.cards === null && report.studies === null;
       setNotice({
         kind: failed ? 'error' : 'success',
         text: describeRestore(report, parsed.rejected),
@@ -126,8 +142,8 @@ export const DataBackup: React.FC<DataBackupProps> = ({
     <section aria-label="Sauvegarde" className="flex flex-col gap-2 border-t border-slate-800/80 pt-3">
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
         <p id={descriptionId} className="text-[11px] text-slate-400 sm:max-w-md">
-          Vos parties, votre progression d&apos;entraînement et vos réglages ne sont que dans ce navigateur : vider ses
-          données les efface. Le fichier de sauvegarde n&apos;est pas chiffré.
+          Vos parties, votre progression d&apos;entraînement, vos études et vos réglages ne sont que dans ce navigateur
+          : vider ses données les efface. Le fichier de sauvegarde n&apos;est pas chiffré.
         </p>
         <div className="flex gap-2 shrink-0">
           <button

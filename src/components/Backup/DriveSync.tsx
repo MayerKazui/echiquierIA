@@ -33,7 +33,7 @@ export function describeSync(report: DriveSyncReport): string {
   if (report.sent) {
     const kb = Math.max(1, Math.round(report.sent.bytes / 1024));
     parts.push(
-      `Copie envoyée : ${plural(report.sent.games, 'partie', 'parties')}, ${plural(report.sent.cards, 'position', 'positions')} d'entraînement (${kb} Ko).`
+      `Copie envoyée : ${plural(report.sent.games, 'partie', 'parties')}, ${plural(report.sent.cards, 'position', 'positions')} d'entraînement${report.sent.studies > 0 ? `, ${plural(report.sent.studies, 'étude', 'études')}` : ''} (${kb} Ko).`
     );
   } else {
     parts.push("Rien à envoyer : ce navigateur n'a encore aucune donnée.");
@@ -94,7 +94,11 @@ export const DriveSync: React.FC<DriveSyncProps> = ({
     setNotice({ kind: 'busy', text: 'Synchronisation avec Google Drive…' });
     try {
       const report = await manager.syncNow();
-      const failed = report.restore !== null && report.restore.games === null && report.restore.cards === null;
+      const failed =
+        report.restore !== null &&
+        report.restore.games === null &&
+        report.restore.cards === null &&
+        report.restore.studies === null;
       setNotice({
         kind: failed ? 'error' : 'success',
         text: describeSync(report),

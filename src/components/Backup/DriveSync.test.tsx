@@ -11,14 +11,15 @@ import { DriveSync, describeAutoSync, describeSync } from './DriveSync';
 const restoreOf = (over: Partial<NonNullable<DriveSyncReport['restore']>> = {}) => ({
   games: { added: 0, replaced: 0, kept: 0, trimmed: 0, deleted: 0 },
   cards: { added: 0, replaced: 0, kept: 0 },
+  studies: { added: 0, replaced: 0, kept: 0, deleted: 0 },
   preferencesApplied: 0,
   ...over,
 });
 
 const report = (over: Partial<DriveSyncReport> = {}): DriveSyncReport => ({
   restore: restoreOf({ games: { added: 2, replaced: 0, kept: 0, trimmed: 0, deleted: 0 } }),
-  rejected: { games: 0, cards: 0 },
-  sent: { games: 3, cards: 1, bytes: 20_480 },
+  rejected: { games: 0, cards: 0, studies: 0 },
+  sent: { games: 3, cards: 1, studies: 0, bytes: 20_480 },
   ...over,
 });
 
@@ -69,8 +70,24 @@ describe('describeSync', () => {
     expect(describeSync(report({ sent: null }))).toContain("Rien à envoyer : ce navigateur n'a encore aucune donnée.");
   });
 
+  it('counts the studies sent, and only when there are some', () => {
+    expect(describeSync(report({ sent: { games: 3, cards: 1, studies: 2, bytes: 20_480 } }))).toContain(
+      "Copie envoyée : 3 parties, 1 position d'entraînement, 2 études (20 Ko)."
+    );
+    expect(describeSync(report({ sent: { games: 0, cards: 0, studies: 1, bytes: 20_480 } }))).toContain(
+      "0 partie, 0 position d'entraînement, 1 étude (20 Ko)."
+    );
+  });
+
+  it('says what came from Drive for the studies', () => {
+    const studies = { added: 2, replaced: 0, kept: 0, deleted: 1 };
+    const text = describeSync(report({ restore: restoreOf({ studies }) }));
+    expect(text).toContain('Études : 2 études restaurées.');
+    expect(text).toContain('1 étude supprimée (supprimée sur un autre appareil)');
+  });
+
   it('never shows a size of 0 Ko', () => {
-    expect(describeSync(report({ sent: { games: 0, cards: 1, bytes: 100 } }))).toContain('(1 Ko)');
+    expect(describeSync(report({ sent: { games: 0, cards: 1, studies: 0, bytes: 100 } }))).toContain('(1 Ko)');
   });
 
   it('says what was deleted elsewhere', () => {
@@ -190,7 +207,7 @@ describe('DriveSync', () => {
   });
 
   it('is an error when the browser could not store what Drive brought', async () => {
-    const lost = restoreOf({ games: null as never, cards: null as never });
+    const lost = restoreOf({ games: null as never, cards: null as never, studies: null as never });
     renderSync({ run: vi.fn(() => Promise.resolve(report({ restore: lost }))) });
     await userEvent.click(await syncButton());
     expect((await screen.findByRole('alert')).textContent).toContain("n'ont pas pu être écrites");
