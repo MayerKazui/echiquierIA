@@ -1,7 +1,18 @@
 import { onGamesChanged } from './gameStore';
+import { onStudiesChanged } from './studyStore';
 import { createTokenProvider, googleClientId, loadGoogleIdentity, type TokenProvider } from './googleAuth';
 import { syncWithDrive } from './driveSync';
 import { createDriveSyncManager, type DriveSyncManager } from './driveSyncManager';
+
+/** Subscribes to every change of what the sync carries (the games and the studies); returns the unsubscription. */
+export function onLocalDataChanged(listener: () => void): () => void {
+  const offGames = onGamesChanged(listener);
+  const offStudies = onStudiesChanged(listener);
+  return () => {
+    offGames();
+    offStudies();
+  };
+}
 
 let instance: DriveSyncManager | null = null;
 
@@ -22,7 +33,7 @@ export function getDriveSync(): DriveSyncManager {
       clientId,
       tokens: () => (tokens ??= createTokenProvider({ clientId: clientId ?? '' })),
       run: (provider, interactive) => syncWithDrive({ tokens: provider, interactive }),
-      onChange: onGamesChanged,
+      onChange: onLocalDataChanged,
       loadScript: () => loadGoogleIdentity(),
       storage: safeStorage(),
     });

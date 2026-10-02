@@ -51,7 +51,8 @@ export interface BoardSquareProps {
   /** The square that is in the tab order (roving tabindex). */
   isFocusable: boolean;
   isCheck: boolean;
-  isUserHighlight: boolean;
+  /** Color of the circle drawn on the square (right-click, or a study's), null when there is none. */
+  highlightColor: string | null;
   isBestTarget: boolean;
   isBestOptimal: boolean;
   isDragOver: boolean;
@@ -97,7 +98,7 @@ export const BoardSquare = memo(function BoardSquare({
   isLegalDestination,
   isFocusable,
   isCheck,
-  isUserHighlight,
+  highlightColor,
   isBestTarget,
   isBestOptimal,
   isDragOver,
@@ -161,9 +162,12 @@ export const BoardSquare = memo(function BoardSquare({
       {/* Heatmap space control overlay */}
       {heatmapMode && <HeatmapSquareOverlay ctrl={heatmapControl} mode={heatmapMode} />}
 
-      {/* User custom highlight circle (right-click toggle) */}
-      {isUserHighlight && (
-        <div className="absolute inset-1 rounded-full border-3 sm:border-4 border-emerald-400/90 bg-emerald-400/25 pointer-events-none z-10 shadow-sm" />
+      {/* Circle drawn on the square (right-click toggle, or a study's) */}
+      {highlightColor && (
+        <div
+          className="absolute inset-1 rounded-full border-3 sm:border-4 pointer-events-none z-10 shadow-sm"
+          style={{ borderColor: highlightColor, backgroundColor: `${highlightColor}40` }}
+        />
       )}
 
       {/* Best move destination indicator (dashed circle) */}

@@ -13,8 +13,9 @@ import { packText, unpackText } from '../utils/gzip';
 /**
  * Keeps a copy of the backup in the user's Google Drive (hidden application data folder) and brings it back:
  * what Drive holds is merged into the browser (same rules as importing a file: the most recent version of a game
- * wins, nothing is lost), then the merged result is sent back, so every browser the user syncs ends with the same
- * data. Two limits of a merge: a game deleted here comes back from Drive at the next sync, and the file is not
+ * or of a study wins, nothing is lost), then the merged result is sent back, so every browser the user syncs ends
+ * with the same data. Deletions travel as traces (see `gameStore`, `studyStore`). Two limits of a merge: a study is
+ * taken whole (two devices that edited it in the meantime keep the version changed last), and the file is not
  * encrypted (it is private to the user's Google account, like the rest of their Drive).
  */
 
@@ -22,9 +23,9 @@ export interface DriveSyncReport {
   /** What Drive held, merged into the browser. Null when Drive had no copy yet. */
   restore: RestoreReport | null;
   /** Items of the copy that were not valid and were left out. */
-  rejected: { games: number; cards: number };
+  rejected: { games: number; cards: number; studies: number };
   /** What was sent to Drive. Null when there was nothing to send. */
-  sent: { games: number; cards: number; bytes: number } | null;
+  sent: { games: number; cards: number; studies: number; bytes: number } | null;
 }
 
 /** A sync that stopped before changing anything on Drive; `message` is meant for the user. */
@@ -64,7 +65,7 @@ export async function syncWithDrive({
   const remote = await withToken((token) => findBackupFile(token, fetchFn));
 
   let restore: RestoreReport | null = null;
-  let rejected = { games: 0, cards: 0 };
+  let rejected = { games: 0, cards: 0, studies: 0 };
   if (remote) {
     const bytes = await withToken((token) => downloadFile(token, remote.id, fetchFn));
     let text: string;
@@ -93,6 +94,8 @@ export async function syncWithDrive({
     backup.games.length === 0 &&
     backup.cards.length === 0 &&
     backup.deletions.length === 0 &&
+    backup.studies.length === 0 &&
+    backup.studyDeletions.length === 0 &&
     Object.keys(backup.preferences).length === 0
   ) {
     return { restore, rejected, sent: null };
@@ -102,7 +105,12 @@ export async function syncWithDrive({
   return {
     restore,
     rejected,
-    sent: { games: backup.games.length, cards: backup.cards.length, bytes: payload.length },
+    sent: {
+      games: backup.games.length,
+      cards: backup.cards.length,
+      studies: backup.studies.length,
+      bytes: payload.length,
+    },
   };
 }
 
