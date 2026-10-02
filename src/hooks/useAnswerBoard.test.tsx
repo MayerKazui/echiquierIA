@@ -29,6 +29,13 @@ describe('useAnswerBoard', () => {
     expect(chessAudio.playForMove).toHaveBeenCalledWith('e4', false);
   });
 
+  it('puts the piece down when its square is clicked a second time', () => {
+    const { result } = setup();
+    act(() => result.current.handleSquareClick('e2'));
+    act(() => result.current.handleSquareClick('e2'));
+    expect(result.current.selectedSquare).toBeNull();
+  });
+
   it('plays a piece dropped on a square', () => {
     const { result, onAnswer } = setup();
     act(() => result.current.handlePieceMove('g1', 'f3'));

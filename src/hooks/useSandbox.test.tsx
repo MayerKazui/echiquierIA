@@ -33,6 +33,21 @@ describe('useSandbox promotion', () => {
     expect(result.current.activeFen.split(' ')[0]).toBe('N6k/8/8/8/8/8/8/4K3');
   });
 
+  it('tells whether a dragged piece was played, so that the board can give it back', () => {
+    const { result } = renderHook(() => useSandbox(BEFORE_PROMOTION));
+    expect(result.current.handlePieceMove('a7', 'b5')).toBe(false); // not a pawn move
+    expect(result.current.handlePieceMove('a7', 'a7')).toBe(false);
+    expect(result.current.handlePieceMove('a7', 'a8')).toBe(true); // waits for the choice of the piece
+  });
+
+  it('puts the piece down when its square is clicked a second time', () => {
+    const { result } = renderHook(() => useSandbox(BEFORE_PROMOTION));
+    act(() => result.current.handleSquareClick('a7'));
+    expect(result.current.selectedSquare).toBe('a7');
+    act(() => result.current.handleSquareClick('a7'));
+    expect(result.current.selectedSquare).toBeNull();
+  });
+
   it('works with click-to-move too, and cancel keeps the position', () => {
     const { result } = renderHook(() => useSandbox(BEFORE_PROMOTION));
     act(() => result.current.handleSquareClick('a7'));

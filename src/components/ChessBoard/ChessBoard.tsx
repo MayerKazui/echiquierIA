@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { Chess, Square } from 'chess.js';
 import { ChessPiece } from './ChessPieces';
 import { ArrowsOverlay } from './ArrowsOverlay';
@@ -27,7 +27,8 @@ interface ChessBoardProps {
   showHeatmap?: boolean;
   heatmapMode?: HeatmapMode;
   onSquareClick?: (square: string) => void;
-  onPieceMove?: (from: string, to: string) => void;
+  /** Plays a dragged piece; `false` (illegal move) sends the piece back to its square. */
+  onPieceMove?: (from: string, to: string) => boolean | void;
   selectedSquare?: string | null;
   /** A pawn move waiting for the choice of the new piece. */
   promotion?: PendingPromotion | null;
@@ -170,6 +171,21 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     }
   };
 
+  // Escape puts the selected piece down, wherever the focus is (a mouse click does not leave it on the board).
+  // It is spent on that: the app's own Escape (leave the exploration) comes with the next press.
+  const isPromoting = promotion !== null;
+  useEffect(() => {
+    if (!selectedSquare || isPromoting) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if ((e.target as Element | null)?.closest?.('[role="dialog"], input, textarea, select')) return;
+      e.stopPropagation();
+      onSquareClick?.(selectedSquare); // clicking the selected square again unselects it
+    };
+    window.addEventListener('keydown', onKeyDown, true); // capture: before the app's listeners
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [selectedSquare, isPromoting, onSquareClick]);
+
   // Each step of the game animates from the previous position: the pieces that moved slide (forward or
   // backward), a captured piece fades out, a capture taken back fades in. The state is derived during render
   // (not in an effect) so that the first frame of the new position already carries its animation.
@@ -187,14 +203,17 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   const drawing = useBoardDrawing(fen, (square) => Boolean(chess.get(square as Square)));
 
   const movePiece = (from: string, to: string) => {
-    if (onPieceMove) onPieceMove(from, to);
-    else onSquareClick?.(to);
+    if (onPieceMove) return onPieceMove(from, to);
+    onSquareClick?.(to);
   };
 
   // Drag and drop with pointer events (mouse and finger): the piece follows the pointer
   const { drag, ghostRef, consumeClick, pieceHandlers } = usePieceDrag({
     canDrag: (_from, piece) => piece.color === chess.turn(),
-    onDragStart: (from) => onSquareClick?.(from),
+    // Pressing the piece that is already selected must keep it selected (a second click would unselect it)
+    onDragStart: (from) => {
+      if (from !== selectedSquare) onSquareClick?.(from);
+    },
     onDrop: movePiece,
   });
 
@@ -275,7 +294,9 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
                   isUserHighlight={userHighlights.has(squareName)}
                   isBestTarget={isBestTarget}
                   isBestOptimal={isBestTarget && isPlayedMoveOptimal}
-                  isDragOver={drag?.over === squareName && drag.from !== squareName}
+                  isDragOver={
+                    drag?.over === squareName && drag.from !== squareName && legalDestinations.has(squareName)
+                  }
                   isDragSource={drag?.from === squareName}
                   primaryThreat={threats?.[0]}
                   hasHighThreat={Boolean(threats?.some((t) => t.severity === 'high'))}
@@ -308,7 +329,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
         <div
           ref={ghostRef}
           aria-hidden="true"
-          className="fixed left-0 top-0 z-50 pointer-events-none drop-shadow-xl scale-110"
+          className="fixed left-0 top-0 z-50 pointer-events-none drop-shadow-xl"
           style={{ width: drag.size, height: drag.size }}
         >
           <ChessPiece type={drag.piece.type} color={drag.piece.color} />

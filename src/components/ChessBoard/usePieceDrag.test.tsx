@@ -69,6 +69,92 @@ describe('usePieceDrag', () => {
     expect(result.current.drag).toBeNull();
   });
 
+  it('scales the piece inside its transform, so that the translation is not scaled with it', () => {
+    const { result } = setup();
+    const handlers = result.current.pieceHandlers('a1', PAWN);
+    const ghost = document.createElement('div');
+    (result.current.ghostRef as React.MutableRefObject<HTMLDivElement | null>).current = ghost;
+    act(() => handlers.onPointerDown(pointer(50, 50)));
+    act(() => handlers.onPointerMove(pointer(250, 80)));
+    expect(ghost.style.transform).toBe('translate(220px, 50px) scale(1.1)');
+  });
+
+  it('gives the piece back when Escape is pressed during a drag', () => {
+    const { result, onDrop } = setup();
+    const handlers = result.current.pieceHandlers('a1', PAWN);
+    act(() => handlers.onPointerDown(pointer(50, 50)));
+    act(() => handlers.onPointerMove(pointer(250, 50)));
+    expect(result.current.drag).not.toBeNull();
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(result.current.drag).toBeNull();
+    act(() => handlers.onPointerUp(pointer(250, 50)));
+    expect(onDrop).not.toHaveBeenCalled();
+  });
+
+  describe('giving the piece back', () => {
+    /** A drag from a1 (a ghost on screen, the square a1 at the origin) released on c1; `onDrop` answers `played`. */
+    function dropOnC1(played: boolean | void) {
+      vi.useFakeTimers();
+      const onDrop = vi.fn(() => played);
+      const hook = renderHook(() => usePieceDrag({ onDrop }));
+      const square = document.createElement('div');
+      square.setAttribute('data-square', 'a1');
+      square.getBoundingClientRect = () => ({ left: 0, top: 200, width: 100, height: 100 }) as DOMRect;
+      document.body.append(square);
+      const ghost = document.createElement('div');
+      const handlers = hook.result.current.pieceHandlers('a1', PAWN);
+      act(() => handlers.onPointerDown(pointer(50, 50)));
+      act(() => handlers.onPointerMove(pointer(70, 50)));
+      (hook.result.current.ghostRef as React.MutableRefObject<HTMLDivElement | null>).current = ghost;
+      act(() => handlers.onPointerUp(pointer(250, 50)));
+      return { ...hook, ghost, handlers, square };
+    }
+
+    it('slides an illegal move back to its square, then removes the piece', () => {
+      const { result, ghost, square } = dropOnC1(false);
+      expect(result.current.drag?.returning).toBe(true);
+      expect(result.current.drag?.over).toBeNull();
+      expect(ghost.style.transform).toBe('translate(20px, 220px)'); // the centre of a1, minus half the piece (60px)
+      expect(ghost.style.transition).toContain('transform');
+      act(() => {
+        vi.runAllTimers();
+      });
+      expect(result.current.drag).toBeNull();
+      square.remove();
+    });
+
+    it('removes the piece at once when the move is played', () => {
+      const { result, square } = dropOnC1(true);
+      expect(result.current.drag).toBeNull();
+      square.remove();
+    });
+
+    it('slides back after Escape, ignoring what the pointer does next', () => {
+      const { result, handlers, square } = dropOnC1(true);
+      act(() => handlers.onPointerDown(pointer(50, 50)));
+      act(() => handlers.onPointerMove(pointer(70, 50)));
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      });
+      expect(result.current.drag?.returning).toBe(true);
+      act(() => {
+        vi.runAllTimers();
+      });
+      expect(result.current.drag).toBeNull();
+      square.remove();
+    });
+
+    it('drops the piece that is still sliding back when a new press starts', () => {
+      const { result, handlers, square } = dropOnC1(false);
+      expect(result.current.drag?.returning).toBe(true);
+      act(() => handlers.onPointerDown(pointer(50, 50)));
+      expect(result.current.drag).toBeNull();
+      square.remove();
+    });
+  });
+
   it('swallows the click that follows a drag, once', () => {
     const { result } = setup();
     const handlers = result.current.pieceHandlers('a1', PAWN);

@@ -102,6 +102,10 @@ export function useSandbox(
   // Click-to-move: select a piece of the side to move, then click its destination
   const handleSquareClick = useCallback(
     (square: string) => {
+      if (selectedSquare === square) {
+        setSelectedSquare(null); // a second click on the selected piece puts it down
+        return;
+      }
       if (selectedSquare && tryMove(selectedSquare, square)) return;
       const chess = loadActivePosition();
       const piece = chess.get(square as Square);
@@ -111,9 +115,7 @@ export function useSandbox(
   );
 
   const handlePieceMove = useCallback(
-    (from: string, to: string) => {
-      if (from !== to) tryMove(from, to);
-    },
+    (from: string, to: string): boolean => from !== to && tryMove(from, to),
     [tryMove]
   );
 
