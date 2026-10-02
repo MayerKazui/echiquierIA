@@ -75,6 +75,26 @@ describe('ProfileView', () => {
     });
   });
 
+  describe('strengths', () => {
+    it('lists what the player does well', async () => {
+      // Faults in the opening and the middlegame, none in the endgame
+      await show(games(8, [2, 40]));
+      const list = within(section('Vos points forts')).getByRole('list');
+      expect(within(list).getByText(/Votre phase la plus solide est la finale : 100 % de précision/)).toBeTruthy();
+    });
+
+    it('says so when nothing stands out', async () => {
+      await show(games(6));
+      expect(within(section('Vos points forts')).getByText(/Aucun point fort net/)).toBeTruthy();
+    });
+
+    it('comes after what stands out, before the detail by phase', async () => {
+      await show(games(6));
+      const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+      expect(headings.slice(0, 3)).toEqual(['À retenir', 'Vos points forts', 'Par phase de la partie']);
+    });
+  });
+
   describe('by phase', () => {
     it('gives the average of all the moves, to compare the phases with', async () => {
       await show(games(6));

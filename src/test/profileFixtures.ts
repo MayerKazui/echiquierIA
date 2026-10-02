@@ -1,5 +1,5 @@
 import type { GameMetadata, MoveAnalysis } from '../types/chess';
-import type { ProfileSource } from '../utils/weaknessProfile';
+import type { Profile, ProfileSource } from '../utils/weaknessProfile';
 
 export const PSEUDO = 'Alice';
 
@@ -78,3 +78,35 @@ export function game({
     },
   };
 }
+
+export const bucket = (moves: number, accuracy: number | null) => ({ moves, accuracy, faults: 0, faultsPer100: 0 });
+export const gameBucket = (moves: number, accuracy: number | null) => ({
+  ...bucket(moves, accuracy),
+  games: 5,
+  score: 0.5,
+});
+
+/** A profile with nothing to point out. */
+export const calmProfile = (): Profile => ({
+  counted: 20,
+  ignored: 0,
+  overview: { accuracy: 80, wins: 10, draws: 0, losses: 10, score: 0.5, faultsPerGame: 3 },
+  baseline: bucket(600, 80),
+  phases: { opening: bucket(240, 80), middlegame: bucket(240, 80), endgame: bucket(120, 80) },
+  kinds: { counts: { mate: 0, hanging: 0, tactic: 0, wasted: 0, other: 20 }, total: 20 },
+  worst: [],
+  colors: { w: gameBucket(300, 80), b: gameBucket(300, 80) },
+  time: {
+    pressure: bucket(100, 80),
+    comfortable: bucket(400, 80),
+    instant: bucket(0, null),
+    thoughtful: bucket(0, null),
+    gamesWithClocks: 10,
+  },
+  opponents: { stronger: gameBucket(0, null), similar: gameBucket(0, null), weaker: gameBucket(0, null) },
+  timeControls: {},
+  trend: [],
+  trendChange: { count: 10, accuracy: { recent: 80, previous: 80 }, faults: { recent: 3, previous: 3 } },
+  insights: [],
+  strengths: [],
+});

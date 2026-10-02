@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { MoveAnalysis } from '../types/chess';
-import { PSEUDO, blunder, game, mv } from '../test/profileFixtures';
+import { PSEUDO, blunder, bucket, calmProfile as calm, game, gameBucket, mv } from '../test/profileFixtures';
 import type { FaultKind } from './faultKinds';
 import {
   ELO_MARGIN,
   MIN_BUCKET_MOVES,
   buildInsights,
+  buildStrengths,
   buildProfile,
   classifyTimeControl,
   pressureThreshold,
@@ -405,33 +406,6 @@ describe('letting the page breathe', () => {
 });
 
 describe('insights', () => {
-  const bucket = (moves: number, accuracy: number | null) => ({ moves, accuracy, faults: 0, faultsPer100: 0 });
-  const gameBucket = (moves: number, accuracy: number | null) => ({ ...bucket(moves, accuracy), games: 5, score: 0.5 });
-
-  /** A profile with nothing to point out. */
-  const calm = (): Profile => ({
-    counted: 20,
-    ignored: 0,
-    overview: { accuracy: 80, wins: 10, draws: 0, losses: 10, score: 0.5, faultsPerGame: 3 },
-    baseline: bucket(600, 80),
-    phases: { opening: bucket(240, 80), middlegame: bucket(240, 80), endgame: bucket(120, 80) },
-    kinds: { counts: { mate: 0, hanging: 0, tactic: 0, wasted: 0, other: 20 }, total: 20 },
-    worst: [],
-    colors: { w: gameBucket(300, 80), b: gameBucket(300, 80) },
-    time: {
-      pressure: bucket(100, 80),
-      comfortable: bucket(400, 80),
-      instant: bucket(0, null),
-      thoughtful: bucket(0, null),
-      gamesWithClocks: 10,
-    },
-    opponents: { stronger: gameBucket(0, null), similar: gameBucket(0, null), weaker: gameBucket(0, null) },
-    timeControls: {},
-    trend: [],
-    trendChange: { count: 10, accuracy: { recent: 80, previous: 80 }, faults: { recent: 3, previous: 3 } },
-    insights: [],
-  });
-
   it('has nothing to say when nothing stands out', () => {
     expect(buildInsights(calm())).toEqual([]);
   });
@@ -609,5 +583,174 @@ describe('insights', () => {
     ];
     const profile = await buildProfile([game({ moves })]);
     expect(profile.insights.map((i) => i.id)).toContain('fault');
+  });
+});
+
+describe('strengths', () => {
+  /** A profile with nothing to point out, as a strength either (under time pressure the precision drops 3 points). */
+  const plain = (): Profile => {
+    const p = calm();
+    p.time.pressure = bucket(100, 77);
+    p.opponents.stronger = { ...bucket(0, null), games: 0, score: null };
+    return p;
+  };
+
+  it('has nothing to say when nothing stands out', () => {
+    expect(buildStrengths(plain())).toEqual([]);
+  });
+
+  describe('the phase above the average', () => {
+    it('names the most accurate phase, with its figure and the average', () => {
+      const p = plain();
+      p.phases.middlegame = bucket(240, 86);
+      expect(buildStrengths(p)).toEqual([
+        {
+          id: 'phase',
+          text: 'Votre phase la plus solide est le milieu de jeu : 86 % de précision, contre 80 % en moyenne.',
+        },
+      ]);
+    });
+
+    it('wants 3 points above the average', () => {
+      const p = plain();
+      p.phases.endgame = bucket(120, 82.9);
+      expect(buildStrengths(p)).toEqual([]);
+      p.phases.endgame = bucket(120, 83);
+      expect(buildStrengths(p).map((s) => s.id)).toEqual(['phase']);
+    });
+
+    it('wants enough moves behind the figure', () => {
+      const p = plain();
+      p.phases.endgame = bucket(59, 95);
+      expect(buildStrengths(p)).toEqual([]);
+      p.phases.endgame = bucket(60, 95);
+      expect(buildStrengths(p)).toHaveLength(1);
+    });
+
+    it('takes the best one when several are above', () => {
+      const p = plain();
+      p.phases.opening = bucket(240, 85);
+      p.phases.endgame = bucket(120, 90);
+      expect(buildStrengths(p)[0].text).toContain('la finale');
+    });
+
+    it('says nothing without an average', () => {
+      const p = plain();
+      p.baseline = bucket(0, null);
+      p.phases.endgame = bucket(120, 95);
+      expect(buildStrengths(p)).toEqual([]);
+    });
+  });
+
+  describe('a precision that holds', () => {
+    it('says it holds under time pressure, when the loss is under 2 points', () => {
+      const p = plain();
+      p.time.pressure = bucket(100, 79);
+      expect(buildStrengths(p)).toEqual([
+        { id: 'time', text: 'Vous gardez votre précision quand le temps manque : 79 %, contre 80 % avec du temps.' },
+      ]);
+      p.time.pressure = bucket(100, 78);
+      expect(buildStrengths(p)).toEqual([]);
+    });
+
+    it('wants enough moves on both sides', () => {
+      const p = plain();
+      p.time.pressure = bucket(29, 80);
+      expect(buildStrengths(p)).toEqual([]);
+    });
+
+    it('says the quick moves are as good as the others, under the same rule', () => {
+      const p = plain();
+      p.time.instant = bucket(40, 80);
+      p.time.thoughtful = bucket(300, 81);
+      expect(buildStrengths(p).map((s) => s.id)).toContain('speed');
+      p.time.instant = bucket(40, 70);
+      expect(buildStrengths(p).map((s) => s.id)).not.toContain('speed');
+    });
+
+    it('says nothing for a figure that does not exist', () => {
+      const p = plain();
+      p.time.pressure = bucket(100, null);
+      expect(buildStrengths(p)).toEqual([]);
+    });
+  });
+
+  describe('the score against stronger players', () => {
+    const against = (games: number, score: number | null): Profile => {
+      const p = plain();
+      p.opponents.stronger = { ...gameBucket(100, 78), games, score };
+      return p;
+    };
+
+    it('says it from half a point per game, with the number of games', () => {
+      expect(buildStrengths(against(5, 0.6))).toEqual([
+        { id: 'opponent', text: 'Vous tenez tête aux joueurs plus forts : 60 % des points sur 5 parties.' },
+      ]);
+      expect(buildStrengths(against(5, 0.5))).toHaveLength(1);
+      expect(buildStrengths(against(5, 0.4))).toEqual([]);
+    });
+
+    it('wants 3 games', () => {
+      expect(buildStrengths(against(2, 1))).toEqual([]);
+      expect(buildStrengths(against(3, 1))).toHaveLength(1);
+    });
+
+    it('says nothing without a result', () => {
+      expect(buildStrengths(against(5, null))).toEqual([]);
+    });
+  });
+
+  describe('a kind of fault that is rare', () => {
+    const withKinds = (counts: Partial<Record<FaultKind, number>>): Profile => {
+      const p = plain();
+      const all = { mate: 0, hanging: 0, tactic: 0, wasted: 0, other: 0, ...counts };
+      p.kinds = { counts: all, total: Object.values(all).reduce((a, b) => a + b, 0) };
+      return p;
+    };
+
+    it('points out the rarest, with its count', () => {
+      expect(buildStrengths(withKinds({ mate: 0, hanging: 8, tactic: 7, wasted: 5, other: 4 }))).toEqual([
+        { id: 'kind', text: 'Vous voyez bien les mats : 0 de vos 24 erreurs seulement en relèvent.' },
+      ]);
+    });
+
+    it('has a sentence for each kind', () => {
+      const rare = (kind: FaultKind) => {
+        const counts = { mate: 8, hanging: 8, tactic: 8, wasted: 8, [kind]: 0 };
+        return buildStrengths(withKinds(counts))[0].text;
+      };
+      expect(rare('hanging')).toContain('rarement une pièce en prise');
+      expect(rare('tactic')).toContain('fourchettes');
+      expect(rare('wasted')).toContain('positions gagnées');
+    });
+
+    it('wants it at 5 % of the faults at most', () => {
+      expect(buildStrengths(withKinds({ mate: 1, hanging: 5, tactic: 7, wasted: 7 }))).toHaveLength(1); // 1/20 = 5 %
+      expect(buildStrengths(withKinds({ mate: 2, hanging: 5, tactic: 6, wasted: 7 }))).toEqual([]); // 2/20 = 10 %
+    });
+
+    it('wants 20 faults to speak of', () => {
+      expect(buildStrengths(withKinds({ hanging: 10, tactic: 9 }))).toEqual([]);
+    });
+
+    it('does not speak when most faults are unclassified', () => {
+      expect(buildStrengths(withKinds({ hanging: 5, tactic: 4, other: 30 }))).toEqual([]);
+    });
+  });
+
+  it('lists the strengths in a fixed order: phase, time, speed, opponent, kind', () => {
+    const p = plain();
+    p.phases.endgame = bucket(120, 90);
+    p.time.instant = bucket(40, 80);
+    p.time.thoughtful = bucket(300, 80);
+    p.time.pressure = bucket(100, 80);
+    p.opponents.stronger = { ...gameBucket(100, 78), games: 5, score: 0.7 };
+    p.kinds = { counts: { mate: 0, hanging: 8, tactic: 8, wasted: 8, other: 0 }, total: 24 };
+    expect(buildStrengths(p).map((s) => s.id)).toEqual(['phase', 'time', 'speed', 'opponent', 'kind']);
+  });
+
+  it('is part of the profile', async () => {
+    const profile = await buildProfile([game()]);
+    expect(Array.isArray(profile.strengths)).toBe(true);
   });
 });

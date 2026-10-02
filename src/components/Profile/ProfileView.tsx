@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, Lightbulb } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Lightbulb } from 'lucide-react';
 import { formatPlayedDate } from '../../services/gameImport';
 import { toFrenchSan } from '../../utils/chessNotation';
 import { FAULT_KINDS, FAULT_KIND_TEXT as KIND_TEXT } from '../../utils/faultKinds';
@@ -115,8 +115,20 @@ function Tile({ label, value, hint }: { label: string; value: string; hint?: str
 
 /** The whole profile, from a computed `Profile` (no loading here). */
 export const ProfileView: React.FC<{ profile: Profile }> = ({ profile }) => {
-  const { overview, phases, kinds, worst, colors, time, opponents, timeControls, trend, trendChange, insights } =
-    profile;
+  const {
+    overview,
+    phases,
+    kinds,
+    worst,
+    colors,
+    time,
+    opponents,
+    timeControls,
+    trend,
+    trendChange,
+    insights,
+    strengths,
+  } = profile;
   const weakest = weakestPhase(profile);
   const speeds = (Object.keys(timeControls) as TimeControlClass[]).filter((k) => timeControls[k]);
   const hasOpponentData = opponents.stronger.games + opponents.similar.games + opponents.weaker.games > 0;
@@ -166,6 +178,26 @@ export const ProfileView: React.FC<{ profile: Profile }> = ({ profile }) => {
           <p className="text-xs text-slate-400">
             Aucun écart marqué pour le moment : pas de phase, de couleur ni de type d&apos;erreur qui ressorte
             nettement.
+          </p>
+        )}
+      </Section>
+
+      <Section title="Vos points forts">
+        {strengths.length > 0 ? (
+          <ul className="flex flex-col gap-2">
+            {strengths.map((strength) => (
+              <li
+                key={strength.id}
+                className="flex items-start gap-2.5 p-3 rounded-xl bg-emerald-950/30 border border-emerald-900/50 text-sm text-slate-100"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0 mt-0.5" aria-hidden="true" />
+                <span>{strength.text}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-slate-400">
+            Aucun point fort net pour le moment : il faut plus de coups pour qu&apos;un écart positif ressorte.
           </p>
         )}
       </Section>

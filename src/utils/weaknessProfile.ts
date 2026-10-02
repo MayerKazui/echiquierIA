@@ -65,9 +65,16 @@ export interface WorstFault {
 }
 
 export type InsightId = 'fault' | 'phase' | 'time' | 'color' | 'trend';
+export type StrengthId = 'phase' | 'time' | 'speed' | 'opponent' | 'kind';
 
 export interface Insight {
   id: InsightId;
+  text: string;
+}
+
+/** What the player does well, in a sentence (the counterpart of an `Insight`). */
+export interface Strength {
+  id: StrengthId;
   text: string;
 }
 
@@ -112,6 +119,7 @@ export interface Profile {
     faults: { recent: number; previous: number };
   } | null;
   insights: Insight[];
+  strengths: Strength[];
 }
 
 /** Under this many moves, a figure says too little to be called a weakness. */
@@ -179,7 +187,7 @@ function parseElo(raw: string | undefined): number | null {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
-function parseOutcome(result: string | undefined, color: 'w' | 'b'): Outcome | null {
+export function parseOutcome(result: string | undefined, color: 'w' | 'b'): Outcome | null {
   if (result === '1/2-1/2') return 'draw';
   if (result !== '1-0' && result !== '0-1') return null;
   return (result === '1-0') === (color === 'w') ? 'win' : 'loss';
@@ -393,8 +401,10 @@ export async function buildProfile(
     trend,
     trendChange: trendChangeOf(trend),
     insights: [],
+    strengths: [],
   };
   profile.insights = buildInsights(profile);
+  profile.strengths = buildStrengths(profile);
   return profile;
 }
 
@@ -442,20 +452,26 @@ export function weakestPhase({ phases, baseline }: Pick<Profile, 'phases' | 'bas
   return weakest && baseline.accuracy - phases[weakest].accuracy! >= PHASE_GAP ? weakest : null;
 }
 
+/** The kind of fault that comes back (a quarter of the faults, 5 of them at least), null when none does. */
+export function dominantFaultKind({
+  counts,
+  total,
+}: Profile['kinds']): { kind: Exclude<FaultKind, 'other'>; count: number } | null {
+  const dominant = (Object.keys(FAULT_SENTENCES) as Array<Exclude<FaultKind, 'other'>>)
+    .map((kind) => ({ kind, count: counts[kind] }))
+    .sort((a, b) => b.count - a.count)[0];
+  return dominant && total > 0 && dominant.count >= MIN_KIND_COUNT && dominant.count / total >= MIN_KIND_SHARE
+    ? dominant
+    : null;
+}
+
 /** The few things worth remembering, from what is measured (only when there are enough moves to say it). */
 export function buildInsights(profile: Profile): Insight[] {
   const insights: Insight[] = [];
   const { kinds, baseline, phases, time, colors, trendChange } = profile;
 
-  const dominant = (Object.keys(FAULT_SENTENCES) as Array<keyof typeof FAULT_SENTENCES>)
-    .map((kind) => ({ kind, count: kinds.counts[kind] }))
-    .sort((a, b) => b.count - a.count)[0];
-  if (
-    dominant &&
-    kinds.total > 0 &&
-    dominant.count >= MIN_KIND_COUNT &&
-    dominant.count / kinds.total >= MIN_KIND_SHARE
-  ) {
+  const dominant = dominantFaultKind(kinds);
+  if (dominant) {
     const share = percent((dominant.count / kinds.total) * 100);
     insights.push({
       id: 'fault',
@@ -514,4 +530,92 @@ export function buildInsights(profile: Profile): Insight[] {
     }
   }
   return insights;
+}
+
+/** A kind of fault is a strength when it is this rare among the faults, and there are enough of them to say so. */
+const RARE_KIND_SHARE = 0.05;
+const MIN_FAULTS_FOR_RARE_KIND = 20;
+/** Faults whose kind is known ('other' says nothing): a kind cannot be called rare without this many. */
+const MIN_CLASSIFIED_FAULTS = 10;
+/** Accuracy points a situation may be under the comfortable one and still count as held. */
+const HELD_MARGIN = 2;
+/** Games against stronger opponents, and the least score, from which it is worth saying. */
+const MIN_STRONGER_GAMES = 3;
+
+const KIND_STRENGTHS: Record<Exclude<FaultKind, 'other'>, string> = {
+  mate: 'Vous voyez bien les mats',
+  hanging: 'Vous laissez rarement une pièce en prise',
+  tactic: 'Vous repérez bien les fourchettes, les clouages et les pièces à prendre',
+  wasted: 'Vous transformez bien vos positions gagnées',
+};
+
+/**
+ * What the games show the player does well, from the same figures as the insights (and under the same rule: only
+ * what enough moves back up). Each line is the other side of a weakness: a phase above the average, a precision
+ * that holds under time pressure or at speed, a good score against stronger players, a kind of fault that is rare.
+ */
+export function buildStrengths(profile: Profile): Strength[] {
+  const strengths: Strength[] = [];
+  const { kinds, baseline, phases, time, opponents } = profile;
+
+  if (baseline.accuracy !== null) {
+    const strongest = (Object.keys(phases) as GamePhase[])
+      .filter((p) => phases[p].moves >= 2 * MIN_BUCKET_MOVES && phases[p].accuracy !== null)
+      .sort((a, b) => phases[b].accuracy! - phases[a].accuracy!)[0];
+    if (strongest && phases[strongest].accuracy! - baseline.accuracy >= PHASE_GAP) {
+      strengths.push({
+        id: 'phase',
+        text: `Votre phase la plus solide est ${PHASE_LABELS[strongest]} : ${percent(phases[strongest].accuracy!)} de précision, contre ${percent(baseline.accuracy)} en moyenne.`,
+      });
+    }
+  }
+
+  const { pressure, comfortable, instant, thoughtful } = time;
+  if (
+    pressure.moves >= MIN_BUCKET_MOVES &&
+    comfortable.moves >= MIN_BUCKET_MOVES &&
+    pressure.accuracy !== null &&
+    comfortable.accuracy !== null &&
+    comfortable.accuracy - pressure.accuracy < HELD_MARGIN
+  ) {
+    strengths.push({
+      id: 'time',
+      text: `Vous gardez votre précision quand le temps manque : ${percent(pressure.accuracy)}, contre ${percent(comfortable.accuracy)} avec du temps.`,
+    });
+  }
+  if (
+    instant.moves >= MIN_BUCKET_MOVES &&
+    thoughtful.moves >= MIN_BUCKET_MOVES &&
+    instant.accuracy !== null &&
+    thoughtful.accuracy !== null &&
+    thoughtful.accuracy - instant.accuracy < HELD_MARGIN
+  ) {
+    strengths.push({
+      id: 'speed',
+      text: `Vos coups joués d'un seul coup sont aussi précis que les autres : ${percent(instant.accuracy)}, contre ${percent(thoughtful.accuracy)}.`,
+    });
+  }
+
+  if (opponents.stronger.games >= MIN_STRONGER_GAMES && (opponents.stronger.score ?? 0) >= 0.5) {
+    strengths.push({
+      id: 'opponent',
+      text: `Vous tenez tête aux joueurs plus forts : ${percent(opponents.stronger.score! * 100)} des points sur ${opponents.stronger.games} parties.`,
+    });
+  }
+
+  const rarest = (Object.keys(KIND_STRENGTHS) as Array<keyof typeof KIND_STRENGTHS>)
+    .map((kind) => ({ kind, count: kinds.counts[kind] }))
+    .sort((a, b) => a.count - b.count)[0];
+  if (
+    rarest &&
+    kinds.total >= MIN_FAULTS_FOR_RARE_KIND &&
+    kinds.total - kinds.counts.other >= MIN_CLASSIFIED_FAULTS &&
+    rarest.count / kinds.total <= RARE_KIND_SHARE
+  ) {
+    strengths.push({
+      id: 'kind',
+      text: `${KIND_STRENGTHS[rarest.kind]} : ${rarest.count} de vos ${kinds.total} erreurs seulement en relèvent.`,
+    });
+  }
+  return strengths;
 }

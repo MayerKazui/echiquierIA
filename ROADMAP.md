@@ -6,7 +6,7 @@ Ce fichier suit ce qui reste à faire. `IMPROVEMENTS.md` garde l'historique de c
 
 Légende : `[ ]` à faire · `[~]` en cours · `[x]` fait
 
-Ordre conseillé : le point 3, puis 5 (les points 1, 2, 4 et 6 et la partie C sont faits). L'import et l'analyse en lot (4) alimentent le profil (1), qui alimente l'entraînement (2).
+Ordre conseillé : le point 5 (les points 1, 2, 3, 4 et 6 et la partie C sont faits). L'import et l'analyse en lot (4) alimentent le profil (1), qui alimente l'entraînement (2).
 
 ## A. Outil d'entraînement (priorité)
 
@@ -29,8 +29,9 @@ Une vue « Mon profil » qui agrège les parties enregistrées : « qu'est-ce qu
 
 ### 3. Suivi d'ouvertures
 
-- [ ] **Répertoire réel** : ouvertures jouées avec score, précision et coup où l'on sort de la théorie (livre de ~3 800 lignes déjà intégré).
-- [ ] **Coup de sortie qui coûte cher**, partie après partie : « 4 fois sur 6, tu dévies à 8.h3 et tu perds 0,5 point ».
+- [x] **Explorateur d'ouvertures** : arbre coup par coup de la base lichess, avec ses propres résultats (parties, victoires, nulles, défaites) par coup, et les coups hors du livre : voir `IMPROVEMENTS.md`.
+- [x] **Répertoire réel** : ouvertures jouées (par couleur, avec leurs variantes) avec score et coup où l'on sort de la théorie : onglet « Mes ouvertures », voir `IMPROVEMENTS.md`. La précision par ouverture n'est pas calculée.
+- [x] **Coup de sortie qui coûte cher**, partie après partie : sorties récurrentes avec leur coût moyen, et lien vers la position dans l'explorateur.
 
 ## B. Confort et récupération des parties
 
@@ -44,7 +45,7 @@ Une vue « Mon profil » qui agrège les parties enregistrées : « qu'est-ce qu
 ### 5. Retour plus actionnable pour chaque partie
 
 - [ ] **Résumé de 3 lignes en tête du bilan** : « Moment décisif : coup 23, +2,8 puis tour laissée en prise ». Le calcul existait (retiré de l'interface) et se récupère facilement.
-- [ ] **Un seul objectif à retenir**, tiré du profil, affiché à l'ouverture de l'appli.
+- [~] **Objectifs à retenir**, tirés du profil : fait sous la forme de « Mon plan » (trois objectifs au plus, dans le menu). Pas affiché à l'ouverture de l'appli, pour ne pas charger l'écran de départ.
 - [ ] **Comparaison avec soi** : « précision de 71 %, 6 points sous ta moyenne ».
 
 ### 6. Confort au quotidien

@@ -26,29 +26,29 @@ Application qui permet soit d'importer une partie pour l'analyser, soit de rense
 
 ## 2. Comparatif avec le projet actuel
 
-| Besoin                                                         | État | Détail                                                                                                                                                                 |
-| -------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Importer une partie (PGN)                                      | ✅   | Collé, fichier ou exemples.                                                                                                                                            |
-| Import par pseudo Lichess / chess.com                          | ✅   | Filtre de cadence, parties plus anciennes à la demande, appels directs du navigateur. Limites de débit des API acceptées (sujet clos).                                 |
-| Analyser toutes ses parties                                    | ✅   | Analyse en lot de 5 à 100 parties en tâche de fond, avec reprise. Historique plafonné à 500 parties (50 complètes, les autres allégées) : plafond retenu, sujet clos.  |
-| Mise à jour de l'étude avec les dernières parties              | 🟡   | Manuelle, à la demande (la mise à jour automatique est abandonnée). Réimport et nouvelle analyse en lot possibles ; pas vu de bouton « n'analyser que les nouvelles ». |
-| Profil : faiblesses                                            | ✅   | « Mon profil » : phase, type d'erreur, zeitnot, couleur, force de l'adversaire, cadence, évolution.                                                                    |
-| Profil : points forts                                          | 🟡   | Les chiffres existent, aucun écran ne dit « voici ce que tu fais bien ».                                                                                               |
-| Ouvertures jouées et % de victoire                             | ❌   | Score par couleur et par adversaire, pas par ouverture. Point 3 de `ROADMAP.md`.                                                                                       |
-| Analyse détaillée d'une partie                                 | ✅   | Gaffes, bons coups, « brillant », « excellent coup », graphique d'évaluation, précision.                                                                               |
-| Ouverture / milieu / finale bien exécutés                      | ✅   | Précision par phase, phases calculées d'après le matériel.                                                                                                             |
-| Thèmes tactiques manqués                                       | 🟡   | Fourchette, clouage, enfilade, pièce en prise, plus mat manqué et avantage gâché. Lichess a une soixantaine de thèmes.                                                 |
-| Erreurs évitables avec explication tactique                    | ✅   | Coach IA (Gemini) sur les moments clés, repli local sans clé. Pas d'extension du coach aux puzzles et aux études (sujet clos).                                         |
-| Programme d'entraînement sur ses faiblesses                    | 🟡   | « S'entraîner » rejoue ses erreurs, répétition espacée (1, 3, 7 jours), filtres par type d'erreur et phase. Pas de plan structuré.                                     |
-| Woodpecker                                                     | ❌   | Pas de base de puzzles dans le projet. À réfléchir ensemble avec les puzzles.                                                                                          |
-| Puzzles : thèmes, Elo, timer                                   | ❌   | Idem. Sujet gardé, à réfléchir ensemble.                                                                                                                               |
-| Puzzles ratés à refaire                                        | 🟡   | Mécanique prête pour les erreurs de ses parties (`trainingStore`, `spacedRepetition`), à étendre aux puzzles.                                                          |
-| Explorateur d'ouvertures                                       | 🟡   | `public/openings.json` contient déjà ~3 800 lignes lichess avec noms français (`src/data/openings/*.tsv`). Il manque l'écran de navigation en arbre. Sujet gardé.      |
-| Études : création, chapitres, intro, commentaires, annotations | ❌   | Seul le bac à sable « Et si j'avais joué… ? » existe, sans sauvegarde. Études privées, stockées dans le navigateur.                                                    |
-| Étude verrouillable, jeu contre l'ordinateur avec variantes    | ❌   | Rien d'équivalent.                                                                                                                                                     |
-| Import PGN d'étude ou de chapitre                              | ❌   | L'import actuel (`chess.js`) ne gère qu'une ligne principale. À confirmer : je pense que `chess.js` écarte les variantes.                                              |
-| Partage d'études                                               | ⛔   | Abandonné : il exigerait un serveur ou un hébergeur tiers.                                                                                                             |
-| Mise à jour automatique du profil                              | ⛔   | Abandonnée : la synchronisation se fera manuellement.                                                                                                                  |
+| Besoin                                                         | État | Détail                                                                                                                                                                             |
+| -------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Importer une partie (PGN)                                      | ✅   | Collé, fichier ou exemples.                                                                                                                                                        |
+| Import par pseudo Lichess / chess.com                          | ✅   | Filtre de cadence, parties plus anciennes à la demande, appels directs du navigateur. Limites de débit des API acceptées (sujet clos).                                             |
+| Analyser toutes ses parties                                    | ✅   | Analyse en lot de 5 à 100 parties en tâche de fond, avec reprise. Historique plafonné à 500 parties (50 complètes, les autres allégées) : plafond retenu, sujet clos.              |
+| Mise à jour de l'étude avec les dernières parties              | 🟡   | Manuelle, à la demande (la mise à jour automatique est abandonnée). Réimport et nouvelle analyse en lot possibles ; pas vu de bouton « n'analyser que les nouvelles ».             |
+| Profil : faiblesses                                            | ✅   | « Mon profil » : phase, type d'erreur, zeitnot, couleur, force de l'adversaire, cadence, évolution.                                                                                |
+| Profil : points forts                                          | ✅   | Section « Vos points forts » dans « Mon profil » : phase solide, précision tenue sous pression ou à vitesse, score contre plus forts, type d'erreur rare.                          |
+| Ouvertures jouées et % de victoire                             | ✅   | Onglet « Mes ouvertures » : par couleur, familles et variantes, résultats, sorties de la théorie et leur coût. Pas de précision par ouverture.                                     |
+| Analyse détaillée d'une partie                                 | ✅   | Gaffes, bons coups, « brillant », « excellent coup », graphique d'évaluation, précision.                                                                                           |
+| Ouverture / milieu / finale bien exécutés                      | ✅   | Précision par phase, phases calculées d'après le matériel.                                                                                                                         |
+| Thèmes tactiques manqués                                       | 🟡   | Fourchette, clouage, enfilade, pièce en prise, plus mat manqué et avantage gâché. Lichess a une soixantaine de thèmes.                                                             |
+| Erreurs évitables avec explication tactique                    | ✅   | Coach IA (Gemini) sur les moments clés, repli local sans clé. Pas d'extension du coach aux puzzles et aux études (sujet clos).                                                     |
+| Programme d'entraînement sur ses faiblesses                    | ✅   | « Mon plan » : trois objectifs au plus (erreurs qui reviennent, sortie d'ouverture coûteuse, habitude, phase fragile), avec progression sur 7 jours et le bouton qui lance chacun. |
+| Woodpecker                                                     | ❌   | Pas de base de puzzles dans le projet. À réfléchir ensemble avec les puzzles.                                                                                                      |
+| Puzzles : thèmes, Elo, timer                                   | ❌   | Idem. Sujet gardé, à réfléchir ensemble.                                                                                                                                           |
+| Puzzles ratés à refaire                                        | 🟡   | Mécanique prête pour les erreurs de ses parties (`trainingStore`, `spacedRepetition`), à étendre aux puzzles.                                                                      |
+| Explorateur d'ouvertures                                       | ✅   | Bouton « Ouvertures » : arbre coup par coup (~3 800 lignes lichess, noms français), échiquier, résultats de ses parties, coups hors du livre. Pas de stats mondiales.              |
+| Études : création, chapitres, intro, commentaires, annotations | ❌   | Seul le bac à sable « Et si j'avais joué… ? » existe, sans sauvegarde. Études privées, stockées dans le navigateur.                                                                |
+| Étude verrouillable, jeu contre l'ordinateur avec variantes    | ❌   | Rien d'équivalent.                                                                                                                                                                 |
+| Import PGN d'étude ou de chapitre                              | ❌   | L'import actuel (`chess.js`) ne gère qu'une ligne principale. À confirmer : je pense que `chess.js` écarte les variantes.                                                          |
+| Partage d'études                                               | ⛔   | Abandonné : il exigerait un serveur ou un hébergeur tiers.                                                                                                                         |
+| Mise à jour automatique du profil                              | ⛔   | Abandonnée : la synchronisation se fera manuellement.                                                                                                                              |
 
 Le projet couvre bien l'analyse et le profil, et dépasse le besoin sur le confort : PWA hors ligne, sauvegarde et synchronisation Google Drive, mobile, accessibilité. Les blocs **Woodpecker, puzzles et études** n'existent pas du tout.
 
@@ -95,8 +95,8 @@ Une fois les puzzles disponibles, le reste est modeste : timer, cycle Woodpecker
 
 ## 5. Ordre recommandé
 
-1. **Ouvertures** : stats par ouverture (% de victoire, coup de sortie qui coûte cher), puis explorateur en arbre. Peu coûteux, très utile, déjà dans `ROADMAP.md`.
-2. **Points forts et programme d'entraînement** : écran « forces » et plan hebdomadaire tiré du profil. Les données existent, c'est surtout de l'interface.
+1. ~~**Ouvertures**~~ : fait. Explorateur en arbre (résultats de ses parties par coup) et onglet « Mes ouvertures » (% de victoire, coup de sortie qui coûte cher).
+2. ~~**Points forts et programme d'entraînement**~~ : fait. « Vos points forts » dans le profil, « Mon plan » (menu).
 3. **Mise à jour manuelle du profil** : bouton « n'analyser que les nouvelles parties », puisque la mise à jour automatique est abandonnée.
 4. **Puzzles, thèmes, Elo, timer, puzzles ratés**, puis **Woodpecker** juste après. À cadrer ensemble d'abord (sous-ensemble embarqué).
 5. **Études privées** en dernier : le plus lourd, mais plus simple sans partage.
@@ -108,7 +108,7 @@ Une fois les puzzles disponibles, le reste est modeste : timer, cycle Woodpecker
 - [ ] **Stats mondiales d'ouverture** : l'API Explorer de Lichess exige-t-elle un jeton ? Si oui, s'en passe-t-on et garde-t-on seulement ses propres stats ?
 - [ ] **Mise à jour manuelle du profil** : bouton « n'analyser que les nouvelles parties » ? Sous quelle forme ?
 - [ ] **Parser PGN** : confirmer que `chess.js` perd les variantes, puis choisir entre une bibliothèque et un analyseur maison.
-- [ ] **Programme d'entraînement** : quel format (plan hebdomadaire, objectif unique à l'ouverture de l'appli) ?
+- [x] **Programme d'entraînement** : plan de trois objectifs au plus, dans une fenêtre du menu, recalculé à chaque ouverture. Pas d'objectif unique à l'ouverture de l'appli (l'écran de départ reste sobre).
 - [ ] **Export PGN d'une étude** : non demandé, utile seulement comme sauvegarde personnelle. À décider (la sauvegarde JSON existante couvre peut-être déjà le besoin).
 
 ## 7. Fichiers du projet utiles pour la suite

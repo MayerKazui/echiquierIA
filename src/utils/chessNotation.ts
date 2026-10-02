@@ -191,3 +191,8 @@ export function frenchifyMoveText(text: string): string {
       )
   );
 }
+
+/** "8.h3", "8…Cf6": a move in French, with its number and the side that plays it ("…" for Black). */
+export function numberedFrenchMove(moveNumber: number, isWhite: boolean, san: string): string {
+  return `${moveNumber}${isWhite ? '.' : '…'}${toFrenchSan(san)}`;
+}
