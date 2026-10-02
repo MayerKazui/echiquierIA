@@ -496,6 +496,13 @@ Fin du point 3 de `ROADMAP.md`. Second onglet de la fenêtre « Ouvertures » (l
 - Tests : 17 pour l'écran des études (dont 4 sur les formes : lues depuis le PGN, dessinées et réécrites, effacées, vues dans le chapitre verrouillé), 5 pour le plateau, 2 pour les couleurs, 1 pour l'arbre : 1 663 tests au total. Vérifié dans Chrome avec un PGN portant des flèches et un cercle, plus une flèche tracée à la souris.
 - **Limites** : sur téléphone ou tablette il n'y a pas de clic droit, donc on voit les flèches mais on ne peut pas en dessiner. Dans le chapitre verrouillé, les formes du coup joué s'affichent en même temps que son commentaire : une flèche peut donc indiquer la suite.
 
+### Suite : couleur des dessins choisie par la touche tenue — fait
+
+- [x] Le clic droit sur le plateau (arbre des études comme partie analysée) dessine en **vert** sans touche, en **jaune** avec Maj, en **bleu** avec Alt, en **rouge** avec Ctrl (ou Cmd), pour les flèches comme pour les ronds. Les couleurs coexistent sur le plateau : plus besoin de repasser sur une forme pour en changer.
+- [x] La touche peut être pressée **pendant** le tracé : l'aperçu de la flèche change de couleur au moment où on la presse ou la relâche (avant, la couleur était fixée au début du clic), et la forme prend la couleur au relâchement du bouton. Alt seul n'ouvre plus le menu du navigateur pendant un tracé.
+- Tests : 12 de plus pour le plateau (chaque touche pour une flèche et pour un rond, quatre couleurs côte à côte, touche pressée en cours de tracé) : 1 675 tests au total. Vérifié dans Chrome avec de vraies touches (Maj, Alt, Ctrl, y compris pressée en cours de glisser).
+- **Limite** : certains gestionnaires de fenêtres (Linux) réservent Alt + clic ; la couleur bleue est alors inaccessible depuis le clavier de ce poste.
+
 ## Ordre suggéré
 
 1 (sécurité serveur) → 2 (Gemini) → 4 (tests sur la logique pure) → 3 (découpage de `App.tsx`), puis le reste.
