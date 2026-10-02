@@ -75,7 +75,7 @@ describe('DataBackup', () => {
       const [name, text] = download.mock.calls[0] as [string, string];
       expect(name).toMatch(/^echiquier-ia-sauvegarde-\d{4}-\d{2}-\d{2}\.json$/);
       const data = JSON.parse(text);
-      expect(data).toMatchObject({ app: BACKUP_APP, format: 1, preferences: { chess_board_theme: 'wood' } });
+      expect(data).toMatchObject({ app: BACKUP_APP, format: 2, preferences: { chess_board_theme: 'wood' } });
       expect(data.games).toHaveLength(1);
       expect(data.cards).toHaveLength(1);
     });
@@ -252,7 +252,7 @@ describe('DataBackup', () => {
 
 describe('describeRestore', () => {
   const none = { games: 0, cards: 0 };
-  const games = (over = {}) => ({ added: 0, replaced: 0, kept: 0, trimmed: 0, ...over });
+  const games = (over = {}) => ({ added: 0, replaced: 0, kept: 0, trimmed: 0, deleted: 0, ...over });
   const cards = (over = {}) => ({ added: 0, replaced: 0, kept: 0, ...over });
   const report = (over: Partial<Parameters<typeof describeRestore>[0]> = {}) => ({
     games: games(),

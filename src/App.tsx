@@ -49,6 +49,8 @@ import { BottomNav } from './components/AppHeader/BottomNav';
 import { AnalysisProgressBanner } from './components/AppHeader/AnalysisProgressBanner';
 import { BatchAnalysisBanner } from './components/AppHeader/BatchAnalysisBanner';
 import { PwaBanner } from './components/AppHeader/PwaBanner';
+import { DriveSyncBanner } from './components/AppHeader/DriveSyncBanner';
+import { useDriveSyncLifecycle } from './hooks/useDriveSync';
 import { OpeningStrip } from './components/GameView/OpeningStrip';
 import { PlayerBar } from './components/GameView/PlayerBar';
 import { BoardToolbar } from './components/GameView/BoardToolbar';
@@ -106,6 +108,7 @@ export default function App() {
   // Several games analysed in the background; it steps aside while the user analyses a game by hand
   const batch = useBatchAnalysis(isAnalyzing);
   const isOnline = useOnlineStatus();
+  useDriveSyncLifecycle();
   const { updateReady, applyUpdate } = useServiceWorkerUpdate();
   const { canInstall, install } = useInstallPrompt();
   const startBatch = batch.start;
@@ -541,6 +544,8 @@ export default function App() {
       />
 
       <PwaBanner isOnline={isOnline} updateReady={updateReady} onUpdate={applyUpdate} />
+
+      <DriveSyncBanner />
 
       <BatchAnalysisBanner batch={batch} onResume={batch.resume} onCancel={batch.cancel} onDismiss={batch.dismiss} />
 

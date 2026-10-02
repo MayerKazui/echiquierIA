@@ -1,5 +1,14 @@
 import type { Card } from '../utils/spacedRepetition';
-import { exportGames, isStoredGame, mergeGames, type MergeReport, type StoredGame } from './gameStore';
+import {
+  exportGames,
+  isDeletion,
+  isStoredGame,
+  listDeletions,
+  mergeGames,
+  type Deletion,
+  type MergeReport,
+  type StoredGame,
+} from './gameStore';
 import { isCard, loadCards, mergeCards, type CardMergeReport } from './trainingStore';
 
 /**
@@ -12,7 +21,11 @@ import { isCard, loadCards, mergeCards, type CardMergeReport } from './trainingS
  */
 
 export const BACKUP_APP = 'echiquier-ia';
-export const BACKUP_FORMAT = 1;
+/**
+ * 2 added the traces of deleted games (`deletions`). An application of format 1 refuses a format 2 file ("update
+ * the application") instead of reading it without the deletions and sending them away.
+ */
+export const BACKUP_FORMAT = 2;
 
 /** The settings kept in the backup (localStorage keys): nothing else is read or written there. */
 export const PREFERENCE_KEYS = [
@@ -47,6 +60,8 @@ export interface Backup {
   exportedAt: string;
   games: StoredGame[];
   cards: Card[];
+  /** Traces of the games deleted (empty in a format 1 file). */
+  deletions: Deletion[];
   preferences: Record<string, string>;
 }
 
@@ -80,13 +95,14 @@ export async function createBackup(
   now: number = Date.now(),
   storage: ReadableStorage | undefined = defaultStorage()
 ): Promise<Backup> {
-  const [games, cards] = await Promise.all([exportGames(), loadCards()]);
+  const [games, cards, deletions] = await Promise.all([exportGames(), loadCards(), listDeletions()]);
   return {
     app: BACKUP_APP,
     format: BACKUP_FORMAT,
     exportedAt: new Date(now).toISOString(),
     games,
     cards: [...cards.values()],
+    deletions,
     preferences: readPreferences(storage),
   };
 }
@@ -134,11 +150,13 @@ export function parseBackup(text: string): ParsedBackup {
   }
   const games: unknown[] = Array.isArray(data.games) ? data.games : [];
   const cards: unknown[] = Array.isArray(data.cards) ? data.cards : [];
-  if (games.length > MAX_ITEMS || cards.length > MAX_ITEMS) {
+  const deletions: unknown[] = Array.isArray(data.deletions) ? data.deletions : [];
+  if (games.length > MAX_ITEMS || cards.length > MAX_ITEMS || deletions.length > MAX_ITEMS) {
     return { ok: false, error: 'Cette sauvegarde contient trop de données pour être valide.' };
   }
   const validGames = games.filter(isStoredGame);
   const validCards = cards.filter(isCard);
+  const validDeletions = deletions.filter(isDeletion);
 
   const preferences: Record<string, string> = {};
   if (isObject(data.preferences)) {
@@ -148,7 +166,12 @@ export function parseBackup(text: string): ParsedBackup {
     }
   }
 
-  if (validGames.length === 0 && validCards.length === 0 && Object.keys(preferences).length === 0) {
+  if (
+    validGames.length === 0 &&
+    validCards.length === 0 &&
+    validDeletions.length === 0 &&
+    Object.keys(preferences).length === 0
+  ) {
     return { ok: false, error: EMPTY_BACKUP_ERROR };
   }
   return {
@@ -159,6 +182,7 @@ export function parseBackup(text: string): ParsedBackup {
       exportedAt: typeof data.exportedAt === 'string' ? data.exportedAt : '',
       games: validGames,
       cards: validCards,
+      deletions: validDeletions,
       preferences,
     },
     rejected: { games: games.length - validGames.length, cards: cards.length - validCards.length },
@@ -173,12 +197,29 @@ export interface RestoreReport {
   preferencesApplied: number;
 }
 
+export interface RestoreOptions {
+  /**
+   * `import` (default): a file the user chose. It only adds: its games come back even if they were deleted here
+   * since, and the deletions it records are not applied. `sync`: the copy kept in Drive. The deletions it records
+   * are applied, and its games deleted here since are not taken back.
+   */
+  mode?: 'import' | 'sync';
+  /** Do not tell the listeners of `onGamesChanged` (the sync itself restores, it must not trigger a sync). */
+  silent?: boolean;
+}
+
 /** Puts a backup back into the browser, merging with what is there. */
 export async function restoreBackup(
   backup: Backup,
-  storage: WritableStorage | undefined = defaultStorage()
+  storage: WritableStorage | undefined = defaultStorage(),
+  { mode = 'import', silent }: RestoreOptions = {}
 ): Promise<RestoreReport> {
-  const [games, cards] = await Promise.all([mergeGames(backup.games), mergeCards(backup.cards)]);
+  const [games, cards] = await Promise.all([
+    mode === 'sync'
+      ? mergeGames(backup.games, undefined, backup.deletions, { silent })
+      : mergeGames(backup.games, undefined, [], { silent, override: true }),
+    mergeCards(backup.cards),
+  ]);
   let preferencesApplied = 0;
   for (const key of PREFERENCE_KEYS) {
     const value = backup.preferences[key];

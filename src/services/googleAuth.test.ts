@@ -145,6 +145,95 @@ describe('createTokenProvider', () => {
   });
 });
 
+describe('createTokenProvider, silent', () => {
+  const silent = { interactive: false };
+
+  it('asks Google without any screen (prompt none)', async () => {
+    const { api, requests } = fakeGoogle(grant('t1'));
+    const provider = createTokenProvider({ clientId: 'c', oauth2: () => api });
+    expect(await provider.getToken(silent)).toBe('t1');
+    expect(requests[0].prompt).toBe('none');
+  });
+
+  it('still asks with the pop-up when interactive (the default)', async () => {
+    const { api, requests } = fakeGoogle(grant('t1'), grant('t2'));
+    const provider = createTokenProvider({ clientId: 'c', oauth2: () => api });
+    await provider.getToken({ interactive: true });
+    provider.invalidate();
+    await provider.getToken({});
+    expect(requests.map((r) => r.prompt)).toEqual(['', '']);
+  });
+
+  it('reuses the token in memory without asking Google', async () => {
+    const { api, requests } = fakeGoogle(grant('t1'));
+    const provider = createTokenProvider({ clientId: 'c', oauth2: () => api });
+    await provider.getToken();
+    expect(await provider.getToken(silent)).toBe('t1');
+    expect(requests).toHaveLength(1);
+  });
+
+  it('says the user has to sign in when Google cannot answer without them', async () => {
+    const { api } = fakeGoogle(
+      (c) => c.callback({ error: 'interaction_required' }),
+      (c) => c.callback({ error: 'access_denied' }),
+      (c) => c.error_callback({ type: 'popup_failed_to_open' }),
+      (c) => c.error_callback({ type: 'popup_closed' }),
+      (c) => c.error_callback({}),
+      (c) => c.callback(c && { access_token: 't', scope: 'openid' })
+    );
+    const provider = createTokenProvider({ clientId: 'c', oauth2: () => api });
+    for (let i = 0; i < 6; i++) {
+      await expect(provider.getToken(silent)).rejects.toMatchObject({ kind: 'interaction' });
+    }
+  });
+
+  it('keeps saying the script is missing when it is', async () => {
+    const provider = createTokenProvider({ clientId: 'c', oauth2: () => undefined });
+    await expect(provider.getToken(silent)).rejects.toMatchObject({ kind: 'unavailable' });
+  });
+
+  it('gives up when Google never answers', async () => {
+    const { api } = fakeGoogle(() => {});
+    const provider = createTokenProvider({ clientId: 'c', oauth2: () => api, silentTimeoutMs: 20 });
+    await expect(provider.getToken(silent)).rejects.toMatchObject({ kind: 'interaction' });
+  });
+
+  it('does not give up before the timeout, and an answer in time wins', async () => {
+    const { api } = fakeGoogle((c) => void setTimeout(() => grant('late')(c), 10));
+    const provider = createTokenProvider({ clientId: 'c', oauth2: () => api, silentTimeoutMs: 200 });
+    expect(await provider.getToken(silent)).toBe('late');
+  });
+
+  it('gives up after 20 seconds by default, not before', async () => {
+    vi.useFakeTimers();
+    try {
+      const { api } = fakeGoogle(() => {});
+      const provider = createTokenProvider({ clientId: 'c', oauth2: () => api });
+      const outcome = provider.getToken(silent).then(
+        () => 'token',
+        (err: AuthError) => err.kind
+      );
+      await vi.advanceTimersByTimeAsync(19_999);
+      let settled = false;
+      void outcome.then(() => (settled = true));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await outcome).toBe('interaction');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('waits at least as long as asked before giving up', async () => {
+    const { api } = fakeGoogle(() => {});
+    const provider = createTokenProvider({ clientId: 'c', oauth2: () => api, silentTimeoutMs: 60 });
+    const started = Date.now();
+    await provider.getToken(silent).catch(() => {});
+    expect(Date.now() - started).toBeGreaterThanOrEqual(50);
+  });
+});
+
 describe('loadGoogleIdentity', () => {
   afterEach(() => {
     document.head.innerHTML = '';

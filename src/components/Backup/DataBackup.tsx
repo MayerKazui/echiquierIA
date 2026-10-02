@@ -31,13 +31,16 @@ const plural = (count: number, one: string, many: string) => `${count} ${count >
 export function describeRestore(report: RestoreReport, rejected: { games: number; cards: number }): string {
   const parts: string[] = [];
   if (report.games) {
-    const { added, replaced, kept, trimmed } = report.games;
+    const { added, replaced, kept, trimmed, deleted } = report.games;
     const done = [
       added > 0 ? `${plural(added, 'partie ajoutée', 'parties ajoutées')}` : '',
       replaced > 0 ? `${plural(replaced, 'mise à jour', 'mises à jour')}` : '',
       kept > 0 ? `${plural(kept, 'déjà à jour', 'déjà à jour')}` : '',
     ].filter(Boolean);
     if (done.length > 0) parts.push(`Parties : ${done.join(', ')}.`);
+    if (deleted > 0) {
+      parts.push(`${plural(deleted, 'partie supprimée', 'parties supprimées')} (supprimées sur un autre appareil).`);
+    }
     if (trimmed > 0) {
       parts.push(
         `${plural(trimmed, 'partie ancienne supprimée', 'parties anciennes supprimées')} pour rester dans la limite de l'historique.`
