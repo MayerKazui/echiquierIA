@@ -516,6 +516,24 @@ Fin du point 3 de `ROADMAP.md`. Second onglet de la fenêtre « Ouvertures » (l
   - Les études lourdes (des centaines de chapitres) alourdissent la copie Drive, compressée mais renvoyée en entier.
   - Pas essayé avec un vrai compte Google : la synchronisation est vérifiée avec un Drive simulé, comme le reste.
 
+## Puzzles : les données (étape 4 du comparatif) — en cours
+
+Étape 4 de `COMPARATIF_PATCHCHESS.md`, premier volet : les données et la logique, sans écran. Décisions : 200 000 puzzles, répétition espacée pour les ratés, timer sans pénalité, Woodpecker à lot figé (voir le comparatif, section 4).
+
+- [x] **`bun run build:puzzles`** (`scripts/build-puzzles.ts`, `scripts/puzzlesDataset.ts`) : lit `lichess_db_puzzle.csv.zst` (fichier donné, ou téléchargé, 307 Mo) et écrit `public/puzzles/`. Résultat identique à chaque exécution (vérifié par somme de contrôle). Une minute environ.
+  - La base compte 6 157 341 puzzles ; 4 100 899 passent le filtre de qualité (écart-type de l'Elo ≤ 100, ≥ 100 joueurs, popularité ≥ 80).
+  - Sélection par quotas (case = tranche d'Elo × thème, les thèmes qui ne disent rien de la tactique, comme `short` ou `crushing`, ne font pas de case) : 200 000 puzzles, les 73 thèmes présents, le plus rare (`superGM`) avec 78 puzzles.
+  - Le fichier de Lichess est fait de 34 trames Zstandard, précédées d'une trame « à ignorer » : le décodeur de Node s'arrête à la première, le script les enchaîne avec `bytesWritten`. Il faut Node 22.15 ou plus.
+- [x] **Format** (`src/utils/puzzleData.ts`) : un fichier par tranche de 200 Elo (13 fichiers, 0,6 à 2,9 Mo en JSON, 0,2 à 1 Mo compressés ; 9 Mo compressés en tout) et un index de 11 Ko (nombre de puzzles par tranche et par thème, pour afficher des compteurs sans rien charger). Le FEN est gardé sans les compteurs de coups.
+- [x] **Logique d'un puzzle** (`src/utils/puzzle.ts`) : sans moteur. Le premier coup (celui de l'adversaire) est joué, puis chaque réponse est comparée à la solution ; **tout mat est accepté**, comme sur Lichess. Les 200 000 puzzles ont été rejoués de bout en bout avec cette logique : aucun enregistrement abîmé, aucun puzzle sans solution.
+- [x] **Chargement à la demande** (`src/services/puzzleBook.ts`) : l'index, puis une tranche à la fois la première fois qu'elle est demandée, gardée en mémoire ; un échec n'est pas retenu (un nouvel essai repart). Filtre par Elo et par thèmes (« l'un d'eux » ou « tous »).
+- [x] **Service worker** : les puzzles ne sont ni préchargés ni obligatoires (28 Mo) ; chaque fichier est gardé la première fois qu'on le demande, donc une tranche déjà vue marche hors ligne. Ils comptent dans la version du cache, pour qu'une nouvelle sélection remplace les anciens fichiers.
+- Tests : 14 pour la sélection et la construction du jeu de données, 11 pour la logique d'un puzzle (dont le mat alternatif et la promotion), 11 pour le format, 9 pour le chargeur, 1 pour le service worker.
+- **À faire ensuite** : écran Tactique, puzzles ratés en répétition espacée, Woodpecker, liens avec le plan et le profil, historique des puzzles.
+- **Limites** :
+  - Le dépôt grossit d'environ 9 Mo (compressé) : à ne régénérer que rarement.
+  - Les Elo de puzzles Lichess ne sont pas ceux des parties.
+
 ## Ordre suggéré
 
 1 (sécurité serveur) → 2 (Gemini) → 4 (tests sur la logique pure) → 3 (découpage de `App.tsx`), puis le reste.

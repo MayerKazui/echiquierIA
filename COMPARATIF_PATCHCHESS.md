@@ -40,9 +40,9 @@ Application qui permet soit d'importer une partie pour l'analyser, soit de rense
 | Thèmes tactiques manqués                                       | 🟡   | Fourchette, clouage, enfilade, pièce en prise, plus mat manqué et avantage gâché. Lichess a une soixantaine de thèmes.                                                                                      |
 | Erreurs évitables avec explication tactique                    | ✅   | Coach IA (Gemini) sur les moments clés, repli local sans clé. Pas d'extension du coach aux puzzles et aux études (sujet clos).                                                                              |
 | Programme d'entraînement sur ses faiblesses                    | ✅   | « Mon plan » : trois objectifs au plus (erreurs qui reviennent, sortie d'ouverture coûteuse, habitude, phase fragile), avec progression sur 7 jours et le bouton qui lance chacun.                          |
-| Woodpecker                                                     | ❌   | Pas de base de puzzles dans le projet. À réfléchir ensemble avec les puzzles.                                                                                                                               |
-| Puzzles : thèmes, Elo, timer                                   | ❌   | Idem. Sujet gardé, à réfléchir ensemble.                                                                                                                                                                    |
-| Puzzles ratés à refaire                                        | 🟡   | Mécanique prête pour les erreurs de ses parties (`trainingStore`, `spacedRepetition`), à étendre aux puzzles.                                                                                               |
+| Woodpecker                                                     | ❌   | Cadré (section 4) : lot figé, cycles, temps total. Les données sont prêtes, l'écran reste à faire.                                                                                                          |
+| Puzzles : thèmes, Elo, timer                                   | 🟡   | Données (200 000 puzzles Lichess, tranches d'Elo, thèmes) et logique d'un puzzle faites ; chargeur à la demande fait. Reste l'écran avec les filtres et le timer.                                           |
+| Puzzles ratés à refaire                                        | 🟡   | Décidé : répétition espacée (`spacedRepetition`, `trainingStore`) étendue aux puzzles, en stockant le puzzle complet. Mécanique prête pour les parties, à brancher sur les puzzles.                         |
 | Explorateur d'ouvertures                                       | ✅   | Bouton « Ouvertures » : arbre coup par coup (~3 800 lignes lichess, noms français), échiquier, résultats de ses parties, coups hors du livre. Pas de stats mondiales.                                       |
 | Études : création, chapitres, intro, commentaires, annotations | ✅   | Menu « Études » : études privées dans le navigateur (IndexedDB), chapitres, introduction, variantes, commentaires, glyphes (!, ?, ±…). Flèches et cercles dessinés (clic droit) et gardés avec la position. |
 | Étude verrouillable, jeu contre l'ordinateur avec variantes    | ✅   | « Jouer ce chapitre (verrouiller) » : l'ordinateur joue les coups de l'étude, parfois une variante (40 %) ; un coup hors étude est annulé. Indice, choix du côté, « Déverrouiller ».                        |
@@ -56,10 +56,9 @@ Le projet couvre bien l'analyse et le profil, et dépasse le besoin sur le confo
 
 **Explorateur d'ouvertures : facile.** Les données sont déjà dans le projet. Il faut construire un arbre à partir des lignes et afficher échiquier, coups suivants et nom de l'ouverture. On peut y ajouter ses propres stats par ouverture, ce qui rejoint la ligne « ouvertures et % de victoire ». Des stats mondiales par coup passeraient par l'API Explorer de Lichess ; je crois qu'elle demande désormais un jeton, **à vérifier** avant de s'y engager. Sans cela, on se limite à ses propres stats.
 
-**Puzzles, tactique, Woodpecker : faisable, avec une décision de données à prendre ensemble.** La base de puzzles Lichess est libre de droits mais très lourde (plusieurs millions de lignes), donc elle ne tient pas entière dans un site statique.
+**Puzzles, tactique, Woodpecker : données faites.** La base de puzzles Lichess est libre de droits (CC0) mais très lourde : 307 Mo compressés, environ 6,2 millions de puzzles. Elle ne tient pas entière dans un site statique, d'où un sous-ensemble embarqué (décidé, section 4).
 
-- _Option recommandée :_ embarquer un sous-ensemble (quelques dizaines de milliers de puzzles), figé à la publication, découpé par tranche d'Elo et par thème, chargé à la demande. Compatible avec le hors ligne. Arbitrage à faire : taille, variété par thème et par Elo.
-- _Alternative :_ appeler l'API Lichess. La tranche d'Elo n'y est pas librement choisissable, et ce serait moins fiable.
+Mesures faites à l'établissement du sous-ensemble : environ 42 octets compressés par puzzle ; **200 000 puzzles = 28 Mo en JSON, 9 Mo compressés**, en 13 fichiers (un par tranche de 200 Elo, de 400 à 2 800, le plus gros à 1 Mo compressé), plus un index de 11 Ko. Chargés à la demande, jamais au démarrage.
 
 Une fois les puzzles disponibles, le reste est modeste : timer, cycle Woodpecker avec temps total, catégorie « ratés à refaire » (mécaniques existantes).
 
@@ -88,8 +87,17 @@ Une fois les puzzles disponibles, le reste est modeste : timer, cycle Woodpecker
 
 **Gardés** :
 
-- puzzles (avec Woodpecker, timer et puzzles ratés) : à réfléchir ensemble, notamment le sous-ensemble embarqué ;
-- explorateur d'ouvertures.
+- puzzles (avec Woodpecker, timer et puzzles ratés), cadrés ci-dessous ;
+- explorateur d'ouvertures (fait).
+
+**Puzzles : décisions prises ensemble (2026-10-02).**
+
+- **Données : 200 000 puzzles embarqués**, filtrés sur la qualité (écart-type de l'Elo ≤ 100, au moins 100 joueurs, popularité ≥ 80) puis choisis par quotas : chaque case (tranche d'Elo × thème) donne à tour de rôle son puzzle le plus aimé, si bien qu'un thème rare est pris en entier et un thème courant coupé. Le haut débit rend le poids (9 Mo compressés) sans conséquence, car tout est chargé à la demande ; ce qui reste, c'est le poids du dépôt (à commiter une fois) et le cache hors ligne (pas de préchargement par défaut, les fichiers déjà utilisés sont gardés).
+- **Puzzles ratés : répétition espacée**, pas « jusqu'à une réussite » : mieux pour ancrer les schémas, et la mécanique existe (`spacedRepetition`). Le puzzle complet est stocké avec sa carte, pour qu'une nouvelle sélection ne le fasse pas disparaître.
+- **Timer de la Tactique : sans pénalité.** Un puzzle raté passe au suivant et rejoint les ratés ; le but est d'enchaîner (« farmer »).
+- **Woodpecker :** lot **figé** (tiré une fois avec une graine, mémorisé, identique à chaque cycle) ; tranche d'Elo et nombre de puzzles par cycle au choix ; chronomètre global avec bouton pause ; les reprises des puzzles ratés comptent dans le cycle et dans le temps total ; à la fin, temps total comparé au cycle précédent.
+- **Elo :** les Elo de puzzles Lichess ne sont ni ceux des parties ni ceux de chess.com. Tranche libre (minimum et maximum), avec un Elo de départ suggéré d'après le profil, sans conversion.
+- **Historique des puzzles : second temps, à ne pas oublier.** Garder localement les scores des tempêtes, la précision par thème et les temps de cycle, pour alimenter le profil (points forts et faiblesses aux puzzles) et « Mon plan » (« 20 puzzles de fourchette à ton niveau »). Le lien se fait par les thèmes : fourchette → `fork`, clouage → `pin`, enfilade → `skewer`, pièce en prise → `hangingPiece`, mat manqué → `mateIn1`/`mateIn2`.
 
 **Conséquence.** Tout ce qui reste est faisable sans serveur permanent. Le point dur d'origine, le partage des études, disparaît : les études deviennent un chantier uniquement local.
 
@@ -98,13 +106,19 @@ Une fois les puzzles disponibles, le reste est modeste : timer, cycle Woodpecker
 1. ~~**Ouvertures**~~ : fait. Explorateur en arbre (résultats de ses parties par coup) et onglet « Mes ouvertures » (% de victoire, coup de sortie qui coûte cher).
 2. ~~**Points forts et programme d'entraînement**~~ : fait. « Vos points forts » dans le profil, « Mon plan » (menu).
 3. **Mise à jour manuelle du profil** : bouton « n'analyser que les nouvelles parties », puisque la mise à jour automatique est abandonnée.
-4. **Puzzles, thèmes, Elo, timer, puzzles ratés**, puis **Woodpecker** juste après. À cadrer ensemble d'abord (sous-ensemble embarqué).
+4. **Puzzles, thèmes, Elo, timer, puzzles ratés**, puis **Woodpecker** juste après. Cadrés (section 4). Avancement :
+   1. ~~Données, chargeur et logique d'un puzzle, avec tests~~ : fait.
+   2. Écran Tactique (filtres, timer sans pénalité, puzzles ratés en répétition espacée).
+   3. Woodpecker.
+   4. Liens avec « Mon plan » et le profil, puis historique des puzzles (second temps).
 5. ~~**Études privées**~~ : fait (commencées avant les puzzles, à la demande). Éditeur de chapitres, import et export PGN, chapitre verrouillé contre l'ordinateur.
-6. En parallèle, plus petit : **élargir la détection des thèmes tactiques** au-delà des quatre actuels, ce qui nourrit le filtrage des puzzles.
+6. En parallèle, plus petit : **élargir la détection des thèmes tactiques** au-delà des quatre actuels. Correction : cela ne sert pas au filtrage des puzzles (leurs thèmes viennent de la base Lichess), seulement à relier les erreurs de ses propres parties à ces thèmes.
 
 ## 6. Questions ouvertes
 
-- [ ] **Puzzles** : sous-ensemble embarqué (taille, découpage par Elo et par thème) ou API Lichess ? À réfléchir ensemble.
+- [x] **Puzzles** : sous-ensemble embarqué de 200 000 puzzles, découpé par tranche d'Elo de 200 (pas par thème : le filtrage par thème se fait côté navigateur sur la tranche chargée). L'API Lichess est écartée (hors ligne impossible, tranche d'Elo non choisissable).
+- [ ] **Historique des puzzles** (second temps) : scores, précision par thème, temps de cycle, branchés sur le profil et « Mon plan ».
+- [ ] **Puzzles : numéro de version des données.** Si une nouvelle sélection est publiée, les puzzles ratés déjà stockés gardent leur copie complète ; à vérifier que la répétition espacée n'en souffre pas.
 - [ ] **Stats mondiales d'ouverture** : l'API Explorer de Lichess exige-t-elle un jeton ? Si oui, s'en passe-t-on et garde-t-on seulement ses propres stats ?
 - [ ] **Mise à jour manuelle du profil** : bouton « n'analyser que les nouvelles parties » ? Sous quelle forme ?
 - [x] **Parser PGN** : analyseur maison (`utils/studyPgn.ts`), `chess.js` ne servant qu'à jouer les coups. Variantes imbriquées, commentaires, glyphes, `[%cal]` et `[%csl]`.
@@ -120,6 +134,7 @@ Une fois les puzzles disponibles, le reste est modeste : timer, cycle Woodpecker
 - `src/services/openingBook.ts`, `src/data/openings/*.tsv`, `public/openings.json` : livre d'ouvertures.
 - `src/utils/pgnParser.ts` : import PGN d'une partie (ligne principale seulement) ; `src/utils/studyPgn.ts` : PGN d'étude avec variantes.
 - `src/utils/studyTree.ts`, `src/utils/studyPlay.ts`, `src/services/studyStore.ts`, `src/components/Studies/` : études (arbre, jeu verrouillé, stockage, écrans).
+- `scripts/build-puzzles.ts`, `scripts/puzzlesDataset.ts`, `public/puzzles/` : génération du sous-ensemble de puzzles (`bun run build:puzzles`) et son résultat ; `src/utils/puzzleData.ts` (format, tranches), `src/utils/puzzle.ts` (jouer un puzzle), `src/services/puzzleBook.ts` (chargement à la demande).
 - `src/hooks/useSandbox.ts` : exploration libre (point de départ possible pour l'éditeur d'étude).
 - `src/services/gameStore.ts` : stockage IndexedDB (modèle pour stocker les études).
 - `src/hooks/useBatchAnalysis.ts`, `src/services/batchAnalysis.ts` : analyse en lot (base du bouton de mise à jour manuelle).
