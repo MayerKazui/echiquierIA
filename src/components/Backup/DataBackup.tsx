@@ -10,6 +10,7 @@ import {
   type RestoreReport,
 } from '../../services/backup';
 import { downloadTextFile } from '../../utils/download';
+import { DriveSync } from './DriveSync';
 
 interface DataBackupProps {
   /** The history changed (a backup was restored): the list has to be read again. */
@@ -18,6 +19,8 @@ interface DataBackupProps {
   download?: typeof downloadTextFile;
   /** Replaces the reload of the page, offered once restored settings are to be applied (tests). */
   reload?: () => void;
+  /** Props of the Google Drive part (tests). */
+  drive?: Omit<React.ComponentProps<typeof DriveSync>, 'onRestored'>;
 }
 
 type Notice = { kind: 'busy' | 'success' | 'error'; text: string; canReload?: boolean };
@@ -68,6 +71,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({
   onRestored,
   download = downloadTextFile,
   reload = () => window.location.reload(),
+  drive,
 }) => {
   const [notice, setNotice] = useState<Notice | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -190,6 +194,8 @@ export const DataBackup: React.FC<DataBackupProps> = ({
           </p>
         )}
       </div>
+
+      <DriveSync onRestored={onRestored} {...drive} />
     </section>
   );
 };

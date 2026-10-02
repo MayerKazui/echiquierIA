@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Règles de confidentialité — Échiquier IA</title>
+    <meta name="description" content="Ce que fait Échiquier IA de vos données : tout reste dans votre navigateur, sauf ce que vous choisissez d'envoyer." />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <style>
+      :root { color-scheme: dark light; }
+      body { margin: 0; font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; background: #020617; color: #e2e8f0; }
+      main { max-width: 42rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+      h1 { font-size: 1.6rem; margin: 0 0 0.25rem; color: #fff; }
+      h2 { font-size: 1.15rem; margin: 2rem 0 0.5rem; color: #fff; }
+      p, li { color: #cbd5e1; }
+      a { color: #a5b4fc; }
+      .meta { color: #94a3b8; font-size: 0.875rem; }
+      @media (prefers-color-scheme: light) {
+        body { background: #f8fafc; color: #0f172a; }
+        h1, h2 { color: #0f172a; }
+        p, li { color: #334155; }
+        a { color: #4338ca; }
+        .meta { color: #64748b; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Règles de confidentialité</h1>
+      <p class="meta">Échiquier IA · dernière mise à jour : octobre 2026 · <a href="./">Retour à l'application</a></p>
+
+      <p>
+        Échiquier IA est une application d'analyse de parties d'échecs qui s'exécute dans votre navigateur. Elle n'a
+        pas de compte utilisateur, pas de publicité et pas d'outil de mesure d'audience, et elle ne dépose pas de
+        cookie.
+      </p>
+
+      <h2>Ce qui reste dans votre navigateur</h2>
+      <p>
+        Vos parties analysées, votre progression d'entraînement et vos réglages (pseudo, thème, sons…) sont enregistrés
+        dans le stockage de votre navigateur (IndexedDB et localStorage). Ils ne sont envoyés à aucun serveur de
+        l'application. Vider les données du site dans votre navigateur les efface. L'analyse elle-même (le moteur
+        Stockfish) s'exécute sur votre appareil.
+      </p>
+
+      <h2>Sauvegarde dans votre Google Drive (facultative)</h2>
+      <p>
+        Si vous choisissez « Synchroniser avec Google Drive », l'application vous demande l'autorisation d'accéder au
+        dossier de données d'application de votre Drive (droit <code>drive.appdata</code>). Ce dossier est réservé à
+        l'application : elle ne peut ni lire ni modifier vos autres fichiers. Elle y enregistre un fichier de
+        sauvegarde contenant vos parties analysées, votre progression d'entraînement et vos réglages, et le relit pour
+        les restaurer. Ce fichier va directement de votre navigateur à Google : il ne passe par aucun serveur de
+        l'application, et l'autorisation n'est conservée que le temps de la session.
+      </p>
+      <p>
+        L'utilisation par Échiquier IA des informations reçues des API Google respectera la
+        <a href="https://developers.google.com/terms/api-services-user-data-policy">
+          Politique relative aux données utilisateur des services d'API Google</a
+        >, y compris les exigences d'utilisation limitée. Les données de votre Drive ne sont utilisées que pour
+        enregistrer et restaurer votre sauvegarde ; elles ne sont ni transférées à des tiers, ni utilisées pour la
+        publicité, ni lues par des personnes.
+      </p>
+      <p>
+        Vous pouvez retirer l'accès à tout moment sur
+        <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>, et supprimer le fichier
+        de sauvegarde dans Google Drive, rubrique « Gérer les applications ».
+      </p>
+
+      <h2>Ce qui sort de votre navigateur</h2>
+      <ul>
+        <li>
+          <strong>Import de vos parties</strong> : si vous saisissez un pseudo, votre navigateur interroge directement
+          chess.com ou Lichess, qui voient cette requête selon leurs propres règles.
+        </li>
+        <li>
+          <strong>Coach IA</strong> : lorsque vous demandez une explication, les coups et la position concernés sont
+          envoyés au serveur de l'application, qui les transmet à l'API Gemini de Google pour produire le texte. Rien
+          n'est conservé par l'application. Cette fonction n'est pas disponible hors ligne.
+        </li>
+        <li>
+          <strong>Hébergement</strong> : le site est servi par GitHub Pages, qui peut enregistrer des journaux
+          techniques d'accès (adresse IP) selon ses propres règles.
+        </li>
+      </ul>
+
+      <h2>Vos droits et contact</h2>
+      <p>
+        Vos données sont chez vous : vous pouvez les exporter (fichier JSON), les restaurer ou les supprimer à tout
+        moment depuis « Mes parties ». Pour toute question, ouvrez une demande sur
+        <a href="https://github.com/MayerKazui/echiquierIA/issues">github.com/MayerKazui/echiquierIA/issues</a>.
+      </p>
+    </main>
+  </body>
+</html>

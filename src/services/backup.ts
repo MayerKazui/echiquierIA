@@ -37,6 +37,9 @@ export const MAX_BACKUP_CHARS = 250_000_000;
 /** A file claiming more items than this is refused. */
 const MAX_ITEMS = 20_000;
 
+/** Said by `parseBackup` for a file that is a backup but holds nothing. */
+export const EMPTY_BACKUP_ERROR = 'Cette sauvegarde ne contient rien à restaurer.';
+
 export interface Backup {
   app: typeof BACKUP_APP;
   format: typeof BACKUP_FORMAT;
@@ -146,7 +149,7 @@ export function parseBackup(text: string): ParsedBackup {
   }
 
   if (validGames.length === 0 && validCards.length === 0 && Object.keys(preferences).length === 0) {
-    return { ok: false, error: 'Cette sauvegarde ne contient rien à restaurer.' };
+    return { ok: false, error: EMPTY_BACKUP_ERROR };
   }
   return {
     ok: true,
