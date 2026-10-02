@@ -44,6 +44,8 @@ interface StudyEditorProps {
   boardTheme?: BoardTheme;
   onSelect: (id: string) => void;
   onChange: (chapter: StudyChapter) => void;
+  /** Shown at the top of the column beside the board (the settings of the study). */
+  aside?: React.ReactNode;
 }
 
 const glyphClass = (isOn: boolean) =>
@@ -54,7 +56,14 @@ const glyphClass = (isOn: boolean) =>
   }`;
 
 /** A chapter to read and to write: the board, the tree of moves, and the comment and glyphs of the selected move. */
-export const StudyEditor: React.FC<StudyEditorProps> = ({ chapter, selectedId, boardTheme, onSelect, onChange }) => {
+export const StudyEditor: React.FC<StudyEditorProps> = ({
+  chapter,
+  selectedId,
+  boardTheme,
+  onSelect,
+  onChange,
+  aside,
+}) => {
   const { root } = chapter;
   const [isFlipped, setIsFlipped] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -131,8 +140,8 @@ export const StudyEditor: React.FC<StudyEditorProps> = ({ chapter, selectedId, b
     isRoot || !parent ? 'la position de départ' : `le coup ${moveLabel(parent.fen, toFrenchSan(selected.san))}`;
 
   return (
-    <div className="grid md:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] gap-4 items-start">
-      <div className="w-full max-w-md mx-auto md:mx-0 flex flex-col gap-2">
+    <div className="grid md:grid-cols-[var(--modal-board)_minmax(0,1fr)] gap-4 items-start">
+      <div className="w-full max-w-md mx-auto md:max-w-none md:mx-0 md:sticky md:top-0 flex flex-col gap-2">
         <ChessBoard
           fen={selected.fen}
           isFlipped={isFlipped !== (chapter.orientation === 'b')}
@@ -194,6 +203,7 @@ export const StudyEditor: React.FC<StudyEditorProps> = ({ chapter, selectedId, b
       </div>
 
       <div className="flex flex-col gap-3 min-w-0">
+        {aside}
         <StudyMoveTree root={root} selectedId={selected.id} onSelect={select} />
 
         <div className="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">

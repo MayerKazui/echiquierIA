@@ -74,8 +74,119 @@ export const StudyView: React.FC<StudyViewProps> = ({ study, boardTheme, onChang
     setIsLocked(false);
   };
 
+  // The settings of the study and of the chapter sit beside the board, so that the board starts high on the page
+  const settings = (
+    <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+      <label className="flex flex-col gap-1 text-[11px] font-semibold text-slate-300">
+        Introduction de l&apos;étude
+        <textarea
+          value={study.description}
+          rows={2}
+          maxLength={4000}
+          onChange={(e) => onChange({ ...study, description: e.target.value })}
+          className={FIELD}
+        />
+      </label>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-[11px] font-semibold text-slate-300 grow min-w-40 max-w-sm">
+          Nom du chapitre
+          <input
+            value={chapter.name}
+            maxLength={120}
+            onChange={(e) => changeChapter({ ...chapter, name: e.target.value })}
+            className={FIELD}
+          />
+        </label>
+        <div role="group" aria-label="Côté du chapitre" className="flex items-center gap-1.5">
+          <span className="text-[11px] text-slate-400">Vu du côté des :</span>
+          {(['w', 'b'] as const).map((side) => (
+            <button
+              key={side}
+              type="button"
+              aria-pressed={chapter.orientation === side}
+              onClick={() => changeChapter({ ...chapter, orientation: side })}
+              className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+                chapter.orientation === side
+                  ? 'bg-indigo-600 border-indigo-500 text-white'
+                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              {side === 'w' ? 'Blancs' : 'Noirs'}
+            </button>
+          ))}
+        </div>
+        {study.chapters.length > 1 && (
+          <div role="group" aria-label="Ordre du chapitre" className="flex items-center gap-1.5">
+            <button
+              type="button"
+              className={SECONDARY}
+              disabled={study.chapters[0].id === chapter.id}
+              onClick={() => moveChapter(-1)}
+            >
+              <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
+              Avant
+            </button>
+            <button
+              type="button"
+              className={SECONDARY}
+              disabled={study.chapters[study.chapters.length - 1].id === chapter.id}
+              onClick={() => moveChapter(1)}
+            >
+              Après
+              <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+        <button
+          type="button"
+          className={SECONDARY}
+          onClick={() =>
+            downloadTextFile(
+              fileName(`${study.name} - ${chapter.name}`),
+              chapterToPgn(study, chapter),
+              'application/x-chess-pgn'
+            )
+          }
+        >
+          <Download className="w-3.5 h-3.5" aria-hidden="true" />
+          Exporter ce chapitre
+        </button>
+        {study.chapters.length > 1 &&
+          (isConfirmingDelete ? (
+            <>
+              <button
+                type="button"
+                onClick={deleteChapter}
+                className={`${BUTTON} bg-rose-600 hover:bg-rose-500 border-rose-500 text-white`}
+              >
+                Supprimer ce chapitre
+              </button>
+              <button type="button" className={SECONDARY} onClick={() => setIsConfirmingDelete(false)}>
+                Garder
+              </button>
+            </>
+          ) : (
+            <button type="button" className={SECONDARY} onClick={() => setIsConfirmingDelete(true)}>
+              <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+              Supprimer le chapitre
+            </button>
+          ))}
+        {!isLocked && countMoves(chapter.root) > 0 && (
+          <button
+            type="button"
+            className={`${BUTTON} bg-indigo-600 hover:bg-indigo-500 border-indigo-500 text-white`}
+            onClick={() => setIsLocked(true)}
+          >
+            <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+            Jouer ce chapitre (verrouiller)
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="modal-board-tall flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-2">
         <button type="button" className={SECONDARY} onClick={onBack}>
           <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
@@ -99,17 +210,6 @@ export const StudyView: React.FC<StudyViewProps> = ({ study, boardTheme, onChang
           Exporter en PGN
         </button>
       </div>
-
-      <label className="flex flex-col gap-1 text-[11px] font-semibold text-slate-300">
-        Introduction de l&apos;étude
-        <textarea
-          value={study.description}
-          rows={2}
-          maxLength={4000}
-          onChange={(e) => onChange({ ...study, description: e.target.value })}
-          className={FIELD}
-        />
-      </label>
 
       <div className="flex flex-col gap-2">
         <div role="group" aria-label="Chapitres" className="flex flex-wrap items-center gap-1.5">
@@ -147,111 +247,22 @@ export const StudyView: React.FC<StudyViewProps> = ({ study, boardTheme, onChang
             />
           </div>
         )}
-
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="flex flex-col gap-1 text-[11px] font-semibold text-slate-300 grow min-w-40 max-w-sm">
-            Nom du chapitre
-            <input
-              value={chapter.name}
-              maxLength={120}
-              onChange={(e) => changeChapter({ ...chapter, name: e.target.value })}
-              className={FIELD}
-            />
-          </label>
-          <div role="group" aria-label="Côté du chapitre" className="flex items-center gap-1.5">
-            <span className="text-[11px] text-slate-400">Vu du côté des :</span>
-            {(['w', 'b'] as const).map((side) => (
-              <button
-                key={side}
-                type="button"
-                aria-pressed={chapter.orientation === side}
-                onClick={() => changeChapter({ ...chapter, orientation: side })}
-                className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
-                  chapter.orientation === side
-                    ? 'bg-indigo-600 border-indigo-500 text-white'
-                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {side === 'w' ? 'Blancs' : 'Noirs'}
-              </button>
-            ))}
-          </div>
-          {study.chapters.length > 1 && (
-            <div role="group" aria-label="Ordre du chapitre" className="flex items-center gap-1.5">
-              <button
-                type="button"
-                className={SECONDARY}
-                disabled={study.chapters[0].id === chapter.id}
-                onClick={() => moveChapter(-1)}
-              >
-                <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
-                Avant
-              </button>
-              <button
-                type="button"
-                className={SECONDARY}
-                disabled={study.chapters[study.chapters.length - 1].id === chapter.id}
-                onClick={() => moveChapter(1)}
-              >
-                Après
-                <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
-            </div>
-          )}
-          <button
-            type="button"
-            className={SECONDARY}
-            onClick={() =>
-              downloadTextFile(
-                fileName(`${study.name} - ${chapter.name}`),
-                chapterToPgn(study, chapter),
-                'application/x-chess-pgn'
-              )
-            }
-          >
-            <Download className="w-3.5 h-3.5" aria-hidden="true" />
-            Exporter ce chapitre
-          </button>
-          {study.chapters.length > 1 &&
-            (isConfirmingDelete ? (
-              <>
-                <button
-                  type="button"
-                  onClick={deleteChapter}
-                  className={`${BUTTON} bg-rose-600 hover:bg-rose-500 border-rose-500 text-white`}
-                >
-                  Supprimer ce chapitre
-                </button>
-                <button type="button" className={SECONDARY} onClick={() => setIsConfirmingDelete(false)}>
-                  Garder
-                </button>
-              </>
-            ) : (
-              <button type="button" className={SECONDARY} onClick={() => setIsConfirmingDelete(true)}>
-                <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                Supprimer le chapitre
-              </button>
-            ))}
-          {!isLocked && countMoves(chapter.root) > 0 && (
-            <button
-              type="button"
-              className={`${BUTTON} bg-indigo-600 hover:bg-indigo-500 border-indigo-500 text-white`}
-              onClick={() => setIsLocked(true)}
-            >
-              <Lock className="w-3.5 h-3.5" aria-hidden="true" />
-              Jouer ce chapitre (verrouiller)
-            </button>
-          )}
-        </div>
       </div>
 
       {isLocked ? (
-        <StudyPlay key={chapter.id} chapter={chapter} boardTheme={boardTheme} onExit={() => setIsLocked(false)} />
+        <StudyPlay
+          key={chapter.id}
+          chapter={chapter}
+          boardTheme={boardTheme}
+          aside={settings}
+          onExit={() => setIsLocked(false)}
+        />
       ) : (
         <StudyEditor
           key={chapter.id}
           chapter={chapter}
           boardTheme={boardTheme}
+          aside={settings}
           selectedId={selection[chapter.id] ?? chapter.root.id}
           onSelect={(id) => setSelection((s) => ({ ...s, [chapter.id]: id }))}
           onChange={changeChapter}

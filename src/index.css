@@ -78,6 +78,20 @@ html {
 }
 
 /*
+ * Board of the windows (studies, puzzles, training, openings): sized from the height of the window, and from the
+ * width so that the panel beside it keeps room. 15rem = the padding of the window and of the page, its title, and
+ * the bar above the board. Below 48rem (one column) the board takes the width of the window instead.
+ */
+:root {
+  --modal-board: clamp(18rem, min(100dvh - 15rem, 100vw - 24rem), 52rem);
+}
+
+/* A study has its title and its chapters above the board: the board is a little smaller. */
+.modal-board-tall {
+  --modal-board: clamp(18rem, min(100dvh - 20.5rem, 100vw - 24rem), 52rem);
+}
+
+/*
  * Desktop game view: the board is sized from the height of the window so that the players, the board and
  * the playback controls fit on screen together (and from the width, so that the side panel keeps room).
  * 16.5rem = header + page padding + the two player bars + the playback controls + the gaps.
