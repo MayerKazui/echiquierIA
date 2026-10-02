@@ -17,34 +17,35 @@ Application qui permet soit d'importer une partie pour l'analyser, soit de rense
 **Tactique.** Puzzles avec choix des thèmes, d'une tranche d'Elo, et d'un timer (par exemple un maximum de puzzles en 10 minutes). Les puzzles ratés (comme pour Woodpecker) vont dans une catégorie spécifique pour les refaire jusqu'à réussite.
 
 **Études** (à la manière de Lichess).
+
 - Études privées, partageables, avec commentaires sur les coups, introduction, chapitres et annotations.
 - Étude verrouillable et déverrouillable pour « jouer » contre l'ordinateur, qui joue les coups de l'étude en prenant parfois les variantes et pas uniquement la ligne principale. En cas de bifurcation par rapport aux lignes de l'étude, le coup est annulé pour reprendre la ligne.
 - Import de PGN au format Lichess, pour l'étude entière ou pour un seul chapitre.
 
 ## 2. Comparatif avec le projet actuel
 
-| Besoin | État | Détail |
-|---|---|---|
-| Importer une partie (PGN) | ✅ | Collé, fichier ou exemples. |
-| Import par pseudo Lichess / chess.com | ✅ | Filtre de cadence, parties plus anciennes à la demande, appels directs du navigateur. |
-| Analyser toutes ses parties | 🟡 | Analyse en lot de 5 à 100 parties en tâche de fond, avec reprise. Historique de 500 parties (50 complètes, les autres allégées). |
-| Mise à jour de l'étude avec les dernières parties | 🟡 | Réimport et nouvelle analyse en lot possibles. Pas vu de bouton « n'analyser que les nouvelles ». |
-| Profil : faiblesses | ✅ | « Mon profil » : phase, type d'erreur, zeitnot, couleur, force de l'adversaire, cadence, évolution. |
-| Profil : points forts | 🟡 | Les chiffres existent, aucun écran ne dit « voici ce que tu fais bien ». |
-| Ouvertures jouées et % de victoire | ❌ | Score par couleur et par adversaire, pas par ouverture. Point 3 de `ROADMAP.md`. |
-| Analyse détaillée d'une partie | ✅ | Gaffes, bons coups, « brillant », « excellent coup », graphique d'évaluation, précision. |
-| Ouverture / milieu / finale bien exécutés | ✅ | Précision par phase, phases calculées d'après le matériel. |
-| Thèmes tactiques manqués | 🟡 | Fourchette, clouage, enfilade, pièce en prise, plus mat manqué et avantage gâché. Lichess a une soixantaine de thèmes. |
-| Erreurs évitables avec explication tactique | ✅ | Coach IA (Gemini) sur les moments clés, repli local sans clé. |
-| Programme d'entraînement sur ses faiblesses | 🟡 | « S'entraîner » rejoue ses erreurs, répétition espacée (1, 3, 7 jours), filtres par type d'erreur et phase. Pas de plan structuré. |
-| Woodpecker | ❌ | Pas de base de puzzles dans le projet. |
-| Puzzles : thèmes, Elo, timer | ❌ | Idem. |
-| Puzzles ratés à refaire | 🟡 | Mécanique prête pour les erreurs de ses parties (`trainingStore`, `spacedRepetition`), à étendre aux puzzles. |
-| Explorateur d'ouvertures | 🟡 | `public/openings.json` contient déjà ~3 800 lignes lichess avec noms français (`src/data/openings/*.tsv`). Il manque l'écran de navigation en arbre. |
-| Études : création, chapitres, intro, commentaires, annotations | ❌ | Seul le bac à sable « Et si j'avais joué… ? » existe, sans sauvegarde. |
-| Étude verrouillable, jeu contre l'ordinateur avec variantes | ❌ | Rien d'équivalent. |
-| Import PGN d'étude ou de chapitre | ❌ | L'import actuel (`chess.js`) ne gère qu'une ligne principale. À confirmer : je pense que `chess.js` écarte les variantes. |
-| Partage d'études | ❌ | Pas de serveur de comptes (voir section 3). |
+| Besoin                                                         | État | Détail                                                                                                                                               |
+| -------------------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Importer une partie (PGN)                                      | ✅   | Collé, fichier ou exemples.                                                                                                                          |
+| Import par pseudo Lichess / chess.com                          | ✅   | Filtre de cadence, parties plus anciennes à la demande, appels directs du navigateur.                                                                |
+| Analyser toutes ses parties                                    | 🟡   | Analyse en lot de 5 à 100 parties en tâche de fond, avec reprise. Historique de 500 parties (50 complètes, les autres allégées).                     |
+| Mise à jour de l'étude avec les dernières parties              | 🟡   | Réimport et nouvelle analyse en lot possibles. Pas vu de bouton « n'analyser que les nouvelles ».                                                    |
+| Profil : faiblesses                                            | ✅   | « Mon profil » : phase, type d'erreur, zeitnot, couleur, force de l'adversaire, cadence, évolution.                                                  |
+| Profil : points forts                                          | 🟡   | Les chiffres existent, aucun écran ne dit « voici ce que tu fais bien ».                                                                             |
+| Ouvertures jouées et % de victoire                             | ❌   | Score par couleur et par adversaire, pas par ouverture. Point 3 de `ROADMAP.md`.                                                                     |
+| Analyse détaillée d'une partie                                 | ✅   | Gaffes, bons coups, « brillant », « excellent coup », graphique d'évaluation, précision.                                                             |
+| Ouverture / milieu / finale bien exécutés                      | ✅   | Précision par phase, phases calculées d'après le matériel.                                                                                           |
+| Thèmes tactiques manqués                                       | 🟡   | Fourchette, clouage, enfilade, pièce en prise, plus mat manqué et avantage gâché. Lichess a une soixantaine de thèmes.                               |
+| Erreurs évitables avec explication tactique                    | ✅   | Coach IA (Gemini) sur les moments clés, repli local sans clé.                                                                                        |
+| Programme d'entraînement sur ses faiblesses                    | 🟡   | « S'entraîner » rejoue ses erreurs, répétition espacée (1, 3, 7 jours), filtres par type d'erreur et phase. Pas de plan structuré.                   |
+| Woodpecker                                                     | ❌   | Pas de base de puzzles dans le projet.                                                                                                               |
+| Puzzles : thèmes, Elo, timer                                   | ❌   | Idem.                                                                                                                                                |
+| Puzzles ratés à refaire                                        | 🟡   | Mécanique prête pour les erreurs de ses parties (`trainingStore`, `spacedRepetition`), à étendre aux puzzles.                                        |
+| Explorateur d'ouvertures                                       | 🟡   | `public/openings.json` contient déjà ~3 800 lignes lichess avec noms français (`src/data/openings/*.tsv`). Il manque l'écran de navigation en arbre. |
+| Études : création, chapitres, intro, commentaires, annotations | ❌   | Seul le bac à sable « Et si j'avais joué… ? » existe, sans sauvegarde.                                                                               |
+| Étude verrouillable, jeu contre l'ordinateur avec variantes    | ❌   | Rien d'équivalent.                                                                                                                                   |
+| Import PGN d'étude ou de chapitre                              | ❌   | L'import actuel (`chess.js`) ne gère qu'une ligne principale. À confirmer : je pense que `chess.js` écarte les variantes.                            |
+| Partage d'études                                               | ❌   | Pas de serveur de comptes (voir section 3).                                                                                                          |
 
 Le projet couvre bien l'analyse et le profil, et dépasse le besoin sur le confort : PWA hors ligne, sauvegarde et synchronisation Google Drive, mobile, accessibilité. Les blocs **Woodpecker, puzzles et études** n'existent pas du tout.
 
@@ -53,18 +54,21 @@ Le projet couvre bien l'analyse et le profil, et dépasse le besoin sur le confo
 **Explorateur d'ouvertures : facile.** Les données sont déjà dans le projet. Il faut construire un arbre à partir des lignes et afficher échiquier, coups suivants et nom de l'ouverture. On peut y ajouter ses propres stats par ouverture, ce qui rejoint la ligne « ouvertures et % de victoire ». Des stats mondiales par coup passeraient par l'API Explorer de Lichess ; je crois qu'elle demande désormais un jeton, **à vérifier** avant de s'y engager.
 
 **Puzzles, tactique, Woodpecker : faisable, avec une décision de données.** La base de puzzles Lichess est libre de droits mais très lourde (plusieurs millions de lignes).
-- *Option recommandée :* embarquer un sous-ensemble (quelques dizaines de milliers de puzzles), découpé par tranche d'Elo et par thème, chargé à la demande. Compatible avec le hors ligne.
-- *Alternative :* appeler l'API Lichess. La tranche d'Elo n'y est pas librement choisissable, et ce serait moins fiable.
+
+- _Option recommandée :_ embarquer un sous-ensemble (quelques dizaines de milliers de puzzles), découpé par tranche d'Elo et par thème, chargé à la demande. Compatible avec le hors ligne.
+- _Alternative :_ appeler l'API Lichess. La tranche d'Elo n'y est pas librement choisissable, et ce serait moins fiable.
 
 Une fois les puzzles disponibles, le reste est modeste : timer, cycle Woodpecker avec temps total, catégorie « ratés à refaire » (mécaniques existantes).
 
 **Études : faisable, c'est le plus gros chantier.** Il faut :
+
 - un vrai analyseur PGN avec variantes, commentaires et annotations ;
 - un modèle de données en arbre, stocké dans IndexedDB comme les parties ;
 - un éditeur de chapitres ;
 - le mode verrouillé : l'ordinateur joue les coups de l'étude, choisit parfois une variante, et annule un coup hors ligne.
 
 **Le partage d'études est le point dur.** Le serveur actuel ne fait que Gemini et l'import Lichess, sans comptes ni base de données. Trois options :
+
 1. partage par fichier PGN exporté ;
 2. partage par lien contenant l'étude encodée (limité en taille) ;
 3. vrai backend, ce qui change la nature du projet.
