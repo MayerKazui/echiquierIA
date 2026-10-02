@@ -9,7 +9,7 @@ coups brillants, trace la courbe d'évaluation et un « entraîneur IA » (Gemin
 - Les parties analysées (500 au plus, les 50 plus récentes complètes) sont conservées dans le navigateur (IndexedDB) : la dernière se rouvre après un rechargement, « Mes parties » (en-tête) permet d'en rouvrir une autre sans relancer Stockfish, et ré-analyser un même PGN est instantané. Rien n'est envoyé à un serveur
 - « S'entraîner » (en-tête) : rejouer les positions où l'on s'est trompé dans ses propres parties, avec correction par le moteur ; une position ratée revient le lendemain, une position réussie après 1, 3 puis 7 jours ; filtres par type d'erreur et par phase
 - « Mon profil » (en-tête) : ce qui revient dans vos parties (phase, type d'erreur, pendule, couleur, adversaire, évolution)
-- **Sauvegarde** : « Mes parties » exporte tout ce que l'application garde dans le navigateur (parties, progression d'entraînement, réglages) en un fichier JSON, et le réimporte (fusion avec l'existant)
+- **Sauvegarde** : « Mes parties » exporte tout ce que l'application garde dans le navigateur (parties, progression d'entraînement, réglages) en un fichier JSON, et le réimporte (fusion avec l'existant) ; le bouton « Synchroniser avec Google Drive » garde la même copie dans le dossier caché de votre Drive, pour retrouver vos données sur un autre appareil (sans serveur : voir `IMPROVEMENTS.md`)
 - **Application installable et utilisable hors ligne** (PWA) : le moteur, la base d'ouvertures et l'interface sont mis en cache ; une nouvelle version est proposée sans interrompre la partie en cours. Ne marchent pas hors ligne : l'import chess.com / Lichess et le coach IA
 - Noms d'ouverture en français (« Défense sicilienne : variante Dragon »)
 - Bilan par joueur : précision, phases de jeu, répartition des coups, gestion du temps si le PGN contient les pendules
@@ -52,15 +52,16 @@ La CI (GitHub Actions) exécute lint, typecheck, format, tests et build à chaqu
 
 Variables d'environnement (voir `.env.example`) :
 
-| Variable          | Rôle                                                                                        |
-| ----------------- | ------------------------------------------------------------------------------------------- |
-| `GEMINI_API_KEY`  | Clé de l'API Gemini (côté serveur uniquement)                                               |
-| `PORT`            | Port d'écoute, 3000 par défaut                                                              |
-| `APP_URL`         | URL publique, toujours autorisée à appeler `/api`                                           |
-| `ALLOWED_ORIGINS` | Autres origines autorisées (CORS), séparées par des virgules                                |
-| `TRUST_PROXY`     | Nombre de proxies devant le serveur, pour les limites de débit (auto sur Cloud Run)         |
-| `VITE_API_URL`    | À la construction : adresse de l'API si elle est sur un autre hôte (vide : même hôte)       |
-| `BASE_PATH`       | À la construction : sous-dossier du site (`/echiquierIA/` sur GitHub Pages), `/` par défaut |
+| Variable                | Rôle                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------ |
+| `GEMINI_API_KEY`        | Clé de l'API Gemini (côté serveur uniquement)                                                          |
+| `PORT`                  | Port d'écoute, 3000 par défaut                                                                         |
+| `APP_URL`               | URL publique, toujours autorisée à appeler `/api`                                                      |
+| `ALLOWED_ORIGINS`       | Autres origines autorisées (CORS), séparées par des virgules                                           |
+| `TRUST_PROXY`           | Nombre de proxies devant le serveur, pour les limites de débit (auto sur Cloud Run)                    |
+| `VITE_API_URL`          | À la construction : adresse de l'API si elle est sur un autre hôte (vide : même hôte)                  |
+| `VITE_GOOGLE_CLIENT_ID` | À la construction : identifiant client OAuth de la synchronisation Google Drive (vide : bouton masqué) |
+| `BASE_PATH`             | À la construction : sous-dossier du site (`/echiquierIA/` sur GitHub Pages), `/` par défaut            |
 
 ## Architecture
 
@@ -73,7 +74,7 @@ src/
   components/        échiquier, graphiques, liste de coups, bilan, import PGN…
   services/          stockfishEngine (pool de workers, cache), openingBook, gameStore (parties analysées, IndexedDB),
                      gameImport (parties d'un compte chess.com / Lichess), trainingStore (progression de l'entraînement, IndexedDB),
-                     backup (export / import JSON de tout cela)
+                     backup (export / import JSON de tout cela), googleAuth / googleDrive / driveSync (copie dans Google Drive)
   utils/             logique pure testée : classification des coups, précision, PGN, pendules, notation…
   data/openings/     fichiers .tsv de lichess, source de public/openings.json
 vite/                plugins : servir et empaqueter le moteur Stockfish, construire le service worker (sw.js)
