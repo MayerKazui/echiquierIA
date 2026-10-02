@@ -1,5 +1,6 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
+import type { TrainingFilter } from './utils/spacedRepetition';
 import { AppTab, BoardTheme, HeatmapMode, PlayerColor, ThreatsMode } from './types/ui';
 import { toFrenchSan } from './utils/chessNotation';
 import { HEATMAP_LABELS, describeMove } from './utils/accessibility';
@@ -32,6 +33,7 @@ import {
   MoveComparison,
   MoveList,
   Openings,
+  Plan,
   Training,
   WeaknessProfile,
   prefetchViews,
@@ -70,6 +72,10 @@ export default function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isTrainingOpen, setIsTrainingOpen] = useState(false);
   const [isOpeningsOpen, setIsOpeningsOpen] = useState(false);
+  const [isPlanOpen, setIsPlanOpen] = useState(false);
+  // Where the plan sends the player: the themes of the training, a position of the opening explorer
+  const [trainingFilter, setTrainingFilter] = useState<TrainingFilter | undefined>();
+  const [openingsStart, setOpeningsStart] = useState<{ view: 'explorer'; sans: string[] } | undefined>();
   const { announcement, announce } = useAnnouncer();
 
   // While the user reads the start screen: download the engine, the openings database and the game views
@@ -534,8 +540,15 @@ export default function App() {
         onOpenPgnModal={() => setIsPgnModalOpen(true)}
         onOpenHistory={() => setIsHistoryOpen(true)}
         onOpenProfile={() => setIsProfileOpen(true)}
-        onOpenTraining={() => setIsTrainingOpen(true)}
-        onOpenOpenings={() => setIsOpeningsOpen(true)}
+        onOpenTraining={() => {
+          setTrainingFilter(undefined);
+          setIsTrainingOpen(true);
+        }}
+        onOpenOpenings={() => {
+          setOpeningsStart(undefined);
+          setIsOpeningsOpen(true);
+        }}
+        onOpenPlan={() => setIsPlanOpen(true)}
         onInstall={canInstall ? () => void install() : undefined}
       />
 
@@ -612,6 +625,7 @@ export default function App() {
               onClose={() => setIsProfileOpen(false)}
               onTrain={() => {
                 setIsProfileOpen(false);
+                setTrainingFilter(undefined);
                 setIsTrainingOpen(true);
               }}
               onImport={() => {
@@ -633,9 +647,35 @@ export default function App() {
           <Suspense fallback={null}>
             <Training
               boardTheme={boardTheme}
+              initialFilter={trainingFilter}
               onClose={() => setIsTrainingOpen(false)}
               onImport={() => {
                 setIsTrainingOpen(false);
+                // Without a game on screen the start screen already shows the import form
+                if (analysis) setIsPgnModalOpen(true);
+              }}
+            />
+          </Suspense>
+        </Modal>
+      )}
+
+      {isPlanOpen && (
+        <Modal title="Mon plan" onClose={() => setIsPlanOpen(false)} className="w-full max-w-2xl">
+          <Suspense fallback={null}>
+            <Plan
+              onClose={() => setIsPlanOpen(false)}
+              onTrain={(filter) => {
+                setIsPlanOpen(false);
+                setTrainingFilter(filter);
+                setIsTrainingOpen(true);
+              }}
+              onShowLine={(sans) => {
+                setIsPlanOpen(false);
+                setOpeningsStart({ view: 'explorer', sans });
+                setIsOpeningsOpen(true);
+              }}
+              onImport={() => {
+                setIsPlanOpen(false);
                 // Without a game on screen the start screen already shows the import form
                 if (analysis) setIsPgnModalOpen(true);
               }}
@@ -649,6 +689,7 @@ export default function App() {
           <Suspense fallback={null}>
             <Openings
               boardTheme={boardTheme}
+              start={openingsStart}
               onClose={() => setIsOpeningsOpen(false)}
               onImport={() => {
                 setIsOpeningsOpen(false);

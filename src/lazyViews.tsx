@@ -14,6 +14,7 @@ const loaders = {
   profile: () => import('./components/Profile/WeaknessProfile'),
   training: () => import('./components/Training/Training'),
   openings: () => import('./components/Openings/Openings'),
+  plan: () => import('./components/Plan/Plan'),
 };
 
 export const ChessBoard = lazy(() => loaders.board().then((m) => ({ default: m.ChessBoard })));
@@ -24,6 +25,7 @@ export const Dashboard = lazy(() => loaders.dashboard().then((m) => ({ default: 
 export const WeaknessProfile = lazy(() => loaders.profile().then((m) => ({ default: m.WeaknessProfile })));
 export const Training = lazy(() => loaders.training().then((m) => ({ default: m.Training })));
 export const Openings = lazy(() => loaders.openings().then((m) => ({ default: m.Openings })));
+export const Plan = lazy(() => loaders.plan().then((m) => ({ default: m.Plan })));
 
 /** Starts downloading every lazy view (the browser keeps them: a later render is instant). */
 export function prefetchViews(): void {

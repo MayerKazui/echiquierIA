@@ -1,9 +1,20 @@
 import React from 'react';
-import { BarChart3, BookOpen, Download, Dumbbell, FileText, History, Volume2, VolumeX } from 'lucide-react';
+import {
+  BarChart3,
+  BookOpen,
+  ClipboardList,
+  Download,
+  Dumbbell,
+  FileText,
+  History,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 import { GameMetadata } from '../../types/chess';
 import { AppTab, PlayerColor } from '../../types/ui';
 import { ViewTabs } from './ViewTabs';
 import { PseudoEditor } from './PseudoEditor';
+import { AppMenu, type AppMenuItem } from './AppMenu';
 
 interface AppHeaderProps {
   metadata?: GameMetadata;
@@ -23,6 +34,7 @@ interface AppHeaderProps {
   onOpenProfile: () => void;
   onOpenTraining: () => void;
   onOpenOpenings: () => void;
+  onOpenPlan: () => void;
   /** Installs the app: given only when the browser offers it. */
   onInstall?: () => void;
 }
@@ -44,148 +56,136 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onOpenProfile,
   onOpenTraining,
   onOpenOpenings,
+  onOpenPlan,
   onInstall,
-}) => (
-  <header className="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-3 sm:px-4 lg:px-8 py-2 sm:py-3 w-full max-w-full">
-    {/* One row on every screen: on a phone the labels give way to icons and the views move to the bottom bar */}
-    <div className="flex items-center justify-between gap-2 sm:gap-2.5 w-full">
-      {/* Brand and match meta */}
-      <div className="flex items-center gap-2 min-w-0">
-        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-600/30 font-bold shrink-0 text-sm sm:text-base">
-          ♟
+}) => {
+  const ICON = 'w-4 h-4';
+  const menuItems: AppMenuItem[] = [
+    {
+      id: 'history',
+      label: 'Mes parties',
+      hint: 'Rouvrir une partie déjà analysée',
+      icon: <History className={ICON} />,
+      onSelect: onOpenHistory,
+    },
+    {
+      id: 'profile',
+      label: 'Mon profil',
+      hint: 'Mes points faibles et mes points forts',
+      icon: <BarChart3 className={ICON} />,
+      onSelect: onOpenProfile,
+    },
+    {
+      id: 'plan',
+      label: 'Mon plan',
+      hint: 'Les objectifs de la semaine, tirés de mes parties',
+      icon: <ClipboardList className={ICON} />,
+      onSelect: onOpenPlan,
+    },
+    {
+      id: 'training',
+      label: "S'entraîner",
+      hint: 'Rejouer mes erreurs, au bon rythme',
+      icon: <Dumbbell className={ICON} />,
+      onSelect: onOpenTraining,
+    },
+    {
+      id: 'openings',
+      label: 'Ouvertures',
+      hint: 'Explorer les ouvertures et voir mon répertoire',
+      icon: <BookOpen className={ICON} />,
+      onSelect: onOpenOpenings,
+    },
+    {
+      id: 'sound',
+      label: 'Son des coups',
+      icon: isMuted ? <VolumeX className={ICON} /> : <Volume2 className={ICON} />,
+      checked: !isMuted,
+      onSelect: onToggleSound,
+      separated: true,
+    },
+    ...(onInstall
+      ? [
+          {
+            id: 'install',
+            label: "Installer l'application",
+            hint: 'Elle fonctionne alors aussi hors ligne',
+            icon: <Download className={ICON} />,
+            onSelect: onInstall,
+          },
+        ]
+      : []),
+  ];
+
+  return (
+    <header className="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-3 sm:px-4 lg:px-8 py-2 sm:py-3 w-full max-w-full">
+      {/* One row on every screen: on a phone the labels give way to icons and the views move to the bottom bar */}
+      <div className="flex items-center justify-between gap-2 sm:gap-2.5 w-full">
+        {/* Brand and match meta */}
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-600/30 font-bold shrink-0 text-sm sm:text-base">
+            ♟
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5 truncate">
+              <span>Échiquier IA</span>
+              <span className="hidden sm:inline text-[10px] text-emerald-400 font-mono font-semibold px-1.5 py-0.2 rounded bg-emerald-500/10 border border-emerald-500/20 shrink-0">
+                Stockfish 19
+              </span>
+            </h1>
+            <p className="hidden sm:block text-[11px] text-slate-400 truncate max-w-xs sm:max-w-sm">
+              {metadata?.white || 'Blancs'} vs {metadata?.black || 'Noirs'}{' '}
+              {metadata?.result ? `(${metadata.result})` : ''}
+            </p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5 truncate">
-            <span>Échiquier IA</span>
-            <span className="hidden sm:inline text-[10px] text-emerald-400 font-mono font-semibold px-1.5 py-0.2 rounded bg-emerald-500/10 border border-emerald-500/20 shrink-0">
-              Stockfish 19
-            </span>
-          </h1>
-          <p className="hidden sm:block text-[11px] text-slate-400 truncate max-w-xs sm:max-w-sm">
-            {metadata?.white || 'Blancs'} vs {metadata?.black || 'Noirs'}{' '}
-            {metadata?.result ? `(${metadata.result})` : ''}
-          </p>
-        </div>
-      </div>
 
-      {/* Actions and switchers */}
-      <div className="flex items-center justify-end gap-1.5 sm:gap-2.5 shrink-0">
-        {/* User Profile / Pseudo Quick Pill */}
-        <div className="flex items-center gap-0.5 sm:gap-1 px-1 sm:px-2 py-0.5 sm:py-1 rounded-xl bg-slate-950/70 border border-slate-800 text-xs">
-          <PseudoEditor pseudo={userPseudo} onChange={onUpdatePseudo} />
-          <div className="h-3 w-px bg-slate-800 mx-0.5" />
-          <button
-            onClick={() => onUpdateUserColor(userColor === 'w' ? 'b' : 'w')}
-            aria-label={`Votre perspective : ${userColor === 'w' ? 'Blancs' : 'Noirs'}. Passer aux ${
-              userColor === 'w' ? 'Noirs' : 'Blancs'
-            }`}
-            className="px-1.5 py-1.5 sm:py-0.5 rounded-md bg-slate-900 hover:bg-slate-800 text-indigo-300 font-semibold text-xs sm:text-[11px] transition-all cursor-pointer"
-            title="Basculer la couleur de votre perspective"
-          >
-            {userColor === 'w' ? '⚪' : '⚫'}
-            <span className="hidden sm:inline">{userColor === 'w' ? ' Blancs' : ' Noirs'}</span>
-          </button>
-        </div>
-
-        <button
-          onClick={onOpenHistory}
-          aria-haspopup="dialog"
-          aria-label="Mes parties"
-          className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors cursor-pointer flex items-center"
-          title="Rouvrir une partie déjà analysée"
-        >
-          <History className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-400" />
-          <span className="hidden lg:inline ml-1">Mes parties</span>
-        </button>
-
-        <button
-          onClick={onOpenProfile}
-          aria-haspopup="dialog"
-          aria-label="Mon profil"
-          className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors cursor-pointer flex items-center"
-          title="Voir ce qui revient dans mes parties : mes points faibles"
-        >
-          <BarChart3 className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-400" />
-          <span className="hidden lg:inline ml-1">Mon profil</span>
-        </button>
-
-        <button
-          onClick={onOpenTraining}
-          aria-haspopup="dialog"
-          aria-label="S'entraîner"
-          className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors cursor-pointer flex items-center"
-          title="Rejouer mes erreurs : retrouver le bon coup dans les positions où je me suis trompé"
-        >
-          <Dumbbell className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-400" />
-          <span className="hidden lg:inline ml-1">S&apos;entraîner</span>
-        </button>
-
-        <button
-          onClick={onOpenOpenings}
-          aria-haspopup="dialog"
-          aria-label="Ouvertures"
-          className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors cursor-pointer flex items-center"
-          title="Explorer les ouvertures coup par coup, avec les résultats de mes parties"
-        >
-          <BookOpen className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-400" />
-          <span className="hidden lg:inline ml-1">Ouvertures</span>
-        </button>
-
-        {onInstall && (
-          <button
-            onClick={onInstall}
-            aria-label="Installer l'application"
-            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors cursor-pointer flex items-center"
-            title="Installer l'application sur cet appareil (elle fonctionne alors aussi hors ligne)"
-          >
-            <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-400" />
-            <span className="hidden xl:inline ml-1">Installer</span>
-          </button>
-        )}
-
-        {/* Sound Mute/Unmute Button */}
-        <button
-          onClick={onToggleSound}
-          aria-label="Son des coups"
-          aria-pressed={!isMuted}
-          className={`flex p-2 rounded-xl border transition-colors cursor-pointer ${
-            !isMuted
-              ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30 hover:bg-indigo-600/30'
-              : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
-          }`}
-          title={isMuted ? 'Activer le son des coups' : 'Couper le son des coups'}
-        >
-          {!isMuted ? (
-            <Volume2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-          ) : (
-            <VolumeX className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-          )}
-        </button>
-
-        {hasAnalysis && (
-          <>
-            {/* Segmented Tab Controls (on a phone: the bottom navigation bar) */}
-            <ViewTabs
-              activeTab={activeTab}
-              isAnalyzing={isAnalyzing}
-              onChangeTab={onChangeTab}
-              className="hidden sm:flex"
-            />
-
-            {/* Action Button: Import PGN */}
+        {/* Actions and switchers */}
+        <div className="flex items-center justify-end gap-1.5 sm:gap-2.5 shrink-0">
+          {/* User Profile / Pseudo Quick Pill */}
+          <div className="flex items-center gap-0.5 sm:gap-1 px-1 sm:px-2 py-0.5 sm:py-1 rounded-xl bg-slate-950/70 border border-slate-800 text-xs">
+            <PseudoEditor pseudo={userPseudo} onChange={onUpdatePseudo} />
+            <div className="h-3 w-px bg-slate-800 mx-0.5" />
             <button
-              onClick={onOpenPgnModal}
-              aria-haspopup="dialog"
-              aria-label="Charger un autre PGN"
-              className="p-2 sm:px-2.5 sm:py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors cursor-pointer flex items-center"
-              title="Charger un autre PGN"
+              onClick={() => onUpdateUserColor(userColor === 'w' ? 'b' : 'w')}
+              aria-label={`Votre perspective : ${userColor === 'w' ? 'Blancs' : 'Noirs'}. Passer aux ${
+                userColor === 'w' ? 'Noirs' : 'Blancs'
+              }`}
+              className="px-1.5 py-1.5 sm:py-0.5 rounded-md bg-slate-900 hover:bg-slate-800 text-indigo-300 font-semibold text-xs sm:text-[11px] transition-all cursor-pointer"
+              title="Basculer la couleur de votre perspective"
             >
-              <FileText className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-400" />
-              <span className="hidden md:inline ml-1">Autre PGN</span>
+              {userColor === 'w' ? '⚪' : '⚫'}
+              <span className="hidden sm:inline">{userColor === 'w' ? ' Blancs' : ' Noirs'}</span>
             </button>
-          </>
-        )}
+          </div>
+
+          <AppMenu items={menuItems} />
+
+          {hasAnalysis && (
+            <>
+              {/* Segmented Tab Controls (on a phone: the bottom navigation bar) */}
+              <ViewTabs
+                activeTab={activeTab}
+                isAnalyzing={isAnalyzing}
+                onChangeTab={onChangeTab}
+                className="hidden sm:flex"
+              />
+
+              {/* Action Button: Import PGN */}
+              <button
+                onClick={onOpenPgnModal}
+                aria-haspopup="dialog"
+                aria-label="Charger un autre PGN"
+                className="p-2 sm:px-2.5 sm:py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors cursor-pointer flex items-center"
+                title="Charger un autre PGN"
+              >
+                <FileText className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-indigo-400" />
+                <span className="hidden md:inline ml-1">Autre PGN</span>
+              </button>
+            </>
+          )}
+        </div>
       </div>
-    </div>
-  </header>
-);
+    </header>
+  );
+};

@@ -101,6 +101,23 @@ describe('Training', () => {
     });
   });
 
+  describe('opened on a theme', () => {
+    it('starts with the filter it is given, and counts what it brings', async () => {
+      await store({ 6: faultMove(), 62: hanging(62) });
+      renderTraining({ initialFilter: { kinds: new Set(['hanging']), phases: new Set() } });
+      await screen.findByRole('button', { name: /Commencer/ });
+      expect(screen.getByRole('button', { name: /Pièce laissée en prise/ }).getAttribute('aria-pressed')).toBe('true');
+      expect(screen.getByRole('button', { name: /Mat/ }).getAttribute('aria-pressed')).toBe('false');
+      expect(screen.getByRole('button', { name: /Commencer \(1 position\)/ })).toBeTruthy();
+    });
+
+    it('takes every error without a filter', async () => {
+      await store({ 6: faultMove(), 62: hanging(62) });
+      renderTraining();
+      expect(await screen.findByRole('button', { name: /Commencer \(2 positions\)/ })).toBeTruthy();
+    });
+  });
+
   describe('set-up screen', () => {
     it('counts the positions never replayed', async () => {
       await store({ 6: faultMove(), 62: hanging(62) });

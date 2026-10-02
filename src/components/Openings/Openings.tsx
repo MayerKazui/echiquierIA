@@ -4,25 +4,27 @@ import type { BoardTheme } from '../../types/ui';
 import { OpeningExplorer } from './OpeningExplorer';
 import { OpeningRepertoire } from './OpeningRepertoire';
 
+export type View = 'explorer' | 'repertoire';
+
 interface OpeningsProps {
   onClose: () => void;
   /** Opens the import of online games (offered while there is no game of the player to count). */
   onImport: () => void;
   boardTheme?: BoardTheme;
+  /** What to show first (the plan sends the player to a position of the explorer). */
+  start?: { view: View; sans: string[] };
 }
 
-type View = 'explorer' | 'repertoire';
-
-const VIEWS: Array<{ value: View; label: string }> = [
+export const VIEWS: Array<{ value: View; label: string }> = [
   { value: 'explorer', label: 'Explorateur' },
   { value: 'repertoire', label: 'Mes ouvertures' },
 ];
 
 /** "Ouvertures": the tree of the openings to walk through, and the player's own repertoire. */
-export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardTheme }) => {
-  const [view, setView] = useState<View>('explorer');
+export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardTheme, start }) => {
+  const [view, setView] = useState<View>(start?.view ?? 'explorer');
   // Kept here so that the repertoire can send the player to a position of the explorer
-  const [sans, setSans] = useState<string[]>([]);
+  const [sans, setSans] = useState<string[]>(start?.sans ?? []);
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl flex flex-col gap-4 max-w-4xl w-full mx-auto max-h-[90dvh]">

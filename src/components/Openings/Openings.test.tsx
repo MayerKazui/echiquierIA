@@ -203,3 +203,22 @@ describe('Openings', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Openings, opened on a position', () => {
+  it('starts on the line it is given, in the explorer', async () => {
+    renderOpenings({ start: { view: 'explorer', sans: ['e4', 'c5'] } });
+    const line = await screen.findByRole('list', { name: 'Coups joués' });
+    expect(
+      within(line)
+        .getAllByRole('button')
+        .map((b) => b.textContent)
+    ).toEqual(['1.e4', '1…c5']);
+    expect(screen.getByRole('button', { name: 'Explorateur' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('starts on the repertoire when asked to', async () => {
+    renderOpenings({ start: { view: 'repertoire', sans: [] } });
+    expect(screen.getByRole('button', { name: 'Mes ouvertures' }).getAttribute('aria-pressed')).toBe('true');
+    expect(await screen.findByText('Aucune partie à compter')).toBeTruthy();
+  });
+});

@@ -45,7 +45,7 @@ Une vue « Mon profil » qui agrège les parties enregistrées : « qu'est-ce qu
 ### 5. Retour plus actionnable pour chaque partie
 
 - [ ] **Résumé de 3 lignes en tête du bilan** : « Moment décisif : coup 23, +2,8 puis tour laissée en prise ». Le calcul existait (retiré de l'interface) et se récupère facilement.
-- [ ] **Un seul objectif à retenir**, tiré du profil, affiché à l'ouverture de l'appli.
+- [~] **Objectifs à retenir**, tirés du profil : fait sous la forme de « Mon plan » (trois objectifs au plus, dans le menu). Pas affiché à l'ouverture de l'appli, pour ne pas charger l'écran de départ.
 - [ ] **Comparaison avec soi** : « précision de 71 %, 6 points sous ta moyenne ».
 
 ### 6. Confort au quotidien

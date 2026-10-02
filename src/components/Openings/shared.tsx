@@ -1,5 +1,5 @@
 import React from 'react';
-import { toFrenchSan } from '../../utils/chessNotation';
+import { numberedFrenchMove, toFrenchSan } from '../../utils/chessNotation';
 import { scoreOf, type Tally } from '../../utils/openingExplorer';
 
 const percent = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 0 });
@@ -50,6 +50,4 @@ export const TallyBar: React.FC<{ tally: Tally }> = ({ tally }) => {
 };
 
 /** "8.h3", "8…h6": a move given by its number and its side, when the position is not at hand. */
-export function numberedAt(moveNumber: number, isWhite: boolean, san: string): string {
-  return `${moveNumber}${isWhite ? '.' : '…'}${toFrenchSan(san)}`;
-}
+export const numberedAt = numberedFrenchMove;
