@@ -1,29 +1,6 @@
 import React from 'react';
-import { Check, FlaskConical, Undo2, X } from 'lucide-react';
+import { FlaskConical, Undo2, X } from 'lucide-react';
 import { toFrenchSan } from '../../utils/chessNotation';
-
-/** Shown after a Lichess import (or fallback to the manual paste page). */
-export const LichessNotice: React.FC<{ onDismiss: () => void }> = ({ onDismiss }) => (
-  <div
-    role="status"
-    className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-indigo-950/80 border border-indigo-500/40 text-indigo-200 text-xs shadow-lg animate-in fade-in slide-in-from-top-2"
-  >
-    <div className="flex items-center gap-2">
-      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-      <span>
-        <strong>Partie ouverte sur Lichess !</strong> Votre partie a été importée automatiquement dans l'autre onglet
-        avec l'analyse, le replay et les statistiques. Le texte PGN complet est également dans votre presse-papier.
-      </span>
-    </div>
-    <button
-      onClick={onDismiss}
-      aria-label="Fermer la notification"
-      className="p-1 hover:text-white text-indigo-400 text-xs ml-2 cursor-pointer"
-    >
-      ✕
-    </button>
-  </div>
-);
 
 interface SandboxBannerProps {
   moves: Array<{ san: string }>;
