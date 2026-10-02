@@ -1,6 +1,6 @@
 import { Chess } from 'chess.js';
 import type { PlayerColor } from '../types/ui';
-import type { StudyChapter, StudyNode } from '../types/study';
+import type { StudyChapter, StudyNode, StudyShape } from '../types/study';
 
 /** The standard starting position. */
 export const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -216,4 +216,12 @@ const NAG_LABELS: Record<number, string> = {
 /** What a glyph means, in French (the name of its button, for a screen reader). */
 export function nagLabel(nag: number): string {
   return NAG_LABELS[nag] ?? `Annotation ${nag}`;
+}
+
+/** The arrows and circles of a node replaced by `shapes` (none removes them). */
+export function setShapes(root: StudyNode, id: string, shapes: readonly StudyShape[]): StudyNode {
+  return updateNode(root, id, (node) => {
+    const { shapes: _removed, ...rest } = node;
+    return shapes.length === 0 ? rest : { ...rest, shapes: [...shapes] };
+  });
 }

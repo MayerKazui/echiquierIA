@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -254,5 +254,83 @@ describe('Studies, a chapter locked', () => {
     const played = await screen.findByRole('list', { name: 'Coups joués' }, { timeout: 3000 });
     expect(within(played).getByText('1.e4')).toBeTruthy();
     expect(await screen.findByText(/À vous de jouer/)).toBeTruthy();
+  });
+});
+
+describe('Studies, arrows and circles', () => {
+  const arrows = () => document.querySelectorAll('svg line[marker-end^="url(#userArrow"]');
+  const circles = () => document.querySelectorAll('[style*="border-color"]');
+  const drag = (from: string, to: string, init: MouseEventInit = {}) => {
+    fireEvent.mouseDown(cell(from), { button: 2, ...init });
+    fireEvent.mouseEnter(cell(to));
+    fireEvent.mouseUp(cell(to), { button: 2, ...init });
+  };
+
+  async function importShapes(user: ReturnType<typeof userEvent.setup>) {
+    const view = renderStudies();
+    await user.click(await screen.findByRole('button', { name: 'Importer un PGN' }));
+    await user.click(screen.getByRole('textbox', { name: 'PGN' }));
+    await user.paste('1. e4 { [%cal Ge2e4,Rb1c3] [%csl Rd5] Le centre. } e5 *');
+    await user.click(screen.getByRole('button', { name: "Créer l'étude" }));
+    const tree = await screen.findByRole('group', { name: "Coups de l'étude" });
+    await user.click(within(tree).getByRole('button', { name: '1.e4' }));
+    return view;
+  }
+
+  it('draws the arrows and circles read from the PGN on the position of the move', async () => {
+    const user = userEvent.setup();
+    await importShapes(user);
+    expect(arrows()).toHaveLength(2);
+    expect(circles()).toHaveLength(1);
+    expect(cell('d5').querySelector('[style*="border-color"]')).not.toBeNull();
+
+    // They belong to the move: the starting position has none
+    await user.keyboard('{Home}');
+    expect(arrows()).toHaveLength(0);
+    expect(circles()).toHaveLength(0);
+  });
+
+  it('keeps what is drawn with the right button on the position, and writes it in the PGN', async () => {
+    const user = userEvent.setup();
+    const { unmount } = await importShapes(user);
+    drag('g1', 'f3', { shiftKey: true });
+    drag('e4', 'e4', { altKey: true });
+    expect(arrows()).toHaveLength(3);
+    expect(circles()).toHaveLength(2);
+
+    // Another position, and back: the drawings are still there
+    await user.keyboard('{ArrowRight}');
+    expect(arrows()).toHaveLength(0);
+    await user.keyboard('{ArrowLeft}');
+    expect(arrows()).toHaveLength(3);
+
+    unmount();
+    await waitFor(async () => {
+      const [saved] = await listStudies();
+      const shapes = saved.chapters[0].root.children[0].shapes;
+      expect(shapes).toContainEqual({ brush: 'Y', from: 'g1', to: 'f3' });
+      expect(shapes).toContainEqual({ brush: 'B', from: 'e4', to: 'e4' });
+      expect(shapes).toHaveLength(5);
+    });
+  });
+
+  it('erases the drawings of the position', async () => {
+    const user = userEvent.setup();
+    await importShapes(user);
+    await user.click(screen.getByRole('button', { name: 'Effacer les dessins' }));
+    expect(arrows()).toHaveLength(0);
+    expect(circles()).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Effacer les dessins' })).toBeNull();
+  });
+
+  it('shows them again when the chapter is played, on the position after the last move', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    await importShapes(user);
+    await user.click(screen.getByRole('button', { name: /Jouer ce chapitre/ }));
+    expect(arrows()).toHaveLength(0);
+    await movePiece(user, 'e2', 'e4');
+    await waitFor(() => expect(arrows()).toHaveLength(2), { timeout: 3000 });
+    vi.restoreAllMocks();
   });
 });

@@ -79,7 +79,7 @@ Fait : voir `IMPROVEMENTS.md` (« Études »).
 - [x] Études privées dans le navigateur : chapitres, introduction, variantes, commentaires, glyphes.
 - [x] Import et export PGN au format Lichess (étude entière ou un chapitre).
 - [x] Chapitre verrouillable : l'ordinateur joue les coups de l'étude, parfois une variante ; un coup hors étude est annulé.
-- [ ] Dessiner les flèches et les cercles (`[%cal]`, `[%csl]`), déjà lus et conservés.
+- [x] Flèches et cercles (`[%cal]`, `[%csl]`) : affichés, dessinés au clic droit et gardés avec la position. Sur téléphone (pas de clic droit), il n'y a pas encore de moyen d'en dessiner.
 - [ ] Mettre les études dans la sauvegarde JSON et la synchronisation Drive (format de sauvegarde à faire évoluer, suppressions à propager).
 - [ ] Réordonner les chapitres et les variantes (seule la promotion en ligne principale existe) ; copier un chapitre.
 - [ ] Mode verrouillé : mémoriser les erreurs par ligne et les rejouer (répétition espacée, comme « S'entraîner »).

@@ -3,6 +3,7 @@ import { Lightbulb, LockOpen, RotateCcw } from 'lucide-react';
 import type { StudyChapter } from '../../types/study';
 import type { BoardTheme, PlayerColor } from '../../types/ui';
 import { chessAudio } from '../../utils/chessAudio';
+import { toBoardShapes } from '../../utils/studyShapes';
 import { toFrenchSan } from '../../utils/chessNotation';
 import { useMoveInput } from '../../hooks/useMoveInput';
 import { useStudyPlay } from '../../hooks/useStudyPlay';
@@ -46,6 +47,7 @@ const LockedGame: React.FC<StudyPlayProps & { color: PlayerColor; onColor: (colo
 }) => {
   const play = useStudyPlay(chapter.root, color, Math.random, playMove);
   const input = useMoveInput(play.node.fen, play.play);
+  const shapes = toBoardShapes(play.node.shapes);
   const last = play.line.length > 0 ? play.line[play.line.length - 1] : null;
 
   return (
@@ -59,6 +61,7 @@ const LockedGame: React.FC<StudyPlayProps & { color: PlayerColor; onColor: (colo
           bestMove={play.hint}
           showArrows={play.hint !== null}
           showThreats={false}
+          shapes={shapes}
           selectedSquare={input.selectedSquare}
           onSquareClick={input.handleSquareClick}
           onPieceMove={input.handlePieceMove}

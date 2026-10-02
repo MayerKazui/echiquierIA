@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, ChevronsLeft, ChevronsRight, FlipVertical2, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronsLeft, ChevronsRight, Eraser, FlipVertical2, Trash2 } from 'lucide-react';
 import type { StudyChapter } from '../../types/study';
 import type { BoardTheme } from '../../types/ui';
 import { chessAudio } from '../../utils/chessAudio';
+import { fromBoardShapes, toBoardShapes } from '../../utils/studyShapes';
 import { toFrenchSan } from '../../utils/chessNotation';
 import {
   MOVE_GLYPHS,
@@ -17,6 +18,7 @@ import {
   promoteNode,
   removeNode,
   setComment,
+  setShapes,
   toggleNag,
 } from '../../utils/studyTree';
 import { useMoveInput } from '../../hooks/useMoveInput';
@@ -69,6 +71,7 @@ export const StudyEditor: React.FC<StudyEditorProps> = ({ chapter, selectedId, b
     return true;
   };
   const input = useMoveInput(selected.fen, handleMove);
+  const shapes = toBoardShapes(selected.shapes);
 
   const siblings = parent?.children ?? [];
   const siblingIndex = siblings.findIndex((c) => c.id === selected.id);
@@ -125,6 +128,8 @@ export const StudyEditor: React.FC<StudyEditorProps> = ({ chapter, selectedId, b
           boardTheme={boardTheme}
           lastMove={isRoot ? null : { from: selected.from, to: selected.to }}
           showArrows={false}
+          shapes={shapes}
+          onShapesChange={(list) => onChange({ ...chapter, root: setShapes(root, selected.id, fromBoardShapes(list)) })}
           showThreats={false}
           selectedSquare={input.selectedSquare}
           onSquareClick={input.handleSquareClick}
@@ -159,10 +164,21 @@ export const StudyEditor: React.FC<StudyEditorProps> = ({ chapter, selectedId, b
             <FlipVertical2 className="w-3.5 h-3.5" aria-hidden="true" />
             Retourner
           </button>
+          {shapes.length > 0 && (
+            <button
+              type="button"
+              className={SECONDARY}
+              onClick={() => onChange({ ...chapter, root: setShapes(root, selected.id, []) })}
+            >
+              <Eraser className="w-3.5 h-3.5" aria-hidden="true" />
+              Effacer les dessins
+            </button>
+          )}
         </div>
         <p className="text-[11px] text-slate-500">
           Jouez un coup sur l&apos;échiquier pour l&apos;ajouter : un coup différent de la suite devient une variante.
-          Flèches du clavier : se déplacer dans les coups.
+          Clic droit : un cercle, ou glisser pour une flèche (Maj : jaune, Alt : bleue, Ctrl : rouge) ; elles sont
+          gardées avec la position. Flèches du clavier : se déplacer dans les coups.
         </p>
       </div>
 

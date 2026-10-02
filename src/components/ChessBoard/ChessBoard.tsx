@@ -4,7 +4,7 @@ import { ChessPiece } from './ChessPieces';
 import { ArrowsOverlay } from './ArrowsOverlay';
 import { BoardSquare, type HoveredThreat } from './BoardSquare';
 import { ThreatTooltip } from './ThreatMarkers';
-import { useBoardDrawing } from './useBoardDrawing';
+import { useBoardDrawing, type BoardShape } from './useBoardDrawing';
 import { usePieceDrag } from './usePieceDrag';
 import { PromotionPicker } from './PromotionPicker';
 import type { PendingPromotion, PromotionPiece } from '../../hooks/useSandbox';
@@ -26,6 +26,10 @@ interface ChessBoardProps {
   showThreats?: boolean;
   showHeatmap?: boolean;
   heatmapMode?: HeatmapMode;
+  /** Arrows and circles that belong to the position (a study's), drawn in addition to the player's own. */
+  shapes?: BoardShape[];
+  /** Given, right-click drawings edit `shapes` through it instead of vanishing with the position. */
+  onShapesChange?: (shapes: BoardShape[]) => void;
   onSquareClick?: (square: string) => void;
   /** Plays a dragged piece; `false` (illegal move) sends the piece back to its square. */
   onPieceMove?: (from: string, to: string) => boolean | void;
@@ -72,6 +76,8 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   showThreats = true,
   showHeatmap = false,
   heatmapMode,
+  shapes,
+  onShapesChange,
   onSquareClick,
   onPieceMove,
   selectedSquare = null,
@@ -200,7 +206,10 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   const transition = track.fen === fen ? track.transition : null;
 
   // Right-click arrows and highlights
-  const drawing = useBoardDrawing(fen, (square) => Boolean(chess.get(square as Square)));
+  const drawing = useBoardDrawing(fen, (square) => Boolean(chess.get(square as Square)), {
+    shapes,
+    onShapesChange,
+  });
 
   const movePiece = (from: string, to: string) => {
     if (onPieceMove) return onPieceMove(from, to);
@@ -234,7 +243,10 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   const onSquareMouseUp = useStableCallback(drawing.onSquareMouseUp);
 
   const turn = chess.turn();
-  const userHighlights = useMemo(() => new Set(drawing.userHighlights), [drawing.userHighlights]);
+  const highlightColors = useMemo(
+    () => new Map(drawing.userHighlights.map((h) => [h.from, h.color])),
+    [drawing.userHighlights]
+  );
   const activeHeatmapMode = isHeatmapActive && heatmap ? (effectiveHeatmapMode as Exclude<HeatmapMode, 'none'>) : null;
 
   return (
@@ -291,7 +303,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
                   isLegalDestination={legalDestinations.has(squareName)}
                   isFocusable={squareName === focusedSquare}
                   isCheck={checkSquare === squareName}
-                  isUserHighlight={userHighlights.has(squareName)}
+                  highlightColor={highlightColors.get(squareName) ?? null}
                   isBestTarget={isBestTarget}
                   isBestOptimal={isBestTarget && isPlayedMoveOptimal}
                   isDragOver={

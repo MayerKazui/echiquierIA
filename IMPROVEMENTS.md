@@ -482,12 +482,19 @@ Fin du point 3 de `ROADMAP.md`. Second onglet de la fenêtre « Ouvertures » (l
 - Tests : 16 pour l'analyseur et l'écriture, 7 pour l'arbre, 4 pour le choix de la réponse et le jugement d'un coup, 7 pour le stockage, 13 pour la fenêtre (création, variantes, promotion, suppression, clavier, import, export, jeu verrouillé) : 1 650 tests au total.
 - Vérifié dans Chrome (Playwright) : import d'une étude avec variante, arbre, jeu verrouillé (coup de l'étude puis réponse de l'ordinateur, flèche d'indice). Pas essayé : téléphone, lecteur d'écran, étude de grande taille.
 - **Limites** :
-  - Les flèches et les cercles sont lus et réécrits, mais pas dessinés.
   - Les études ne sont **pas** dans la sauvegarde JSON ni dans la synchronisation Drive (le format de sauvegarde devrait passer à 3, et les suppressions d'études se propager) : l'export PGN est la seule copie hors du navigateur.
   - On ne peut pas réordonner les chapitres ni les variantes (seulement promouvoir une variante) ni copier un chapitre.
   - Le chapitre verrouillé ne retient pas les erreurs d'une séance à l'autre.
   - Pas de moteur dans les études (ni évaluation, ni analyse d'une ligne).
   - Seules les parties « Standard » sont lues (pas de Chess960 ni d'autre variante).
+
+### Suite : flèches et cercles dans les études — fait
+
+- [x] **Affichage** : les flèches (`[%cal]`) et les cercles (`[%csl]`) d'un coup sont dessinés sur la position qui suit ce coup, dans l'éditeur comme dans le chapitre verrouillé. Les quatre pinceaux de Lichess (G, R, Y, B) prennent les couleurs du clic droit de l'échiquier (vert, rouge, jaune avec Maj, bleu avec Alt ; Ctrl donne le rouge).
+- [x] **Dessin** : dans l'éditeur, le clic droit (cercle) ou le glisser du clic droit (flèche) écrit dans le coup sélectionné ; redessiner la même forme l'efface, une autre couleur la remplace. Elles sont gardées avec le chapitre, réécrites dans l'export PGN, et « Effacer les dessins » vide la position. Un clic gauche sur une case vide n'efface plus rien dans l'éditeur (il sert à jouer un coup).
+- Le plateau (`ChessBoard`) reçoit `shapes` (formes qui appartiennent à la position, ajoutées aux dessins éphémères du joueur) et `onShapesChange` (le plateau les édite alors par ce rappel au lieu de les perdre au changement de position). Les cercles ont maintenant une couleur (avant : toujours vert).
+- Tests : 17 pour l'écran des études (dont 4 sur les formes : lues depuis le PGN, dessinées et réécrites, effacées, vues dans le chapitre verrouillé), 5 pour le plateau, 2 pour les couleurs, 1 pour l'arbre : 1 663 tests au total. Vérifié dans Chrome avec un PGN portant des flèches et un cercle, plus une flèche tracée à la souris.
+- **Limites** : sur téléphone ou tablette il n'y a pas de clic droit, donc on voit les flèches mais on ne peut pas en dessiner. Dans le chapitre verrouillé, les formes du coup joué s'affichent en même temps que son commentaire : une flèche peut donc indiquer la suite.
 
 ## Ordre suggéré
 

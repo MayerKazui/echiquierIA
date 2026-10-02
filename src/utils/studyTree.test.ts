@@ -13,6 +13,7 @@ import {
   promoteNode,
   removeNode,
   setComment,
+  setShapes,
   toggleNag,
 } from './studyTree';
 
@@ -89,5 +90,15 @@ describe('studyTree', () => {
     const { root, e4 } = build();
     expect(moveLabel(root.fen, 'e4')).toBe('1.e4');
     expect(moveLabel(e4.fen, 'e5')).toBe('1...e5');
+  });
+});
+
+describe('setShapes', () => {
+  it('replaces the shapes of a node and removes them when there are none', () => {
+    const { root, e4 } = build();
+    const shapes = [{ brush: 'G' as const, from: 'e2', to: 'e4' }];
+    const drawn = setShapes(root, e4.id, shapes);
+    expect(findNode(drawn, e4.id)?.shapes).toEqual(shapes);
+    expect(findNode(setShapes(drawn, e4.id, []), e4.id)).not.toHaveProperty('shapes');
   });
 });
