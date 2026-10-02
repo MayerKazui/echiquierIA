@@ -16,8 +16,8 @@ import {
   serializeBackup,
   type Backup,
 } from './backup';
-import { clearGames, listGames, loadGame, saveGame } from './gameStore';
-import { clearCards, loadCards, saveCard } from './trainingStore';
+import { deleteGame, gameId, listGames, loadGame, onGamesChanged, saveGame } from './gameStore';
+import { loadCards, saveCard } from './trainingStore';
 
 const move = {
   san: 'e4',
@@ -120,7 +120,19 @@ describe('createBackup', () => {
 
   it('is valid with nothing stored', async () => {
     const backup = await createBackup(0, fakeStorage());
-    expect(backup).toMatchObject({ games: [], cards: [], preferences: {} });
+    expect(backup).toMatchObject({ games: [], cards: [], deletions: [], preferences: {} });
+  });
+
+  it('holds the traces of the games deleted', async () => {
+    await saveGame({ pgn: '1. e4 *', depth: 14, result: result('Alice') });
+    await deleteGame(gameId('1. e4 *'));
+    const backup = await createBackup(0, fakeStorage());
+    expect(backup.games).toEqual([]);
+    expect(backup.deletions).toEqual([{ id: gameId('1. e4 *'), deletedAt: expect.any(Number) }]);
+  });
+
+  it('is of format 2', () => {
+    expect(BACKUP_FORMAT).toBe(2);
   });
 });
 
@@ -198,6 +210,39 @@ describe('parseBackup', () => {
     expect(parseBackup(JSON.stringify({ app: BACKUP_APP, format: 1 }))).toMatchObject({ ok: false });
   });
 
+  it('reads a backup of format 1 (no deletions)', () => {
+    const parsed = parseBackup(JSON.stringify({ app: BACKUP_APP, format: 1, cards: [card('a')] }));
+    expect(parsed.ok && parsed.backup.deletions).toEqual([]);
+  });
+
+  it('reads the traces of deleted games, and leaves out the ones that are not valid', () => {
+    const parsed = parseBackup(
+      JSON.stringify({
+        app: BACKUP_APP,
+        format: 2,
+        deletions: [{ id: 'a', deletedAt: 5 }, { id: 'b' }, 'x', { id: 'c', deletedAt: 7 }],
+      })
+    );
+    expect(parsed.ok && parsed.backup.deletions).toEqual([
+      { id: 'a', deletedAt: 5 },
+      { id: 'c', deletedAt: 7 },
+    ]);
+  });
+
+  it('accepts a backup that only records deletions', () => {
+    expect(parseBackup(JSON.stringify({ app: BACKUP_APP, format: 2, deletions: [{ id: 'a', deletedAt: 5 }] })).ok).toBe(
+      true
+    );
+  });
+
+  it('refuses a backup that claims too many deletions', () => {
+    const deletions = Array.from({ length: 20_001 }, (_, i) => ({ id: `d${i}`, deletedAt: i }));
+    expect(parseBackup(JSON.stringify({ app: BACKUP_APP, format: 2, deletions }))).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('trop de données'),
+    });
+  });
+
   it('accepts a backup with only some of the parts', () => {
     const parsed = parseBackup(JSON.stringify({ app: BACKUP_APP, format: 1, cards: [card('a')] }));
     expect(parsed).toMatchObject({ ok: true });
@@ -244,6 +289,58 @@ describe('parseBackup', () => {
   });
 });
 
+describe('restoreBackup and deletions', () => {
+  const withDeletion = async (): Promise<Backup> => {
+    await saveGame({ pgn: '1. e4 *', depth: 14, result: result('Alice') });
+    const id = gameId('1. e4 *');
+    const backup = await createBackup(0, fakeStorage());
+    return { ...backup, games: [], deletions: [{ id, deletedAt: Date.now() + 10_000 }] };
+  };
+
+  it('a synced copy applies the deletions it records', async () => {
+    const backup = await withDeletion();
+    const report = await restoreBackup(backup, fakeStorage(), { mode: 'sync' });
+    expect(report.games?.deleted).toBe(1);
+    expect(await listGames()).toEqual([]);
+  });
+
+  it('a file the user imports does not apply them', async () => {
+    const backup = await withDeletion();
+    const report = await restoreBackup(backup, fakeStorage());
+    expect(report.games?.deleted).toBe(0);
+    expect(await listGames()).toHaveLength(1);
+  });
+
+  it('a file the user imports brings back what was deleted here', async () => {
+    const backup = await sampleBackup();
+    await deleteGame(gameId('1. e4 *'));
+    expect(await listGames()).toEqual([]);
+    const report = await restoreBackup(backup, fakeStorage());
+    expect(report.games).toMatchObject({ added: 1 });
+    expect(await listGames()).toHaveLength(1);
+  });
+
+  it('a synced copy does not bring back what was deleted here', async () => {
+    const backup = await sampleBackup();
+    await deleteGame(gameId('1. e4 *'));
+    const report = await restoreBackup(backup, fakeStorage(), { mode: 'sync' });
+    expect(report.games).toMatchObject({ added: 0 });
+    expect(await listGames()).toEqual([]);
+  });
+
+  it('does not tell the listeners of the games when it is silent', async () => {
+    const backup = await sampleBackup();
+    const listener = vi.fn();
+    const stop = onGamesChanged(listener);
+    freshDatabase();
+    await restoreBackup(backup, fakeStorage(), { mode: 'sync', silent: true });
+    expect(listener).not.toHaveBeenCalled();
+    await restoreBackup({ ...backup, games: [{ ...backup.games[0], id: 'other' }] }, fakeStorage());
+    expect(listener).toHaveBeenCalledTimes(1);
+    stop();
+  });
+});
+
 describe('restoreBackup', () => {
   it('puts games, cards and settings back after the browser lost them', async () => {
     const backup = await sampleBackup();
@@ -264,8 +361,7 @@ describe('restoreBackup', () => {
     const before = await listGames();
     const parsed = parseBackup(serializeBackup(backup));
     if (!parsed.ok) throw new Error('should be valid');
-    await clearGames();
-    await clearCards();
+    freshDatabase(); // a browser that lost its data (a deletion here would leave a trace)
     await restoreBackup(parsed.backup, fakeStorage());
     expect(await listGames()).toEqual(before);
   });
@@ -294,6 +390,7 @@ describe('restoreBackup', () => {
       exportedAt: '',
       games: [],
       cards: [],
+      deletions: [],
       preferences: { chess_board_theme: 'wood', chess_sound_enabled: 'false' },
     };
     const data = new Map<string, string>();

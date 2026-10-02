@@ -51,7 +51,7 @@ Une vue « Mon profil » qui agrège les parties enregistrées : « qu'est-ce qu
 
 - [x] **Export et import des données** (JSON) : voir `IMPROVEMENTS.md`.
 - [x] **PWA installable et utilisable hors ligne** : voir `IMPROVEMENTS.md`.
-- [x] **Synchronisation avec Google Drive** (sans serveur, bouton, fusion) : voir `IMPROVEMENTS.md`. Reste : propager les suppressions (traces de suppression), synchronisation automatique.
+- [x] **Synchronisation avec Google Drive** (sans serveur, bouton, fusion) : voir `IMPROVEMENTS.md`. Synchronisation automatique et suppressions propagées : fait aussi (`IMPROVEMENTS.md`).
 - [x] **Noms d'ouverture en français** (~3 800 noms, à l'affichage).
 
 ## C. Fiabilité de l'analyse

@@ -41,17 +41,23 @@ export class SyncError extends Error {
 export interface DriveSyncDeps {
   tokens: TokenProvider;
   fetchFn?: FetchFn;
+  /** False for a sync nobody asked for (no click): it must not open a pop-up. Default: true. */
+  interactive?: boolean;
 }
 
-export async function syncWithDrive({ tokens, fetchFn = fetch }: DriveSyncDeps): Promise<DriveSyncReport> {
+export async function syncWithDrive({
+  tokens,
+  fetchFn = fetch,
+  interactive = true,
+}: DriveSyncDeps): Promise<DriveSyncReport> {
   /** Runs a Drive call; when Google says the token is no longer valid, asks for a new one and tries once more. */
   const withToken = async <T>(call: (token: string) => Promise<T>): Promise<T> => {
     try {
-      return await call(await tokens.getToken());
+      return await call(await tokens.getToken({ interactive }));
     } catch (err) {
       if (!(err instanceof DriveError) || err.kind !== 'unauthorized') throw err;
       tokens.invalidate();
-      return call(await tokens.getToken());
+      return call(await tokens.getToken({ interactive }));
     }
   };
 
@@ -69,7 +75,7 @@ export async function syncWithDrive({ tokens, fetchFn = fetch }: DriveSyncDeps):
     }
     const parsed = parseBackup(text);
     if (parsed.ok) {
-      restore = await restoreBackup(parsed.backup);
+      restore = await restoreBackup(parsed.backup, undefined, { mode: 'sync', silent: true });
       rejected = parsed.rejected;
     } else if (parsed.error !== EMPTY_BACKUP_ERROR) {
       // Never overwrite a copy that cannot be read (a newer version of the app may have written it)
@@ -83,7 +89,12 @@ export async function syncWithDrive({ tokens, fetchFn = fetch }: DriveSyncDeps):
   }
 
   const backup = await createBackup();
-  if (backup.games.length === 0 && backup.cards.length === 0 && Object.keys(backup.preferences).length === 0) {
+  if (
+    backup.games.length === 0 &&
+    backup.cards.length === 0 &&
+    backup.deletions.length === 0 &&
+    Object.keys(backup.preferences).length === 0
+  ) {
     return { restore, rejected, sent: null };
   }
   const payload = await packText(serializeBackup(backup));
@@ -102,6 +113,8 @@ export function describeSyncError(err: unknown): string {
     switch (err.kind) {
       case 'cancelled':
         return 'Connexion à Google annulée.';
+      case 'interaction':
+        return 'Google demande de vous reconnecter.';
       case 'blocked':
         return 'Le navigateur a bloqué la fenêtre de connexion Google : autorisez les fenêtres surgissantes pour ce site.';
       case 'denied':

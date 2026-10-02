@@ -53,6 +53,8 @@ export type AuthErrorKind =
   | 'blocked'
   /** The user refused, or did not tick the Drive permission. */
   | 'denied'
+  /** A silent request (no pop-up, no click) could not be answered: the user has to sign in again. */
+  | 'interaction'
   /** The Google script did not load (offline, content blocker). */
   | 'unavailable'
   | 'other';
@@ -93,6 +95,16 @@ export interface TokenProviderOptions {
   /** The Google API (replaced in tests). */
   oauth2?: () => GoogleOAuth2 | undefined;
   now?: () => number;
+  /** How long a silent request may stay unanswered before it counts as failed (replaced in tests). */
+  silentTimeoutMs?: number;
+}
+
+export interface TokenRequest {
+  /**
+   * True (default): Google may open its pop-up (the call must come from a click). False: a silent renewal that only
+   * succeeds if the user is still signed in to Google and already agreed; otherwise it fails with `interaction`.
+   */
+  interactive?: boolean;
 }
 
 /** Margin kept before the end of a token: one that is about to expire is not reused. */
@@ -104,10 +116,11 @@ export function createTokenProvider({
   scope = DRIVE_SCOPE,
   oauth2 = () => window.google?.accounts?.oauth2,
   now = Date.now,
+  silentTimeoutMs = 20_000,
 }: TokenProviderOptions) {
   let cached: { token: string; expiresAt: number } | null = null;
 
-  const request = (): Promise<string> =>
+  const request = (prompt: '' | 'none'): Promise<string> =>
     new Promise((resolve, reject) => {
       const api = oauth2();
       if (!api) {
@@ -142,14 +155,29 @@ export function createTokenProvider({
           reject(new AuthError(kind, error.type ?? 'Sign-in failed'));
         },
       });
-      client.requestAccessToken({ prompt: '' });
+      client.requestAccessToken({ prompt });
     });
 
   return {
     /** A valid token: the one in memory, or a new one (which may open the Google pop-up). */
-    getToken(): Promise<string> {
+    getToken({ interactive = true }: TokenRequest = {}): Promise<string> {
       if (cached && now() < cached.expiresAt - EXPIRY_MARGIN_MS) return Promise.resolve(cached.token);
-      return request();
+      if (interactive) return request('');
+      // Whatever goes wrong without the user (blocked pop-up, signed out, never agreed, no answer) means the same
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const unanswered = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new AuthError('interaction', 'No answer to a silent sign-in')),
+          silentTimeoutMs
+        );
+      });
+      return Promise.race([request('none'), unanswered])
+        .catch((err: unknown) => {
+          throw err instanceof AuthError && err.kind !== 'unavailable'
+            ? new AuthError('interaction', err.message)
+            : err;
+        })
+        .finally(() => clearTimeout(timer));
     },
     /** Forgets the token (Drive refused it): the next call asks again. */
     invalidate(): void {

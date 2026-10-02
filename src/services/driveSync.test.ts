@@ -7,7 +7,7 @@ import { BACKUP_APP, BACKUP_FORMAT, PREFERENCE_KEYS, parseBackup } from './backu
 import { SyncError, describeSyncError, syncWithDrive } from './driveSync';
 import { AuthError, type TokenProvider } from './googleAuth';
 import { DRIVE_FILE_NAME, DriveError, type FetchFn } from './googleDrive';
-import { listGames, saveGame } from './gameStore';
+import { deleteGame, gameId, listGames, saveGame, clearGames, onGamesChanged } from './gameStore';
 import { loadCards, saveCard } from './trainingStore';
 
 const move = {
@@ -66,11 +66,13 @@ function fakeDrive(initial?: Uint8Array) {
 }
 
 /** A token provider that gives `token` and counts how often it was asked. */
-function fakeTokens(): TokenProvider & { asked: number; invalidated: number } {
+function fakeTokens(): TokenProvider & { asked: number; invalidated: number; requests: unknown[] } {
   const tokens = {
     asked: 0,
     invalidated: 0,
-    getToken: async () => {
+    requests: [] as unknown[],
+    getToken: async (request?: unknown) => {
+      tokens.requests.push(request);
       tokens.asked += 1;
       return `token-${tokens.asked}`;
     },
@@ -265,8 +267,136 @@ describe('syncWithDrive', () => {
     expect([...(await loadCards()).keys()]).toEqual(['remote']);
   });
 
+  it('asks for the token the way it was told (a sync nobody asked for must not open a pop-up)', async () => {
+    const drive = fakeDrive();
+    const quiet = fakeTokens();
+    await syncWithDrive({ tokens: quiet, fetchFn: drive.fetchFn, interactive: false });
+    expect(quiet.requests.length).toBeGreaterThan(0);
+    expect(quiet.requests.every((r) => (r as { interactive: boolean }).interactive === false)).toBe(true);
+    const clicked = fakeTokens();
+    await syncWithDrive({ tokens: clicked, fetchFn: drive.fetchFn });
+    expect(clicked.requests.every((r) => (r as { interactive: boolean }).interactive === true)).toBe(true);
+  });
+
+  it('asks the new token the same way after Google refused the first one', async () => {
+    const drive = fakeDrive();
+    drive.failures.push(Response.json({}, { status: 401 }));
+    const tokens = fakeTokens();
+    await syncWithDrive({ tokens, fetchFn: drive.fetchFn, interactive: false });
+    expect(tokens.invalidated).toBe(1);
+    expect(tokens.requests.every((r) => (r as { interactive: boolean }).interactive === false)).toBe(true);
+  });
+
   it('names the sync file as expected', () => {
     expect(DRIVE_FILE_NAME).toBe('echiquier-ia-sync.json.gz');
+  });
+});
+
+describe('two devices sharing a Drive, with deletions', () => {
+  /** Runs `work` as another device: its own browser storage. */
+  const devices = { pc: new IDBFactory(), phone: new IDBFactory() };
+  const on = async <T>(device: keyof typeof devices, work: () => Promise<T>): Promise<T> => {
+    Object.defineProperty(globalThis, 'indexedDB', { value: devices[device], configurable: true, writable: true });
+    return work();
+  };
+  const sync = (device: keyof typeof devices, drive: ReturnType<typeof fakeDrive>) =>
+    on(device, () => syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn }));
+  const names = (device: keyof typeof devices) =>
+    on(device, async () => (await listGames()).map((g) => g.result.metadata.white).sort());
+
+  beforeEach(() => {
+    devices.pc = new IDBFactory();
+    devices.phone = new IDBFactory();
+  });
+
+  it('a game deleted on the PC is deleted on the phone at its next sync, and does not come back', async () => {
+    const drive = fakeDrive();
+    vi.spyOn(Date, 'now').mockReturnValue(1000);
+    await on('pc', async () => {
+      await saveGame({ pgn: '1. e4 *', depth: 14, result: result('Alice') });
+      await saveGame({ pgn: '1. d4 *', depth: 14, result: result('Bob') });
+    });
+    await sync('pc', drive);
+    await sync('phone', drive);
+    expect(await names('phone')).toEqual(['Alice', 'Bob']);
+
+    vi.spyOn(Date, 'now').mockReturnValue(5000);
+    await on('pc', () => deleteGame(gameId('1. e4 *')));
+    await sync('pc', drive);
+    expect(await names('pc')).toEqual(['Bob']);
+
+    // ten minutes later the phone, which still has the game, syncs
+    vi.spyOn(Date, 'now').mockReturnValue(5000 + 600_000);
+    const report = await sync('phone', drive);
+    expect(report.restore?.games).toMatchObject({ deleted: 1 });
+    expect(await names('phone')).toEqual(['Bob']);
+
+    // and the PC, syncing again, does not get it back
+    await sync('pc', drive);
+    expect(await names('pc')).toEqual(['Bob']);
+    const copy = parseBackup(await unpackText([...drive.files.values()][0]));
+    expect(copy.ok && copy.backup.games.map((g) => g.result.metadata.white)).toEqual(['Bob']);
+    expect(copy.ok && copy.backup.deletions).toEqual([{ id: gameId('1. e4 *'), deletedAt: 5000 }]);
+  });
+
+  it('a game analysed again on the phone after the deletion comes back everywhere', async () => {
+    const drive = fakeDrive();
+    vi.spyOn(Date, 'now').mockReturnValue(1000);
+    await on('pc', () => saveGame({ pgn: '1. e4 *', depth: 14, result: result('Alice') }));
+    await sync('pc', drive);
+    await sync('phone', drive);
+    vi.spyOn(Date, 'now').mockReturnValue(5000);
+    await on('pc', () => deleteGame(gameId('1. e4 *')));
+    await sync('pc', drive);
+
+    vi.spyOn(Date, 'now').mockReturnValue(6000);
+    await on('phone', () => saveGame({ pgn: '1. e4 *', depth: 20, result: result('Alice') }));
+    await sync('phone', drive);
+    expect(await names('phone')).toEqual(['Alice']);
+    await sync('pc', drive);
+    expect(await names('pc')).toEqual(['Alice']);
+  });
+
+  it('clearing the history on the PC clears the phone too', async () => {
+    const drive = fakeDrive();
+    vi.spyOn(Date, 'now').mockReturnValue(1000);
+    await on('pc', async () => {
+      await saveGame({ pgn: '1. e4 *', depth: 14, result: result('Alice') });
+      await saveGame({ pgn: '1. d4 *', depth: 14, result: result('Bob') });
+    });
+    await sync('pc', drive);
+    await sync('phone', drive);
+    vi.spyOn(Date, 'now').mockReturnValue(5000);
+    await on('pc', () => clearGames());
+    await sync('pc', drive);
+    await sync('phone', drive);
+    expect(await names('phone')).toEqual([]);
+    expect(await names('pc')).toEqual([]);
+  });
+
+  it('a first sync of a browser that only deleted games still sends the traces', async () => {
+    const drive = fakeDrive();
+    vi.spyOn(Date, 'now').mockReturnValue(1000);
+    await on('pc', async () => {
+      await saveGame({ pgn: '1. e4 *', depth: 14, result: result('Alice') });
+      await deleteGame(gameId('1. e4 *'));
+    });
+    const report = await sync('pc', drive);
+    expect(report.sent).not.toBeNull();
+    const copy = parseBackup(await unpackText([...drive.files.values()][0]));
+    expect(copy.ok && copy.backup.deletions).toHaveLength(1);
+  });
+
+  it('the sync does not tell the listeners of the games (it would start another sync)', async () => {
+    const drive = fakeDrive();
+    await on('pc', () => saveGame({ pgn: '1. e4 *', depth: 14, result: result('Alice') }));
+    await sync('pc', drive);
+    const listener = vi.fn();
+    const stop = onGamesChanged(listener);
+    await sync('phone', drive); // brings a game
+    stop();
+    expect(await names('phone')).toEqual(['Alice']);
+    expect(listener).not.toHaveBeenCalled();
   });
 });
 
@@ -277,6 +407,7 @@ describe('describeSyncError', () => {
     expect(describeSyncError(new AuthError('denied', ''))).toMatch(/cochant/);
     expect(describeSyncError(new AuthError('unavailable', ''))).toMatch(/chargé/);
     expect(describeSyncError(new AuthError('other', ''))).toMatch(/Réessayez/);
+    expect(describeSyncError(new AuthError('interaction', ''))).toBe('Google demande de vous reconnecter.');
     expect(describeSyncError(new DriveError('unauthorized', ''))).toMatch(/refusé/);
     expect(describeSyncError(new DriveError('api-disabled', ''))).toMatch(/pas activée/);
     expect(describeSyncError(new DriveError('quota', ''))).toMatch(/plein/);

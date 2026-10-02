@@ -1,48 +1,26 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Cloud } from 'lucide-react';
-import { createTokenProvider, googleClientId, loadGoogleIdentity, type TokenProvider } from '../../services/googleAuth';
-import { describeSyncError, syncWithDrive, type DriveSyncReport } from '../../services/driveSync';
+import React, { useEffect, useId, useState } from 'react';
+import { AlertCircle, CheckCircle2, Cloud, RefreshCw } from 'lucide-react';
+import { describeSyncError, type DriveSyncReport } from '../../services/driveSync';
+import { getDriveSync } from '../../services/driveSyncInstance';
+import type { DriveSyncManager, SyncStatus } from '../../services/driveSyncManager';
+import { useDriveSync } from '../../hooks/useDriveSync';
 import { assetUrl } from '../../utils/siteUrl';
 import { describeRestore } from './DataBackup';
 
 interface DriveSyncProps {
-  /** The history changed (Drive brought games back): the list has to be read again. */
+  /** The history changed (Drive brought games back, or deleted some): the list has to be read again. */
   onRestored: () => void;
-  /** Replaces the OAuth client ID taken from the build (tests). */
-  clientId?: string | undefined;
-  /** Replaces the loading of the Google script (tests). */
-  loadScript?: () => Promise<void>;
-  /** Replaces the sync itself (tests). */
-  sync?: (tokens: TokenProvider) => Promise<DriveSyncReport>;
+  /** Replaces the app's Drive sync (tests). */
+  manager?: DriveSyncManager;
   /** Replaces the reload of the page, offered once restored settings are to be applied (tests). */
   reload?: () => void;
 }
 
 type Notice = { kind: 'busy' | 'success' | 'error'; text: string; canReload?: boolean };
 
-/** Where the date of the last sync is kept (this browser only: it is not part of the backup). */
-const LAST_SYNC_KEY = 'chess_drive_last_sync';
-
 const DATE_FORMAT = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' });
 
 const plural = (count: number, one: string, many: string) => `${count} ${count > 1 ? many : one}`;
-
-function readLastSync(): number | null {
-  try {
-    const value = Number(window.localStorage.getItem(LAST_SYNC_KEY));
-    return Number.isFinite(value) && value > 0 ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeLastSync(time: number): void {
-  try {
-    window.localStorage.setItem(LAST_SYNC_KEY, String(time));
-  } catch {
-    // Storage unavailable: the date is just not shown next time
-  }
-}
 
 /** What a sync did, in a few sentences. */
 export function describeSync(report: DriveSyncReport): string {
@@ -63,57 +41,59 @@ export function describeSync(report: DriveSyncReport): string {
   return parts.join(' ');
 }
 
+/** The state of the automatic sync, in a sentence. */
+export function describeAutoSync(status: SyncStatus): string {
+  switch (status.phase) {
+    case 'idle':
+      return 'À jour.';
+    case 'waiting':
+      return 'Changement détecté : synchronisation dans un instant.';
+    case 'syncing':
+      return 'Synchronisation en cours…';
+    case 'needs-signin':
+      return status.message ?? 'Google demande de vous reconnecter.';
+    case 'error':
+      return status.message ?? 'La synchronisation avec Google Drive a échoué.';
+    default:
+      return '';
+  }
+}
+
 /** Syncs the backup with the user's Google Drive: merges what is there, then sends the merged copy back. */
 export const DriveSync: React.FC<DriveSyncProps> = ({
   onRestored,
-  clientId = googleClientId(),
-  loadScript = loadGoogleIdentity,
-  sync = (tokens) => syncWithDrive({ tokens }),
+  manager = getDriveSync(),
   reload = () => window.location.reload(),
 }) => {
-  const [script, setScript] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const status = useDriveSync(manager);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [lastSync, setLastSync] = useState<number | null>(readLastSync);
-  const tokens = useRef<TokenProvider | null>(null);
-  const isBusy = notice?.kind === 'busy';
+  const autoId = useId();
+  const isBusy = notice?.kind === 'busy' || status.phase === 'syncing';
 
   // The script is loaded before the click: a pop-up opened after an `await` is blocked by the browsers
   useEffect(() => {
-    if (!clientId) return;
-    let isCurrent = true;
-    loadScript().then(
-      () => isCurrent && setScript('ready'),
-      () => isCurrent && setScript('failed')
-    );
-    return () => {
-      isCurrent = false;
-    };
-  }, [clientId, loadScript]);
+    manager.prepare().catch(() => {});
+  }, [manager]);
 
-  if (!clientId) return null;
+  // Whoever syncs (this button or the automatic sync), the list shows what came
+  useEffect(() => manager.subscribeRestored(onRestored), [manager, onRestored]);
+
+  if (!manager.available) return null;
 
   const run = async () => {
-    if (script !== 'ready') {
+    if (status.script !== 'ready') {
       // The script did not load earlier: try again
-      setScript('loading');
       try {
-        await loadScript();
-        setScript('ready');
+        await manager.prepare();
         setNotice({ kind: 'success', text: 'Google est prêt : cliquez de nouveau pour vous connecter.' });
       } catch (err) {
-        setScript('failed');
         setNotice({ kind: 'error', text: describeSyncError(err) });
       }
       return;
     }
-    tokens.current ??= createTokenProvider({ clientId });
     setNotice({ kind: 'busy', text: 'Synchronisation avec Google Drive…' });
     try {
-      const report = await sync(tokens.current);
-      if (report.restore) onRestored();
-      const now = Date.now();
-      writeLastSync(now);
-      setLastSync(now);
+      const report = await manager.syncNow();
       const failed = report.restore !== null && report.restore.games === null && report.restore.cards === null;
       setNotice({
         kind: failed ? 'error' : 'success',
@@ -126,13 +106,15 @@ export const DriveSync: React.FC<DriveSyncProps> = ({
     }
   };
 
+  const autoState = status.enabled ? describeAutoSync(status) : '';
+  const canRetry = status.enabled && (status.phase === 'needs-signin' || status.phase === 'error');
+
   return (
     <div className="flex flex-col gap-2 border-t border-slate-800/60 pt-3 mt-1">
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:justify-between">
         <p className="text-[11px] text-slate-400 sm:max-w-md">
           Gardez une copie privée dans votre Google Drive (dossier réservé à l&apos;application, non chiffré) pour
-          retrouver vos données sur un autre appareil. Les suppressions ne sont pas synchronisées : une partie supprimée
-          ici revient depuis Drive.{' '}
+          retrouver vos données sur un autre appareil.{' '}
           <a
             href={assetUrl('confidentialite.html')}
             target="_blank"
@@ -141,16 +123,16 @@ export const DriveSync: React.FC<DriveSyncProps> = ({
           >
             Règles de confidentialité
           </a>
-          {lastSync !== null && <> · Dernière synchronisation : {DATE_FORMAT.format(lastSync)}</>}
+          {status.lastSync !== null && <> · Dernière synchronisation : {DATE_FORMAT.format(status.lastSync)}</>}
         </p>
         <button
           type="button"
-          disabled={isBusy || script === 'loading'}
+          disabled={isBusy || status.script === 'loading'}
           onClick={() => void run()}
           className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-xs font-semibold text-white cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
         >
           <Cloud className="w-3.5 h-3.5" aria-hidden="true" />
-          {script === 'failed' ? 'Réessayer de charger Google' : 'Synchroniser avec Google Drive'}
+          {status.script === 'failed' ? 'Réessayer de charger Google' : 'Synchroniser avec Google Drive'}
         </button>
       </div>
 
@@ -185,6 +167,51 @@ export const DriveSync: React.FC<DriveSyncProps> = ({
           </p>
         )}
       </div>
+
+      {status.lastSync !== null && (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-start gap-2">
+            <input
+              id={autoId}
+              type="checkbox"
+              checked={status.enabled}
+              onChange={(event) => manager.setEnabled(event.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-indigo-500 cursor-pointer"
+            />
+            <label htmlFor={autoId} className="text-xs text-slate-200 cursor-pointer">
+              Synchroniser automatiquement
+              <span className="block text-[11px] text-slate-400">
+                À l&apos;ouverture de l&apos;application, puis après chaque partie ajoutée ou supprimée. Les
+                suppressions sont synchronisées aussi.
+              </span>
+            </label>
+          </div>
+          {autoState && (
+            <p
+              role={status.phase === 'error' ? 'alert' : 'status'}
+              className={`flex items-center gap-2 pl-6 text-[11px] ${
+                status.phase === 'error'
+                  ? 'text-rose-300'
+                  : status.phase === 'needs-signin'
+                    ? 'text-amber-300'
+                    : 'text-slate-400'
+              }`}
+            >
+              {status.phase === 'syncing' && <RefreshCw className="w-3 h-3 animate-spin" aria-hidden="true" />}
+              <span>{autoState}</span>
+              {canRetry && (
+                <button
+                  type="button"
+                  onClick={() => void run()}
+                  className="underline font-semibold cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded"
+                >
+                  {status.phase === 'needs-signin' ? 'Se reconnecter' : 'Réessayer'}
+                </button>
+              )}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 };

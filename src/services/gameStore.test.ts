@@ -52,7 +52,7 @@ function useFreshDatabase() {
 async function rawPut(record: unknown): Promise<void> {
   await clearGames(); // creates the database and its store
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open('echiquier-ia', 1);
+    const request = indexedDB.open('echiquier-ia', 2);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
@@ -404,7 +404,7 @@ describe('loadLatestGame', () => {
   it('skips entries from another schema version and damaged ones', async () => {
     await rawPut(stored({ id: 'good', savedAt: 1, result: makeResult('good') }));
     const db = await new Promise<IDBDatabase>((resolve) => {
-      const request = indexedDB.open('echiquier-ia', 1);
+      const request = indexedDB.open('echiquier-ia', 2);
       request.onsuccess = () => resolve(request.result);
     });
     await new Promise<void>((resolve) => {
@@ -535,7 +535,7 @@ describe('mergeGames', () => {
 
   it('adds the games that are not there', async () => {
     const report = await mergeGames([record(1), record(2)]);
-    expect(report).toEqual({ added: 2, replaced: 0, kept: 0, trimmed: 0 });
+    expect(report).toEqual({ added: 2, replaced: 0, kept: 0, trimmed: 0, deleted: 0 });
     expect((await listGames()).map((g) => g.savedAt)).toEqual([2000, 1000]);
   });
 
@@ -565,17 +565,17 @@ describe('mergeGames', () => {
 
   it('counts a game that is twice in the list once, with its most recent version', async () => {
     const report = await mergeGames([record(1, { savedAt: 1000, depth: 10 }), record(1, { savedAt: 2000, depth: 16 })]);
-    expect(report).toEqual({ added: 1, replaced: 0, kept: 0, trimmed: 0 });
+    expect(report).toEqual({ added: 1, replaced: 0, kept: 0, trimmed: 0, deleted: 0 });
     expect((await loadGame('1. a3 *\n; 1'))?.depth).toBe(16);
   });
 
   it('ignores what is not a stored game', async () => {
     const report = await mergeGames([record(1), { id: 'x' } as StoredGame, { ...record(2), schemaVersion: 99 }]);
-    expect(report).toEqual({ added: 1, replaced: 0, kept: 0, trimmed: 0 });
+    expect(report).toEqual({ added: 1, replaced: 0, kept: 0, trimmed: 0, deleted: 0 });
   });
 
   it('works with nothing to add', async () => {
-    expect(await mergeGames([])).toEqual({ added: 0, replaced: 0, kept: 0, trimmed: 0 });
+    expect(await mergeGames([])).toEqual({ added: 0, replaced: 0, kept: 0, trimmed: 0, deleted: 0 });
   });
 
   it('applies the limits after the merge: the oldest games are dropped, the older ones are reduced to a summary', async () => {

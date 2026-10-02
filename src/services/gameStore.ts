@@ -30,6 +30,10 @@ export const isFullGame = (game: Pick<StoredGame, 'detail'>): boolean => game.de
 const DB_NAME = 'echiquier-ia';
 const STORE = 'games';
 const SAVED_AT_INDEX = 'savedAt';
+/** Traces of the games the user deleted (see `Deletion`). Added in version 2 of the database. */
+const DELETIONS = 'deletions';
+const DELETED_AT_INDEX = 'deletedAt';
+const DB_VERSION = 2;
 /** Bump when `GameAnalysisResult` changes shape: older entries are then ignored (and replaced on the next save). */
 export const SCHEMA_VERSION = 1;
 /** Number of games kept; the least recently saved ones are dropped first. */
@@ -40,6 +44,44 @@ export const MAX_GAMES = 500;
  * history keeps and leaves the statistics, the evaluations and the faults.
  */
 export const MAX_FULL_GAMES = 50;
+/** Traces of deleted games kept (a few dozen bytes each); the oldest are forgotten beyond this. */
+export const MAX_DELETIONS = 5000;
+
+/**
+ * The trace of a game the user deleted. It lets a deletion reach the other devices of a synced history: a game
+ * saved at or before `deletedAt` is dropped wherever it turns up, a game saved after (analysed again) stays.
+ */
+export interface Deletion {
+  id: string;
+  deletedAt: number;
+}
+
+export const isDeletion = (value: unknown): value is Deletion =>
+  typeof value === 'object' &&
+  value !== null &&
+  typeof (value as Deletion).id === 'string' &&
+  (value as Deletion).id !== '' &&
+  typeof (value as Deletion).deletedAt === 'number' &&
+  Number.isFinite((value as Deletion).deletedAt);
+
+type Listener = () => void;
+const changeListeners = new Set<Listener>();
+
+/** Calls `listener` after the games were added, replaced or deleted here (not for a silent restore). */
+export function onGamesChanged(listener: Listener): () => void {
+  changeListeners.add(listener);
+  return () => void changeListeners.delete(listener);
+}
+
+function notifyGamesChanged(): void {
+  for (const listener of [...changeListeners]) {
+    try {
+      listener();
+    } catch (err) {
+      console.warn('A listener of the games failed:', err);
+    }
+  }
+}
 
 /** Same game whatever the line endings or the spacing of the pasted text. */
 export function normalizePgn(pgn: string): string {
@@ -148,10 +190,15 @@ function openDb(): Promise<IDBDatabase> {
       reject(new Error('IndexedDB is not available'));
       return;
     }
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
-      const store = request.result.createObjectStore(STORE, { keyPath: 'id' });
-      store.createIndex(SAVED_AT_INDEX, 'savedAt');
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE)) {
+        db.createObjectStore(STORE, { keyPath: 'id' }).createIndex(SAVED_AT_INDEX, 'savedAt');
+      }
+      if (!db.objectStoreNames.contains(DELETIONS)) {
+        db.createObjectStore(DELETIONS, { keyPath: 'id' }).createIndex(DELETED_AT_INDEX, 'deletedAt');
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error('Could not open IndexedDB'));
@@ -162,16 +209,20 @@ function openDb(): Promise<IDBDatabase> {
 /** Runs `work` in a transaction and resolves once the transaction has been committed. */
 async function inTransaction<T>(
   mode: IDBTransactionMode,
-  work: (store: IDBObjectStore, done: (value: T) => void) => void
+  work: (store: IDBObjectStore, done: (value: T) => void, deletions: IDBObjectStore) => void
 ): Promise<T> {
   const db = await openDb();
   try {
     return await new Promise<T>((resolve, reject) => {
-      const tx = db.transaction(STORE, mode);
+      const tx = db.transaction([STORE, DELETIONS], mode);
       let value: T | undefined;
-      work(tx.objectStore(STORE), (v) => {
-        value = v;
-      });
+      work(
+        tx.objectStore(STORE),
+        (v) => {
+          value = v;
+        },
+        tx.objectStore(DELETIONS)
+      );
       tx.oncomplete = () => resolve(value as T);
       tx.onerror = () => reject(tx.error ?? new Error('IndexedDB transaction failed'));
       tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'));
@@ -222,6 +273,23 @@ function dropOldest(store: IDBObjectStore, excess: number): void {
   };
 }
 
+/** Forgets the oldest traces of deletions beyond `MAX_DELETIONS`. */
+function pruneDeletions(deletions: IDBObjectStore): void {
+  const count = deletions.count();
+  count.onsuccess = () => {
+    let left = count.result - MAX_DELETIONS;
+    if (left <= 0) return;
+    const cursor = deletions.index(DELETED_AT_INDEX).openKeyCursor();
+    cursor.onsuccess = () => {
+      const current = cursor.result;
+      if (!current || left <= 0) return;
+      deletions.delete(current.primaryKey);
+      left -= 1;
+      current.continue();
+    };
+  };
+}
+
 /** The result with the kind of each of the user's faults filled in (the profile counts them), if the side is known. */
 function withKinds(result: GameAnalysisResult): GameAnalysisResult {
   const color = result.userColor;
@@ -266,6 +334,7 @@ export async function saveGame(
         });
       };
     });
+    notifyGamesChanged();
   } catch (err) {
     console.warn('Could not save the analysed game:', err);
   }
@@ -304,12 +373,29 @@ export async function loadLatestGame(): Promise<StoredGame | null> {
   }
 }
 
-/** Removes every stored game. */
+/** The moment a game is deleted: now, but never before the game itself was saved (a clock set back). */
+const deletionTime = (savedAt: unknown): number =>
+  typeof savedAt === 'number' && Number.isFinite(savedAt) ? Math.max(Date.now(), savedAt) : Date.now();
+
+/** Removes every stored game (leaving a trace of each, so that a synced history loses them too). */
 export async function clearGames(): Promise<void> {
   try {
-    await inTransaction<void>('readwrite', (store) => {
-      store.clear();
+    await inTransaction<void>('readwrite', (store, _done, deletions) => {
+      const cursor = store.openCursor();
+      cursor.onsuccess = () => {
+        const current = cursor.result;
+        if (!current) {
+          store.clear();
+          pruneDeletions(deletions);
+          return;
+        }
+        const value: unknown = current.value;
+        const savedAt = typeof value === 'object' && value !== null ? (value as { savedAt?: unknown }).savedAt : 0;
+        deletions.put({ id: String(current.primaryKey), deletedAt: deletionTime(savedAt) });
+        current.continue();
+      };
     });
+    notifyGamesChanged();
   } catch (err) {
     console.warn('Could not clear the stored games:', err);
   }
@@ -377,6 +463,18 @@ export interface MergeReport {
   kept: number;
   /** Oldest games dropped to stay within the limit. */
   trimmed: number;
+  /** Games removed here because they were deleted elsewhere. */
+  deleted: number;
+}
+
+export interface MergeOptions {
+  /** Do not tell the listeners of `onGamesChanged` (the sync itself restores, it must not trigger a sync). */
+  silent?: boolean;
+  /**
+   * The games come back whatever the traces of deletions here say (a backup file the user chose to import after
+   * deleting games): one that a trace covers is saved again, just after the deletion, so that it wins elsewhere too.
+   */
+  override?: boolean;
 }
 
 /** Whether `incoming` should replace `existing`: it was saved later, or at the same time but is the complete one. */
@@ -386,12 +484,15 @@ const isNewer = (incoming: StoredGame, existing: StoredGame): boolean =>
 
 /**
  * Adds games to the history (a backup being restored): a game already there is replaced only by a more recent
- * version of it. The limits then apply as after a save. Resolves with null when it could not be written (nothing
- * is then changed).
+ * version of it. `deletions` (traces of games deleted elsewhere) are kept, remove the games here saved at or before
+ * the deletion, and keep such games out of `records`. The limits then apply as after a save. Resolves with null
+ * when it could not be written (nothing is then changed).
  */
 export async function mergeGames(
   records: StoredGame[],
-  limits: StoreLimits = DEFAULT_LIMITS
+  limits: StoreLimits = DEFAULT_LIMITS,
+  deletions: Deletion[] = [],
+  options: MergeOptions = {}
 ): Promise<MergeReport | null> {
   // A game twice in the file counts once: the most recent version
   const latest = new Map<string, StoredGame>();
@@ -400,42 +501,109 @@ export async function mergeGames(
     if (isStoredGame(record) && (!known || isNewer(record, known))) latest.set(record.id, record);
   }
   const valid = [...latest.values()];
-  const report: MergeReport = { added: 0, replaced: 0, kept: 0, trimmed: 0 };
+  // A deletion twice counts once: the latest
+  const incomingDeletions = new Map<string, number>();
+  for (const deletion of deletions) {
+    if (isDeletion(deletion) && deletion.deletedAt > (incomingDeletions.get(deletion.id) ?? -Infinity)) {
+      incomingDeletions.set(deletion.id, deletion.deletedAt);
+    }
+  }
+  const report: MergeReport = { added: 0, replaced: 0, kept: 0, trimmed: 0, deleted: 0 };
+  let tracesChanged = false;
   try {
-    await inTransaction<void>('readwrite', (store) => {
-      let pending = valid.length;
-      const finish = () => {
-        const count = store.count();
-        count.onsuccess = () => {
-          const total = count.result;
-          const trim = () => {
-            if (total <= limits.total) return;
-            report.trimmed = total - limits.total;
-            dropOldest(store, report.trimmed);
-          };
-          if (total <= limits.full) return trim();
-          compactOld(store, limits.full, trim, false);
-        };
-      };
-      if (pending === 0) return finish();
-      for (const record of valid) {
-        const request = store.get(record.id);
-        request.onsuccess = () => {
-          const existing: unknown = request.result;
-          if (!isStoredGame(existing)) {
-            store.put(record);
-            report.added += 1;
-          } else if (isNewer(record, existing)) {
-            store.put(record);
-            report.replaced += 1;
-          } else {
-            report.kept += 1;
+    await inTransaction<void>('readwrite', (store, _done, deletionStore) => {
+      const traces = deletionStore.getAll();
+      traces.onsuccess = () => {
+        const known = new Map<string, number>();
+        for (const trace of traces.result as unknown[]) if (isDeletion(trace)) known.set(trace.id, trace.deletedAt);
+        // The traces this browser did not have yet (or only older ones)
+        const fresh: Deletion[] = [];
+        for (const [id, deletedAt] of incomingDeletions) {
+          const had = known.get(id);
+          if (had === undefined || deletedAt > had) {
+            fresh.push({ id, deletedAt });
+            known.set(id, deletedAt);
           }
+        }
+        for (const trace of fresh) deletionStore.put(trace);
+        if (fresh.length > 0) {
+          tracesChanged = true;
+          pruneDeletions(deletionStore);
+        }
+        // A game deleted after it was saved is not taken (unless the user asked for a restore)
+        const covered = (record: StoredGame) => {
+          const deletedAt = known.get(record.id);
+          return deletedAt !== undefined && record.savedAt <= deletedAt;
+        };
+        let toMerge: StoredGame[];
+        if (options.override) {
+          // The games a trace covers are saved again just after their deletion (they would be deleted again at the
+          // next sync otherwise), keeping their order among themselves
+          const blocked = valid.filter(covered);
+          const base = Math.max(...blocked.map((record) => known.get(record.id) ?? 0)) + 1;
+          const origin = Math.min(...blocked.map((record) => record.savedAt));
+          toMerge = valid.map((record) =>
+            covered(record) ? { ...record, savedAt: base + (record.savedAt - origin) } : record
+          );
+        } else {
+          toMerge = valid.filter((record) => !covered(record));
+        }
+
+        let pending = toMerge.length + fresh.length;
+        const finish = () => {
+          const count = store.count();
+          count.onsuccess = () => {
+            const total = count.result;
+            const trim = () => {
+              if (total <= limits.total) return;
+              report.trimmed = total - limits.total;
+              dropOldest(store, report.trimmed);
+            };
+            if (total <= limits.full) return trim();
+            compactOld(store, limits.full, trim, false);
+          };
+        };
+        const settled = () => {
           pending -= 1;
           if (pending === 0) finish();
         };
-      }
+        if (pending === 0) return finish();
+
+        for (const trace of fresh) {
+          const request = store.get(trace.id);
+          request.onsuccess = () => {
+            const existing: unknown = request.result;
+            if (existing !== undefined) {
+              const savedAt = (existing as { savedAt?: unknown }).savedAt;
+              if (typeof savedAt !== 'number' || savedAt <= trace.deletedAt) {
+                store.delete(trace.id);
+                report.deleted += 1;
+              }
+            }
+            settled();
+          };
+        }
+        for (const record of toMerge) {
+          const request = store.get(record.id);
+          request.onsuccess = () => {
+            const existing: unknown = request.result;
+            if (!isStoredGame(existing)) {
+              store.put(record);
+              report.added += 1;
+            } else if (isNewer(record, existing)) {
+              store.put(record);
+              report.replaced += 1;
+            } else {
+              report.kept += 1;
+            }
+            settled();
+          };
+        }
+      };
     });
+    if (!options.silent && (report.added + report.replaced + report.deleted > 0 || tracesChanged)) {
+      notifyGamesChanged();
+    }
     return report;
   } catch (err) {
     console.warn('Could not restore the games:', err);
@@ -443,12 +611,37 @@ export async function mergeGames(
   }
 }
 
-/** Removes one stored game (nothing happens if it is not there). */
+/** Every trace of a deleted game, for a backup. Empty when storage is unavailable. */
+export async function listDeletions(): Promise<Deletion[]> {
+  try {
+    return await inTransaction<Deletion[]>('readonly', (_store, done, deletions) => {
+      const request = deletions.getAll();
+      request.onsuccess = () => done((request.result as unknown[]).filter(isDeletion));
+    });
+  } catch (err) {
+    console.warn('Could not read the deleted games:', err);
+    return [];
+  }
+}
+
+/** Removes one stored game, leaving a trace of it (nothing happens if it is not there). */
 export async function deleteGame(id: string): Promise<void> {
   try {
-    await inTransaction<void>('readwrite', (store) => {
-      store.delete(id);
+    const wasThere = await inTransaction<boolean>('readwrite', (store, done, deletions) => {
+      done(false);
+      const request = store.get(id);
+      request.onsuccess = () => {
+        const existing: unknown = request.result;
+        if (existing === undefined) return;
+        const savedAt =
+          typeof existing === 'object' && existing !== null ? (existing as { savedAt?: unknown }).savedAt : 0;
+        deletions.put({ id, deletedAt: deletionTime(savedAt) });
+        store.delete(id);
+        pruneDeletions(deletions);
+        done(true);
+      };
     });
+    if (wasThere) notifyGamesChanged();
   } catch (err) {
     console.warn('Could not delete the analysed game:', err);
   }
