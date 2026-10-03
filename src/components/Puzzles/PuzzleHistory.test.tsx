@@ -197,6 +197,23 @@ describe('Puzzles: the statistics', () => {
     expect(screen.getByText(/Réussite par thème, depuis le début/)).toBeTruthy();
   });
 
+  it('does not draw the progress before two weeks have enough puzzles', async () => {
+    await store(6, ['fork'], 3, Date.now() - 1000);
+    await openStats(userEvent.setup());
+    expect(await screen.findByText(/La courbe apparaît quand deux semaines ont au moins 5 puzzles/)).toBeTruthy();
+  });
+
+  it('draws the progress week after week', async () => {
+    await store(6, ['fork'], 3, Date.now() - 1000); // this week: 50 %
+    await store(6, ['pin'], 6, Date.now() - 7 * 24 * 3600_000 - 1000); // last week: 100 %
+    await openStats(userEvent.setup());
+    const curve = await screen.findByRole('img', {
+      name: /Réussite aux puzzles, semaine après semaine : 100 % .* 50 %/,
+    });
+    expect(curve.querySelectorAll('circle')).toHaveLength(2);
+    expect(curve.querySelectorAll('polyline')).toHaveLength(1);
+  });
+
   it('clears the history only after a confirmation that says what goes', async () => {
     const user = userEvent.setup();
     await store(6, ['fork'], 3);

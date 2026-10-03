@@ -151,6 +151,29 @@ export function weeklyAttempts(log: readonly PuzzleAttempt[], themes: readonly s
   return within(log, now, WEEK_MS).filter((a) => a.themes.some((theme) => themes.includes(theme))).length;
 }
 
+/** Weeks drawn in the progress curve. */
+export const TREND_WEEKS = 12;
+/** Attempts in a week from which its success rate is put on the curve. */
+export const MIN_WEEK_ATTEMPTS = 5;
+
+export interface WeekTally extends Tally {
+  /** Start of the week (ms); the week runs to the start of the next one. */
+  start: number;
+}
+
+/**
+ * The success rate week after week, oldest first, over the last `weeks` weeks (the last one ends at `now`). Weeks are
+ * counted back from `now`, as for « cette semaine ». A week without attempts has a null rate.
+ */
+export function weeklyTallies(log: readonly PuzzleAttempt[], now: number, weeks: number = TREND_WEEKS): WeekTally[] {
+  const buckets: PuzzleAttempt[][] = Array.from({ length: weeks }, () => []);
+  for (const attempt of log) {
+    const age = Math.floor((now - attempt.at) / WEEK_MS);
+    if (age >= 0 && age < weeks) buckets[weeks - 1 - age].push(attempt);
+  }
+  return buckets.map((attempts, i) => ({ start: now - (weeks - i) * WEEK_MS, ...tally(attempts) }));
+}
+
 export interface ThemeTally extends Tally {
   theme: string;
 }

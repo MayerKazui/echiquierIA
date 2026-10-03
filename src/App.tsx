@@ -1,5 +1,6 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
+import type { EndgameCategory } from './data/endgames';
 import type { TrainingFilter } from './utils/spacedRepetition';
 import { AppTab, BoardTheme, HeatmapMode, PlayerColor, ThreatsMode } from './types/ui';
 import { toFrenchSan } from './utils/chessNotation';
@@ -78,6 +79,8 @@ export default function App() {
   const [isTrainingOpen, setIsTrainingOpen] = useState(false);
   const [isOpeningsOpen, setIsOpeningsOpen] = useState(false);
   const [isEndgamesOpen, setIsEndgamesOpen] = useState(false);
+  /** The family of endgames the plan points to (null: all of them). */
+  const [endgamesCategory, setEndgamesCategory] = useState<EndgameCategory | null>(null);
   const [isStudiesOpen, setIsStudiesOpen] = useState(false);
   const [isPuzzlesOpen, setIsPuzzlesOpen] = useState(false);
   const [isPlanOpen, setIsPlanOpen] = useState(false);
@@ -583,7 +586,10 @@ export default function App() {
           setPuzzleStart(undefined);
           setIsPuzzlesOpen(true);
         }}
-        onOpenEndgames={() => setIsEndgamesOpen(true)}
+        onOpenEndgames={() => {
+          setEndgamesCategory(null);
+          setIsEndgamesOpen(true);
+        }}
         onOpenStudies={() => setIsStudiesOpen(true)}
         onOpenPlan={() => setIsPlanOpen(true)}
         onInstall={canInstall ? () => void install() : undefined}
@@ -726,8 +732,9 @@ export default function App() {
                 setOpeningsStart({ view: 'drill', sans: [] });
                 setIsOpeningsOpen(true);
               }}
-              onEndgames={() => {
+              onEndgames={(category) => {
                 setIsPlanOpen(false);
+                setEndgamesCategory(category ?? null);
                 setIsEndgamesOpen(true);
               }}
               onImport={() => {
@@ -764,7 +771,11 @@ export default function App() {
       {isEndgamesOpen && (
         <Modal title="Finales" onClose={() => setIsEndgamesOpen(false)} className="w-full max-w-[min(96vw,84rem)]">
           <Suspense fallback={null}>
-            <Endgames boardTheme={boardTheme} onClose={() => setIsEndgamesOpen(false)} />
+            <Endgames
+              boardTheme={boardTheme}
+              initialCategory={endgamesCategory}
+              onClose={() => setIsEndgamesOpen(false)}
+            />
           </Suspense>
         </Modal>
       )}

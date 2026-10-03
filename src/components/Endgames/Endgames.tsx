@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { CheckCircle2, Crown, X, XCircle } from 'lucide-react';
-import { ENDGAME_CATEGORIES, type Endgame } from '../../data/endgames';
+import { ENDGAME_CATEGORIES, type Endgame, type EndgameCategory } from '../../data/endgames';
 import { useEndgameCards } from '../../hooks/useEndgameCards';
 import { endgameCardId, endgameItems, type EndgameItem } from '../../utils/endgameDrill';
 import {
@@ -19,6 +19,8 @@ import { EndgameExercise } from './EndgameExercise';
 interface EndgamesProps {
   onClose: () => void;
   boardTheme?: BoardTheme;
+  /** Starts on one family of endgames (the plan points to it); the others stay one click away. */
+  initialCategory?: EndgameCategory | null;
 }
 
 /** Finales in a session: each one is long (a dozen moves against the engine), so a session is short. */
@@ -48,12 +50,13 @@ function statusText(card: Card | undefined, now: number): string {
 }
 
 /** "Finales": the theoretical endgames (mates, pawns, rooks), played against the engine and revisited at growing intervals. */
-export const Endgames: React.FC<EndgamesProps> = ({ onClose, boardTheme }) => {
+export const Endgames: React.FC<EndgamesProps> = ({ onClose, boardTheme, initialCategory = null }) => {
   const { cards, record } = useEndgameCards();
   const [session, setSession] = useState<Session | null>(null);
   // Fixed while a screen is shown: the figures must not change under the player's eyes
   const [now, setNow] = useState(() => Date.now());
-  const items = endgameItems();
+  const [category, setCategory] = useState<EndgameCategory | null>(initialCategory);
+  const items = endgameItems().filter((item) => category === null || item.endgame.category === category);
 
   const start = (chosen: EndgameItem[]) => {
     if (chosen.length === 0) return;
@@ -180,7 +183,16 @@ export const Endgames: React.FC<EndgamesProps> = ({ onClose, boardTheme }) => {
           </div>
         )}
 
-        {cards !== null && session === null && <Setup items={items} cards={cards} now={now} onStart={start} />}
+        {cards !== null && session === null && (
+          <Setup
+            items={items}
+            cards={cards}
+            now={now}
+            onStart={start}
+            categoryLabel={ENDGAME_CATEGORIES.find((c) => c.value === category)?.label}
+            onShowAll={() => setCategory(null)}
+          />
+        )}
       </div>
     </div>
   );
@@ -191,10 +203,13 @@ interface SetupProps {
   cards: ReadonlyMap<string, Card>;
   now: number;
   onStart: (items: EndgameItem[]) => void;
+  /** The family the list is limited to, if it is. */
+  categoryLabel?: string;
+  onShowAll: () => void;
 }
 
 /** Where the endgames stand, a session to start, and the list of the positions to play at will. */
-const Setup: React.FC<SetupProps> = ({ items, cards, now, onStart }) => {
+const Setup: React.FC<SetupProps> = ({ items, cards, now, onStart, categoryLabel, onShowAll }) => {
   const summary = summarizeItems(items, cards, now);
   const available = summary.due + summary.fresh;
   const sessionSize = Math.min(ENDGAME_SESSION_SIZE, available);
@@ -205,6 +220,17 @@ const Setup: React.FC<SetupProps> = ({ items, cards, now, onStart }) => {
         Vous jouez la position contre le moteur, qui répond à chaque coup et dit si le vôtre garde le résultat : gagner
         (mat ou promotion sûre) ou tenir la nulle. Une position réussie revient après 1, 3 puis 7 jours.
       </p>
+
+      {categoryLabel && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+          <span>
+            Seulement : <strong className="text-slate-100">{categoryLabel}</strong>, d’après vos erreurs de finale.
+          </span>
+          <button type="button" onClick={onShowAll} className={SECONDARY}>
+            Toutes les finales
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Tile label="À revoir" value={summary.due} hint="déjà ratées, de retour" />
@@ -250,36 +276,38 @@ const Setup: React.FC<SetupProps> = ({ items, cards, now, onStart }) => {
         )}
       </div>
 
-      {ENDGAME_CATEGORIES.map(({ value, label }) => (
-        <section key={value} aria-label={label} className="flex flex-col gap-2">
-          <h3 className="text-xs font-semibold text-slate-300">{label}</h3>
-          <ul className="flex flex-col gap-1.5">
-            {items
-              .filter((item) => item.endgame.category === value)
-              .map((item) => (
-                <li
-                  key={item.id}
-                  className="flex items-center justify-between gap-3 rounded-lg bg-slate-950/60 border border-slate-800 px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-slate-200">{item.endgame.title}</p>
-                    <p className="text-[11px] text-slate-400">
-                      {item.endgame.goal === 'win' ? 'Gagner' : 'Faire nulle'} · {statusText(cards.get(item.id), now)}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onStart([item])}
-                    aria-label={`Jouer : ${item.endgame.title}`}
-                    className={SECONDARY}
+      {ENDGAME_CATEGORIES.filter(({ value }) => items.some((item) => item.endgame.category === value)).map(
+        ({ value, label }) => (
+          <section key={value} aria-label={label} className="flex flex-col gap-2">
+            <h3 className="text-xs font-semibold text-slate-300">{label}</h3>
+            <ul className="flex flex-col gap-1.5">
+              {items
+                .filter((item) => item.endgame.category === value)
+                .map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex items-center justify-between gap-3 rounded-lg bg-slate-950/60 border border-slate-800 px-3 py-2"
                   >
-                    Jouer
-                  </button>
-                </li>
-              ))}
-          </ul>
-        </section>
-      ))}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-200">{item.endgame.title}</p>
+                      <p className="text-[11px] text-slate-400">
+                        {item.endgame.goal === 'win' ? 'Gagner' : 'Faire nulle'} · {statusText(cards.get(item.id), now)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onStart([item])}
+                      aria-label={`Jouer : ${item.endgame.title}`}
+                      className={SECONDARY}
+                    >
+                      Jouer
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </section>
+        )
+      )}
     </div>
   );
 };

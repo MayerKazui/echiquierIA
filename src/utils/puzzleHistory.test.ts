@@ -14,6 +14,7 @@ import {
   themeTallies,
   weakestTheme,
   weeklyAttempts,
+  weeklyTallies,
   WEEK_MS,
   type PuzzleAttempt,
 } from './puzzleHistory';
@@ -125,6 +126,30 @@ describe('the figures', () => {
     expect(overallTally(log, NOW)).toEqual({ attempts: 4, wins: 2, rate: 0.5 });
     expect(overallTally(log, NOW, WEEK_MS)).toEqual({ attempts: 3, wins: 2, rate: 2 / 3 });
     expect(overallTally([], NOW)).toEqual({ attempts: 0, wins: 0, rate: null });
+  });
+
+  it('tells the success rate week after week, oldest first, the last week ending now', () => {
+    const weeks = weeklyTallies(
+      [
+        attempt(NOW - 3 * WEEK_MS - 1, ['fork'], true), // four weeks back
+        attempt(NOW - 2 * WEEK_MS - 1, ['fork'], false), // three weeks back
+        attempt(NOW - 2 * WEEK_MS - 2, ['fork'], true),
+        attempt(NOW - 1000, ['fork'], true), // this week
+        attempt(NOW - 40 * WEEK_MS, ['fork'], true), // too old for the curve
+        attempt(NOW + 1000, ['fork'], true), // not yet
+      ],
+      NOW,
+      4
+    );
+    expect(weeks.map((w) => [w.attempts, w.wins])).toEqual([
+      [1, 1],
+      [2, 1],
+      [0, 0],
+      [1, 1],
+    ]);
+    expect(weeks.map((w) => w.rate)).toEqual([1, 0.5, null, 1]);
+    expect(weeks[3].start).toBe(NOW - WEEK_MS);
+    expect(weeks[0].start).toBe(NOW - 4 * WEEK_MS);
   });
 
   it('counts the attempts of the week on some themes', () => {

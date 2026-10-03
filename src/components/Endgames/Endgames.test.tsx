@@ -106,6 +106,18 @@ describe('Endgames set-up screen', () => {
     expect(within(list).getByText(/Faire nulle · Nouvelle/)).toBeTruthy();
   });
 
+  it('can start on one family of endgames, and show them all again', async () => {
+    const user = userEvent.setup();
+    renderEndgames({ initialCategory: 'rooks' });
+    expect(await screen.findByText('Finales de tours')).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Mats élémentaires' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Commencer/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Toutes les finales' }));
+    expect(await screen.findByRole('button', { name: 'Commencer (3 finales)' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Mats élémentaires' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Toutes les finales' })).toBeNull();
+  });
+
   it('shows where the endgames stand', async () => {
     const now = Date.now();
     await saveCard({

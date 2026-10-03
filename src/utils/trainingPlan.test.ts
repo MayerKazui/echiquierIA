@@ -260,6 +260,31 @@ describe('buildPlan', () => {
       expect(other.endgames).toBeUndefined();
     });
 
+    describe('which endgames to revise', () => {
+      const ROOKS = '8/5pk1/6p1/8/8/6P1/5PK1/R6r w - - 0 40';
+      const PAWNS = '8/5pk1/6p1/8/8/6P1/5PK1/8 w - - 0 40';
+      const QUEENS = '8/5pk1/6p1/8/8/6P1/5PK1/Q6q w - - 0 40';
+      const faults = (fens: string[]) =>
+        fens.flatMap((fen, i) => positions(1, { phase: 'endgame' }).map((p) => ({ ...p, id: `e${i}`, fen })));
+      const item = (fens: string[]) => plan({ profile: weakEndgame(), positions: faults(fens) }).items[0];
+
+      it('points to the family of most of the errors of the endgame', () => {
+        const rooks = item([ROOKS, ROOKS, ROOKS, PAWNS, QUEENS]);
+        expect(rooks.endgameCategory).toBe('rooks');
+        expect(rooks.why).toContain('3 de vos erreurs de finale sur 5 viennent de finales de tours.');
+        expect(item([PAWNS, PAWNS, PAWNS, PAWNS]).endgameCategory).toBe('pawns');
+      });
+
+      it('names none when too few errors, or too small a share of them, fit a family', () => {
+        expect(item([ROOKS, ROOKS]).endgameCategory).toBeUndefined();
+        expect(item([ROOKS, ROOKS, ROOKS, QUEENS, QUEENS, QUEENS, QUEENS, QUEENS]).endgameCategory).toBeUndefined();
+        expect(item([ROOKS, ROOKS]).why).not.toContain('viennent de');
+        expect(plan({ profile: weakEndgame(), positions: positions(4, { phase: 'endgame' }) }).items[0].endgames).toBe(
+          true
+        );
+      });
+    });
+
     it('goes to the puzzles of that phase when there is nothing of it to replay', () => {
       const [item] = plan({ profile: weakEndgame() }).items;
       expect(item.title).toBe('Faites des puzzles : finale');
@@ -306,6 +331,33 @@ describe('buildPlan', () => {
       // The training on the repertoire is the other way to work on it
       expect(item.drill).toBe(true);
       expect(item.goal).toBeUndefined();
+    });
+
+    describe('the progress of the week', () => {
+      const exits = (count: number) =>
+        positions(count).map(({ id, loss, date }) => ({ id: `repertoire:${id}`, loss, date }));
+      const goal = (over: Partial<Parameters<typeof buildPlan>[0]>) =>
+        plan({ repertoire: withExits([{}]), ...over }).items[0].goal;
+
+      it('sets the goal at the exits to replay, up to a session', () => {
+        expect(goal({ exits: exits(5) })).toEqual({ done: 0, target: 5 });
+        expect(goal({ exits: exits(25) })).toEqual({ done: 0, target: SESSION_SIZE });
+      });
+
+      it('counts the exits replayed in the last 7 days as done', () => {
+        const list = exits(6);
+        const cards = new Map([
+          [list[0].id, card(list[0].id, { lastSeen: NOW - 2 * DAY_MS, dueAt: NOW + 5 * DAY_MS })],
+          [list[1].id, card(list[1].id, { lastSeen: NOW - 9 * DAY_MS, dueAt: NOW + 5 * DAY_MS })], // too old
+        ]);
+        // 1 replayed this week + 4 new (the second is scheduled, not due)
+        expect(goal({ exits: list, cards })).toEqual({ done: 1, target: 5 });
+      });
+
+      it('has none without the openings database, or with nothing to replay', () => {
+        expect(goal({ exits: undefined })).toBeUndefined();
+        expect(goal({ exits: [] })).toBeUndefined();
+      });
     });
 
     it('takes the one that costs most in all: frequency times cost, whatever the colour', () => {
