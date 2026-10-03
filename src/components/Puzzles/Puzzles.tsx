@@ -283,6 +283,7 @@ export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme, start: in
             onCreate={createLot}
             onStart={startCycle}
             archive={woodpeckerArchive}
+            onResume={(lot) => woodpecker.resume(lot, woodpeckerSet)}
             onReset={() => woodpecker.reset(woodpeckerSet)}
           />
         )}

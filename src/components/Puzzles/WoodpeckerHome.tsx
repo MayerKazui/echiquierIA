@@ -35,6 +35,8 @@ interface WoodpeckerHomeProps {
   onStart: () => void;
   /** The lots the player left, with the cycles done on them. */
   archive: readonly ArchivedLot[];
+  /** Takes up a lot that was left, with its cycles; resolves with false when it cannot be played again. */
+  onResume: (lot: ArchivedLot) => Promise<boolean>;
   /** Leaves the lot for a new one: its cycles are kept in the lots left, the cycle in progress is lost. */
   onReset: () => void;
 }
@@ -77,8 +79,23 @@ export function formatDelta(deltaMs: number): string {
 const MAX_LOTS_SHOWN = 5;
 
 /** The lots the player left: when, how big, and how the times went from the first cycle to the best one. */
-function LeftLots({ archive }: { archive: readonly ArchivedLot[] }) {
+function LeftLots({
+  archive,
+  current,
+  onResume,
+}: {
+  archive: readonly ArchivedLot[];
+  /** The lot in hand, which taking one up again puts away. */
+  current: WoodpeckerSet | null;
+  onResume: (lot: ArchivedLot) => Promise<boolean>;
+}) {
+  const [confirming, setConfirming] = useState<number | null>(null);
+  const [failed, setFailed] = useState(false);
   if (archive.length === 0) return null;
+  const resume = async (lot: ArchivedLot) => {
+    setConfirming(null);
+    setFailed(!(await onResume(lot)));
+  };
   const lots = [...archive].reverse();
   return (
     <div className="flex flex-col gap-1.5">
@@ -107,10 +124,42 @@ function LeftLots({ archive }: { archive: readonly ArchivedLot[] }) {
                     ? ` : ${formatDuration(first.totalMs)}`
                     : ''}
               </span>
+              {lot.puzzles && lot.puzzles.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {confirming === lot.createdAt ? (
+                    <>
+                      <span role="alert" className="text-amber-200">
+                        {current && current.cycles.length > 0
+                          ? 'Le lot actuel passe dans les lots précédents ; son cycle en cours est perdu.'
+                          : 'Le lot actuel n’a aucun cycle terminé : il est remplacé et ses puzzles sont perdus.'}
+                      </span>
+                      <button type="button" onClick={() => void resume(lot)} className={PRIMARY}>
+                        Reprendre ce lot
+                      </button>
+                      <button type="button" onClick={() => setConfirming(null)} className={SECONDARY}>
+                        Annuler
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => (current ? setConfirming(lot.createdAt) : void resume(lot))}
+                      className={SECONDARY}
+                    >
+                      Reprendre ce lot
+                    </button>
+                  )}
+                </div>
+              )}
             </li>
           );
         })}
       </ul>
+      {failed && (
+        <p role="alert" className="text-xs text-rose-300">
+          Ce lot ne peut plus être repris : ses puzzles sont abîmés.
+        </p>
+      )}
       {lots.length > MAX_LOTS_SHOWN && (
         <p className="text-[11px] text-slate-400">et {lots.length - MAX_LOTS_SHOWN} de plus anciens.</p>
       )}
@@ -125,6 +174,7 @@ export const WoodpeckerHome: React.FC<WoodpeckerHomeProps> = ({
   elo,
   isCreating,
   archive,
+  onResume,
   onCreate,
   onStart,
   onReset,
@@ -220,7 +270,11 @@ export const WoodpeckerHome: React.FC<WoodpeckerHomeProps> = ({
           </div>
         )}
 
-        <LeftLots archive={archive} />
+        <LeftLots
+          archive={archive.filter((lot) => lot.createdAt !== set.createdAt)}
+          current={set}
+          onResume={onResume}
+        />
 
         <div className="flex flex-col items-start gap-2 border-t border-slate-800/80 pt-3">
           {isConfirmingReset ? (
@@ -329,7 +383,7 @@ export const WoodpeckerHome: React.FC<WoodpeckerHomeProps> = ({
         </p>
       </div>
 
-      <LeftLots archive={archive} />
+      <LeftLots archive={archive} current={null} onResume={onResume} />
     </div>
   );
 };

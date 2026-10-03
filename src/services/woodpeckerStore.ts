@@ -157,7 +157,10 @@ export function isArchivedLot(value: unknown): value is ArchivedLot {
     isFiniteNumber(range.to) &&
     isFiniteNumber(lot.size) &&
     Array.isArray(lot.cycles) &&
-    lot.cycles.every(isCycle)
+    lot.cycles.every(isCycle) &&
+    (lot.seed === undefined || isFiniteNumber(lot.seed)) &&
+    // The puzzles are checked when the lot is taken up again: damaged, they only make that impossible
+    (lot.puzzles === undefined || (Array.isArray(lot.puzzles) && lot.puzzles.length <= MAX_LOT))
   );
 }
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadWoodpecker, loadWoodpeckerArchive, retireWoodpecker, saveWoodpecker } from '../services/woodpeckerStore';
-import { archiveLot, mergeArchives, type ArchivedLot, type WoodpeckerSet } from '../utils/woodpecker';
+import { archiveLot, mergeArchives, resumeLot, type ArchivedLot, type WoodpeckerSet } from '../utils/woodpecker';
 
 export type WoodpeckerData =
   | { status: 'loading' }
@@ -45,5 +45,23 @@ export function useWoodpecker() {
     if (set) void retireWoodpecker(set, now);
   }, []);
 
-  return { data, update, reset };
+  /**
+   * Takes up a lot that was left, with its cycles. The lot in hand, if it has cycles, goes to the lots left in its
+   * place (its cycle in progress is lost). Resolves with false when the lot cannot be played again.
+   */
+  const resume = useCallback(async (lot: ArchivedLot, current: WoodpeckerSet | null): Promise<boolean> => {
+    const now = Date.now();
+    const resumed = resumeLot(lot, now);
+    if (!resumed) return false;
+    isLoaded.current = true;
+    const left = current ? archiveLot(current, now) : null;
+    if (left) archive.current = mergeArchives(archive.current, [left]);
+    setData({ status: 'ready', set: resumed, archive: archive.current });
+    // In this order: the lot in hand is retired (and removed), then the other one becomes the lot in hand
+    if (current) await retireWoodpecker(current, now);
+    await saveWoodpecker(resumed);
+    return true;
+  }, []);
+
+  return { data, update, reset, resume };
 }

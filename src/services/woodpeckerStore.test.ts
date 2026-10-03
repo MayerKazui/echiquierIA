@@ -130,7 +130,7 @@ describe('the lots left', () => {
     const lot = withCycles(10, 100);
     await saveWoodpecker(lot);
     const archive = await retireWoodpecker(lot, 500);
-    expect(archive).toEqual([{ createdAt: 10, retiredAt: 500, range: lot.range, size: 2, cycles: lot.cycles }]);
+    expect(archive).toMatchObject([{ createdAt: 10, retiredAt: 500, range: lot.range, size: 2, cycles: lot.cycles }]);
     expect(await loadWoodpecker()).toBeNull();
     expect(await loadWoodpeckerArchive()).toEqual(archive);
   });
@@ -146,6 +146,23 @@ describe('the lots left', () => {
     await retireWoodpecker(withCycles(10, 100), 500);
     await retireWoodpecker(withCycles(20, 600), 700);
     expect((await loadWoodpeckerArchive()).map((lot) => lot.createdAt)).toEqual([10, 20]);
+  });
+
+  it('keeps the puzzles of the lot left, and the seed', async () => {
+    const lot = withCycles(10, 100);
+    await saveWoodpecker(lot);
+    const [kept] = (await retireWoodpecker(lot, 500))!;
+    expect(kept.seed).toBe(5);
+    expect(kept.puzzles).toHaveLength(2);
+    expect((await loadWoodpeckerArchive())[0].puzzles?.[0][0]).toBe('a');
+  });
+
+  it('accepts an archive of the previous kind, without puzzles', () => {
+    const lot = { createdAt: 1, retiredAt: 2, range: { from: 1000, to: 1200 }, size: 5, cycles: [] };
+    expect(isArchivedLot(lot)).toBe(true);
+    expect(isArchivedLot({ ...lot, puzzles: [] })).toBe(true);
+    expect(isArchivedLot({ ...lot, puzzles: 'x' })).toBe(false);
+    expect(isArchivedLot({ ...lot, seed: 'x' })).toBe(false);
   });
 
   it('validates what it reads', () => {
