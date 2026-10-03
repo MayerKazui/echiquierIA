@@ -42,6 +42,7 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 ### Décisions prises : abandonné ou clos
 
 - **Abandonné**, car il faudrait un serveur : partage d'études, étude collaborative, classements entre joueurs, clé Gemini côté navigateur, mise à jour automatique du profil.
+- **Abandonné** après mesure, Stockfish multi-thread (idée 5) : sur 4 cœurs, 8 positions à la profondeur 14 prennent 0,7 s avec 4 workers mono-thread (le fonctionnement actuel) et 4,1 s avec un seul moteur à 4 threads, donc l'analyse en lot n'y gagne rien ; une position isolée à la profondeur 18 passe de 1,3 s à 0,86 s seulement. Les résultats varient d'une exécution à l'autre (cela fragiliserait le calage `bun run calibrate`), et il faudrait les en-têtes COOP/COEP, que GitHub Pages n'envoie pas (un service worker pourrait les ajouter, au risque de casser la connexion Google Drive ; Safari n'est pas couvert). À revoir seulement pour « Jouer contre Stockfish » (idée 2), où une seule recherche à la fois pourrait profiter des threads.
 - **Sujets clos** : plafond de 500 parties, données conservées dans le navigateur, limites de débit des API d'import, extension du coach IA aux puzzles et aux études.
 
 ## 2. Ce qu'il reste à faire (déjà identifié dans le dépôt)
@@ -81,7 +82,7 @@ Ce sont des suggestions, pas des décisions. « Précision par ouverture » et �
 | 2   | Jouer contre Stockfish     | Niveau réglable, depuis une position d'étude, d'ouverture ou d'une position critique de ses parties.                                                     |
 | 3   | Entraînement aux finales   | Positions théoriques (Lucena, Philidor…) avec correction par le moteur.                                                                                  |
 | 4   | Puzzles : mode « tempête » | Score à battre, et puzzles tirés de ses propres erreurs avec les statistiques des puzzles.                                                               |
-| 5   | Stockfish multi-thread     | Analyse en lot plus rapide ; demande les en-têtes COOP/COEP.                                                                                             |
+| 5   | ~~Stockfish multi-thread~~ | Abandonné (2026-10-03) : voir « Décisions prises ».                                                                                                      |
 | 6   | Version anglaise           | Tout est en français (interface, ouvertures, thèmes) ; élargirait le public.                                                                             |
 | 7   | Tests de bout en bout      | Playwright est disponible ; couvrir import, analyse, sauvegarde et synchronisation Drive. Il n'y a aujourd'hui que des tests unitaires et de composants. |
 | 8   | Ménage du dépôt            | `server.ts` et `server.js` compilé, et `dist/` sont présents : vérifier ce qui est versionné par erreur.                                                 |
