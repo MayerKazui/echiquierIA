@@ -2,8 +2,10 @@ import type { Card } from '../utils/spacedRepetition';
 
 /**
  * Progress on the replayed positions (one card per position, see `spacedRepetition`), kept in the browser in its
- * own IndexedDB database: it does not depend on the games store, and a game removed from the history does not take
- * what was learned with it. Best effort, like the games store: when IndexedDB is unavailable every function
+ * own IndexedDB database. The positions are those of the errors (`game id:ply`) and those of the training on the
+ * repertoire (ids starting with `repertoire:`, see `openingDrill`): both ride along in the backups as `cards`.
+ * The store does not depend on the games store, and a game removed from the history does not take what was
+ * learned with it. Best effort, like the games store: when IndexedDB is unavailable every function
  * resolves with "nothing stored" instead of throwing.
  */
 

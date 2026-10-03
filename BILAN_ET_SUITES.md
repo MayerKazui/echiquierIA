@@ -27,7 +27,7 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 - **S'entraîner** : rejouer ses propres erreurs avec correction par le moteur, en répétition espacée (1, 3 puis 7 jours), filtres par type d'erreur et par phase ; une même position ratée dans plusieurs parties n'est proposée qu'une fois ; « Voir dans la partie » ouvre la partie au coup de l'erreur.
 - **Résumé de la partie** : trois lignes en tête du bilan (moment décisif avec son type de faute, précision comparée à sa moyenne sur les autres parties, fautes et phase la plus fragile).
 - **Mon plan** : trois objectifs au plus, avec progression sur 7 jours et le bouton qui lance chacun, plus les puzzles du thème correspondant.
-- **Ouvertures** : explorateur en arbre avec ses résultats par coup, et « Mes ouvertures » (répertoire réel, score, coup de sortie qui coûte cher).
+- **Ouvertures** : explorateur en arbre avec ses résultats par coup ; « Mes ouvertures » (répertoire réel, score, précision de ses coups hors théorie comparée à sa moyenne, ouverture la plus solide et la plus fragile, coup de sortie qui coûte cher) ; « S'entraîner » : les positions où l'on a quitté la théorie en perdant au moins 8 points de chances de gain, rejouées en répétition espacée (1, 3 puis 7 jours, comme dans « S'entraîner » sur ses erreurs) ; est juste tout coup que la base d'ouvertures connaît à cet endroit (ou qui mène à une de ses positions) ; filtre par couleur, « Voir dans l'explorateur » après chaque réponse.
 - **Puzzles** : 200 000 puzzles Lichess embarqués (73 thèmes en français, tranche d'Elo, chronomètre sans pénalité), puzzles ratés en répétition espacée, statistiques sur 7 jours, 30 jours ou tout.
 - **Woodpecker** : lot figé de 20 à 500 puzzles, cycles chronométrés avec pause, temps comparé au cycle précédent, reprise d'un ancien lot.
 - **Études** (privées, à la manière de Lichess) : chapitres, variantes, commentaires, glyphes, flèches et cercles, import et export PGN, chapitre verrouillable contre l'ordinateur, réordonnancement.
@@ -61,26 +61,30 @@ Faites sur de vrais appareils (2026-10-03), sans défaut constaté : lecteur d'�
 - [ ] « Autres erreurs » représente encore 9 % des erreurs des parties de référence (`bun run faultstats`, 42 % auparavant, 12 % avant le type « Pièces passives » et les pions poussés devant le roi). Ce sont des coups tranquilles du milieu de jeu (dame mal placée, coup de pion qui perd le fil) : il faudrait détecter le centre, ou comparer des évaluations de position. Une détection des pions doublés ou isolés créés par un coup a été essayée : elle ne trouve rien sur ces parties, elle n'a pas été gardée.
 - [ ] Les nouveaux thèmes (pièce piégée, coup intermédiaire, déviation, attraction, interférence, rayon X) sont rares : 1 à 4 fois sur les 994 erreurs de référence, et la surcharge jamais (Lichess n'a pas de puzzles à ce nom : le plan ne propose rien pour ce thème). À revérifier sur d'autres parties avant de s'y fier. Pas encore détectés : dégagement, coup calme, zugzwang, sous-promotion.
 
+### Ouvertures
+
+- [ ] « S'entraîner » (ouvertures) ne rejoue que les sorties de théorie qui coûtent cher (8 points ou plus en moyenne). Pas encore : rejouer aussi les lignes qui marchent, pour ne pas les oublier.
+- [ ] Pas de lien depuis « Mon plan » vers cet entraînement (l'objectif « Préparez votre sortie de théorie » ne propose que l'explorateur).
+- [ ] La précision par ouverture se calcule sur tous les coups hors théorie de la partie, pas seulement sur ceux qui suivent la sortie du livre : à affiner si elle paraît trop liée au milieu de jeu.
+
 ### Question ouverte
 
 - [ ] Stats mondiales d'ouverture : l'API Explorer de Lichess exige-t-elle un jeton ? Si oui, on garde seulement ses propres stats.
 
 ## 3. Idées d'évolution et d'amélioration
 
-Ce sont des suggestions, pas des décisions.
+Ce sont des suggestions, pas des décisions. « Précision par ouverture » et « Entraînement au répertoire d'ouvertures » ont été faites : elles sont décrites dans « Ce qui est fait » (Ouvertures), et ce qui reste dans « Ouvertures » de la section 2.
 
-| #   | Idée                                    | Intérêt                                                                                                                                                  |
-| --- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Précision par ouverture                 | Non calculée dans « Mes ouvertures ».                                                                                                                    |
-| 2   | Préparer ses adversaires                | Analyser le répertoire d'un pseudo avec les briques de l'import et de l'explorateur.                                                                     |
-| 3   | Jouer contre Stockfish                  | Niveau réglable, depuis une position d'étude, d'ouverture ou d'une position critique de ses parties.                                                     |
-| 4   | Entraînement aux finales                | Positions théoriques (Lucena, Philidor…) avec correction par le moteur.                                                                                  |
-| 5   | Entraînement au répertoire d'ouvertures | Rejouer ses lignes en répétition espacée, sur le modèle de « S'entraîner ».                                                                              |
-| 6   | Puzzles : mode « tempête »              | Score à battre, et puzzles tirés de ses propres erreurs avec les statistiques des puzzles.                                                               |
-| 7   | Stockfish multi-thread                  | Analyse en lot plus rapide ; demande les en-têtes COOP/COEP.                                                                                             |
-| 8   | Version anglaise                        | Tout est en français (interface, ouvertures, thèmes) ; élargirait le public.                                                                             |
-| 9   | Tests de bout en bout                   | Playwright est disponible ; couvrir import, analyse, sauvegarde et synchronisation Drive. Il n'y a aujourd'hui que des tests unitaires et de composants. |
-| 10  | Ménage du dépôt                         | `server.ts` et `server.js` compilé, et `dist/`, sont présents : vérifier ce qui est versionné par erreur.                                                |
+| #   | Idée                       | Intérêt                                                                                                                                                  |
+| --- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Préparer ses adversaires   | Analyser le répertoire d'un pseudo avec les briques de l'import et de l'explorateur.                                                                     |
+| 2   | Jouer contre Stockfish     | Niveau réglable, depuis une position d'étude, d'ouverture ou d'une position critique de ses parties.                                                     |
+| 3   | Entraînement aux finales   | Positions théoriques (Lucena, Philidor…) avec correction par le moteur.                                                                                  |
+| 4   | Puzzles : mode « tempête » | Score à battre, et puzzles tirés de ses propres erreurs avec les statistiques des puzzles.                                                               |
+| 5   | Stockfish multi-thread     | Analyse en lot plus rapide ; demande les en-têtes COOP/COEP.                                                                                             |
+| 6   | Version anglaise           | Tout est en français (interface, ouvertures, thèmes) ; élargirait le public.                                                                             |
+| 7   | Tests de bout en bout      | Playwright est disponible ; couvrir import, analyse, sauvegarde et synchronisation Drive. Il n'y a aujourd'hui que des tests unitaires et de composants. |
+| 8   | Ménage du dépôt            | `server.ts` et `server.js` compilé, et `dist/` sont présents : vérifier ce qui est versionné par erreur.                                                 |
 
 ## 4. Ordre conseillé
 
@@ -88,4 +92,5 @@ Ce sont des suggestions, pas des décisions.
 2. ~~Élargir les thèmes tactiques et réduire « autre ».~~ Fait : sept thèmes de plus, « autre » de 42 % à 9 % (voir « Types d'erreur et thèmes tactiques » pour le reste).
 3. ~~Petits ajouts d'entraînement : ouvrir la partie depuis « S'entraîner », dédoublonnage, bouton « nouvelles parties ».~~ Fait.
 4. ~~Vérifications sur de vrais appareils et un vrai lecteur d'écran.~~ Fait, tout est bon.
-5. Ensuite seulement les grosses évolutions (adversaires, jeu contre Stockfish, finales, version anglaise).
+5. ~~Couvrir les ouvertures : précision par ouverture et entraînement au répertoire.~~ Fait.
+6. Ensuite seulement les grosses évolutions (adversaires, jeu contre Stockfish, finales, version anglaise).
