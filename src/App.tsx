@@ -83,7 +83,7 @@ export default function App() {
   const [trainingFilter, setTrainingFilter] = useState<TrainingFilter | undefined>();
   // ... and the themes of the puzzles to start with
   const [puzzleStart, setPuzzleStart] = useState<PuzzleStart | undefined>();
-  const [openingsStart, setOpeningsStart] = useState<{ view: 'explorer'; sans: string[] } | undefined>();
+  const [openingsStart, setOpeningsStart] = useState<{ view: 'explorer' | 'drill'; sans: string[] } | undefined>();
   const { announcement, announce } = useAnnouncer();
 
   // While the user reads the start screen: download the engine, the openings database and the game views
@@ -716,6 +716,11 @@ export default function App() {
               onShowLine={(sans) => {
                 setIsPlanOpen(false);
                 setOpeningsStart({ view: 'explorer', sans });
+                setIsOpeningsOpen(true);
+              }}
+              onDrill={() => {
+                setIsPlanOpen(false);
+                setOpeningsStart({ view: 'drill', sans: [] });
                 setIsOpeningsOpen(true);
               }}
               onImport={() => {

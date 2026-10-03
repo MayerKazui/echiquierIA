@@ -292,6 +292,8 @@ describe('buildPlan', () => {
         'Dans Défense sicilienne, vous quittez le livre 4 fois avec ce coup, qui coûte en moyenne 10 points de chances de gain.'
       );
       expect(item.action).toEqual({ kind: 'openings', line: ['e4', 'c5'] });
+      // The training on the repertoire is the other way to work on it
+      expect(item.drill).toBe(true);
       expect(item.goal).toBeUndefined();
     });
 
