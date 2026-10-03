@@ -10,6 +10,7 @@ import {
   type PuzzleHistory,
   type ThemeTally,
 } from '../../utils/puzzleHistory';
+import { PuzzleTrend } from './PuzzleTrend';
 import { themeLabel } from '../../utils/puzzleThemes';
 import { formatDuration } from '../../utils/woodpecker';
 
@@ -135,6 +136,11 @@ export const PuzzleStats: React.FC<PuzzleStatsProps> = ({ history, now, onPracti
           hint={`${overall.attempts} puzzles`}
         />
         <Tile label="Cette semaine" value={String(week.attempts)} hint={`${percent(week.rate)} réussis`} />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold text-slate-300">Progression, semaine après semaine</p>
+        <PuzzleTrend log={log} now={now} />
       </div>
 
       <div className="flex flex-col gap-2">

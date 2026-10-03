@@ -10,6 +10,7 @@ import {
   SEARCH_DEPTH,
   WON_CP,
   endgameCardId,
+  endgameFamilyOf,
   endgameItems,
   isEndSuccess,
   isGoodMove,
@@ -294,5 +295,24 @@ describe('playMove', () => {
     });
     await expect(playMove(run, best, aborting, controller.signal)).rejects.toThrow('cancelled');
     expect(evaluate).toHaveBeenCalled();
+  });
+});
+
+describe('endgameFamilyOf', () => {
+  it('names the family of the endgames to practise from what is left on the board', () => {
+    expect(endgameFamilyOf('8/8/3k4/8/4PK2/8/8/8 w - - 0 1')).toBe('pawns');
+    expect(endgameFamilyOf('8/5pk1/6p1/8/8/6P1/5PK1/8 w - - 0 40')).toBe('pawns');
+    expect(endgameFamilyOf('8/5pk1/6p1/8/8/6P1/5PK1/R6r w - - 0 40')).toBe('rooks');
+    expect(endgameFamilyOf('6k1/8/8/8/8/8/8/R3K2R w - - 0 1')).toBe('rooks');
+    expect(endgameFamilyOf('8/8/8/4k3/8/8/8/3QK3 w - - 0 1')).toBe('mates');
+    expect(endgameFamilyOf('8/8/8/4k3/8/8/8/3RK3 b - - 0 1')).toBe('mates');
+    expect(endgameFamilyOf('3rk3/8/8/8/8/8/8/4K3 w - - 0 1')).toBe('mates');
+  });
+
+  it('has none when the material fits no endgame to practise', () => {
+    expect(endgameFamilyOf('8/8/3k4/8/4PKB1/8/8/8 w - - 0 1')).toBeNull(); // a bishop
+    expect(endgameFamilyOf('8/5pk1/6p1/8/8/6P1/5PK1/Q6r w - - 0 40')).toBeNull(); // queen and rook
+    expect(endgameFamilyOf('8/8/8/4k3/8/8/8/4K3 w - - 0 1')).toBeNull(); // bare kings
+    expect(endgameFamilyOf('8/8/8/4k3/8/8/8/3QKR2 w - - 0 1')).toBeNull();
   });
 });

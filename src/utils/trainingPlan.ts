@@ -1,3 +1,5 @@
+import type { EndgameCategory } from '../data/endgames';
+import { endgameFamilyOf } from './endgameDrill';
 import { numberedFrenchMove } from './chessNotation';
 import { FAULT_KIND_TEXT } from './faultKinds';
 import type { GamePhase } from './gamePhase';
@@ -8,7 +10,9 @@ import {
   SESSION_SIZE,
   matchesFilter,
   summarize,
+  summarizeItems,
   type Card,
+  type Rankable,
   type Pickable,
   type TrainingFilter,
 } from './spacedRepetition';
@@ -46,6 +50,8 @@ export interface PlanItem {
   drill?: boolean;
   /** The training on the theoretical endgames as an other way to work on it (the weakest phase being the endgame). */
   endgames?: boolean;
+  /** The family of theoretical endgames that most of the errors of the endgame look like, when one stands out. */
+  endgameCategory?: EndgameCategory;
   /** Progress over the last 7 days (positions replayed out of those to replay). */
   goal?: { done: number; target: number };
   /** Progress over the last 7 days of the puzzles on the theme (puzzles played out of the target). */
@@ -61,8 +67,15 @@ export interface Plan {
 export interface PlanInput {
   profile: Profile;
   repertoire: Repertoire;
-  positions: readonly Pickable[];
+  /** `fen` (the position before the error) tells which endgames the errors of the endgame look like. */
+  positions: readonly (Pickable & { fen?: string })[];
   cards: ReadonlyMap<string, Card>;
+  /**
+   * The positions where the games left the theory with a costly move, the ones the training on the repertoire replays
+   * (for the progress of the objective on the way out of the theory). None when the openings database is not there:
+   * the objective then has no progress.
+   */
+  exits?: readonly Rankable[];
   /** The puzzles played lately (for the progress of the objectives that offer puzzles). */
   puzzleLog?: readonly PuzzleAttempt[];
   now: number;
@@ -123,8 +136,45 @@ function trainingItem(
   };
 }
 
+/** Errors of the endgame that a family must have, and the share of those that fit a family, to be named. */
+const MIN_FAMILY_ERRORS = 3;
+const MIN_FAMILY_SHARE = 0.4;
+
+const FAMILY_TEXT: Record<EndgameCategory, string> = {
+  pawns: 'finales de pions',
+  rooks: 'finales de tours',
+  mates: 'mats élémentaires',
+};
+
+/** The family of theoretical endgames that most errors of the endgame look like, when it is clear enough. */
+function commonEndgameFamily(positions: readonly (Pickable & { fen?: string })[]) {
+  const counts = new Map<EndgameCategory, number>();
+  let total = 0;
+  for (const position of positions) {
+    if (position.phase !== 'endgame' || !position.fen) continue;
+    total += 1;
+    const family = endgameFamilyOf(position.fen);
+    if (family) counts.set(family, (counts.get(family) ?? 0) + 1);
+  }
+  const [best] = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  if (!best || best[1] < MIN_FAMILY_ERRORS || best[1] / total < MIN_FAMILY_SHARE) return null;
+  return { category: best[0], count: best[1], total };
+}
+
+/** The progress of the week on the exits from the theory: replayed out of those to replay, up to a session. */
+function exitGoal(
+  exits: readonly Rankable[] | undefined,
+  { cards, now }: Pick<PlanInput, 'cards' | 'now'>
+): PlanItem['goal'] {
+  if (!exits) return undefined;
+  const { due, fresh } = summarizeItems(exits, cards, now);
+  const replayed = exits.filter((e) => (cards.get(e.id)?.lastSeen ?? 0) >= now - WEEK_MS).length;
+  const target = Math.min(SESSION_SIZE, replayed + due + fresh);
+  return target === 0 ? undefined : { done: Math.min(replayed, target), target };
+}
+
 /** The most costly way out of the theory the player has: the one met most often, costing most. */
-function costliestExit(repertoire: Repertoire): PlanItem | null {
+function costliestExit(repertoire: Repertoire, input: Pick<PlanInput, 'exits' | 'cards' | 'now'>): PlanItem | null {
   let best: { score: number; item: PlanItem } | null = null;
   for (const color of ['w', 'b'] as const) {
     for (const family of repertoire.colors[color]) {
@@ -142,6 +192,7 @@ function costliestExit(repertoire: Repertoire): PlanItem | null {
             why: `Dans ${name}, vous quittez le livre ${exit.count} fois avec ce coup, qui coûte en moyenne ${Math.round(exit.loss)} points de chances de gain.`,
             action: { kind: 'openings', line: exit.line },
             drill: true,
+            goal: exitGoal(input.exits, input),
           },
         };
       }
@@ -215,7 +266,7 @@ export function buildPlan(input: PlanInput): Plan {
     );
   }
 
-  add(costliestExit(repertoire));
+  add(costliestExit(repertoire, input));
   add(habitItem(profile));
 
   const phase = weakestPhase(profile);
@@ -230,7 +281,14 @@ export function buildPlan(input: PlanInput): Plan {
       PHASE_PUZZLE_THEMES[phase] ?? [],
       input
     );
-    if (item && phase === 'endgame') item.endgames = true;
+    if (item && phase === 'endgame') {
+      item.endgames = true;
+      const family = commonEndgameFamily(input.positions);
+      if (family) {
+        item.endgameCategory = family.category;
+        item.why += ` ${family.count} de vos erreurs de finale sur ${family.total} viennent de ${FAMILY_TEXT[family.category]}.`;
+      }
+    }
     add(item);
   }
 

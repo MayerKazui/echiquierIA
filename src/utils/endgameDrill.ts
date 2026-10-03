@@ -1,5 +1,5 @@
 import { Chess } from 'chess.js';
-import { ENDGAMES, type Endgame } from '../data/endgames';
+import { ENDGAMES, type Endgame, type EndgameCategory } from '../data/endgames';
 import type { EngineEvaluation } from '../services/stockfishEngine';
 import { ACCEPTED_LOSS } from './judgeAnswer';
 import { calculateWinPercentage } from './moveAnalysis';
@@ -257,3 +257,21 @@ export const endgameItems = (endgames: readonly Endgame[] = ENDGAMES): EndgameIt
     // Never worked on: the first of the list comes first (the most recent date wins a tie)
     date: -index,
   }));
+
+/**
+ * The theoretical endgames a position belongs to, by what is left on the board: only kings and pawns, only rooks
+ * (and pawns), or a lone king against a queen or a rook. Null for any other material (minor pieces, queens with
+ * other pieces...): none of the endgames to practise looks like it.
+ */
+export function endgameFamilyOf(fen: string): EndgameCategory | null {
+  const placement = fen.split(' ')[0] ?? '';
+  const pieces = placement.replace(/[^a-zA-Z]/g, '');
+  const others = pieces.replace(/[kpKP]/g, '');
+  if (others.length === 0) return pieces.replace(/[^pP]/g, '').length > 0 ? 'pawns' : null;
+  const white = pieces.replace(/[^A-Z]/g, '');
+  const black = pieces.replace(/[^a-z]/g, '').toUpperCase();
+  const loneKingAgainst = (side: string) => ['KQ', 'QK', 'KR', 'RK'].includes(side);
+  if ((white === 'K' && loneKingAgainst(black)) || (black === 'K' && loneKingAgainst(white))) return 'mates';
+  if (/^[rR]+$/.test(others)) return 'rooks';
+  return null;
+}

@@ -40,7 +40,16 @@ describe('Plan: the theoretical endgames', () => {
     const user = userEvent.setup();
     const { onEndgames } = renderPlan();
     await user.click(screen.getByRole('button', { name: 'Finales théoriques' }));
-    expect(onEndgames).toHaveBeenCalledTimes(1);
+    expect(onEndgames).toHaveBeenCalledWith(undefined);
+  });
+
+  it('opens the family the errors point to', async () => {
+    items = [item({ endgames: true, endgameCategory: 'rooks' })];
+    const user = userEvent.setup();
+    const { onEndgames } = renderPlan();
+    expect(screen.queryByRole('button', { name: 'Finales théoriques' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Finales de tours' }));
+    expect(onEndgames).toHaveBeenCalledWith('rooks');
   });
 
   it('does not offer them for the other objectives', () => {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { BookOpen, CheckCircle2, ClipboardList, Crown, Dumbbell, Lightbulb, Puzzle, Upload, X } from 'lucide-react';
+import { ENDGAME_CATEGORIES, type EndgameCategory } from '../../data/endgames';
 import { usePlan } from '../../hooks/usePlan';
 import type { PlanAction, PlanItem } from '../../utils/trainingPlan';
 import { themeLabel } from '../../utils/puzzleThemes';
@@ -13,8 +14,8 @@ interface PlanProps {
   onShowLine: (line: string[]) => void;
   /** Opens the training on the opening repertoire (the exits from the theory, replayed). */
   onDrill: () => void;
-  /** Opens the training on the theoretical endgames. */
-  onEndgames: () => void;
+  /** Opens the training on the theoretical endgames, on one family of them when the errors point to it. */
+  onEndgames: (category?: EndgameCategory) => void;
   /** Opens the import of online games. */
   onImport: () => void;
   /** Opens the puzzles on themes of Lichess. */
@@ -137,9 +138,9 @@ export const Plan: React.FC<PlanProps> = ({
             </button>
           )}
           {item.endgames && (
-            <button type="button" onClick={onEndgames} className={BUTTON_SECONDARY}>
+            <button type="button" onClick={() => onEndgames(item.endgameCategory)} className={BUTTON_SECONDARY}>
               <Crown className="w-3.5 h-3.5" aria-hidden="true" />
-              Finales théoriques
+              {ENDGAME_CATEGORIES.find((c) => c.value === item.endgameCategory)?.label ?? 'Finales théoriques'}
             </button>
           )}
           {item.puzzles && (

@@ -2,11 +2,13 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { IDBFactory } from 'fake-indexeddb';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { listGames, saveGame } from '../../services/gameStore';
 import { savePuzzleAttempt } from '../../services/puzzleHistoryStore';
+import { ensureOpeningBookLoaded } from '../../services/openingBook';
+import { loadOpeningsFromDisk } from '../../test/openings';
 import { saveCard } from '../../services/trainingStore';
-import { game, mv } from '../../test/profileFixtures';
+import { game, mv, PSEUDO } from '../../test/profileFixtures';
 import { distinctFen, faultMove } from '../../test/trainingFixtures';
 import { DAY_MS } from '../../utils/spacedRepetition';
 import { Plan } from './Plan';
@@ -149,6 +151,39 @@ describe('Plan', () => {
       expect(onDrill).not.toHaveBeenCalled();
       await user.click(item.getByRole('button', { name: "S'entraîner sur mes sorties de théorie" }));
       expect(onDrill).toHaveBeenCalledTimes(1);
+    });
+
+    describe('with the openings database', () => {
+      beforeAll(() => ensureOpeningBookLoaded(loadOpeningsFromDisk));
+
+      /** Six games where White leaves the Ruy Lopez with 4.a3, unknown to the book, and loses 12 points. */
+      const storeRuyExits = async () => {
+        const sans = ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'a3', 'Nf6', 'O-O', 'Be7', 'Re1', 'b5'];
+        for (let i = 0; i < 6; i++) {
+          const source = game({
+            id: `ruy${i}`,
+            white: PSEUDO,
+            black: 'Bob',
+            meta: { result: '1-0', date: `2026.03.${10 + i}` },
+            moves: sans.map((san, ply) =>
+              ply < 6
+                ? mv(ply, { san, classification: 'book', openingName: 'Ruy Lopez: Morphy Defense', eco: 'C78' })
+                : mv(ply, { san, classification: 'best', winPercentLoss: ply === 6 ? 12 : 0 })
+            ),
+          });
+          await saveGame({ pgn: `1. e4 *\n; game ruy${i}`, depth: 12, result: source.result });
+        }
+      };
+
+      it('shows the progress of the week on the exits to replay', async () => {
+        await storeRuyExits();
+        renderPlan();
+        const item = await exitItem();
+        const bar = item.getByRole('progressbar', { name: 'Progression de la semaine' });
+        expect(bar.getAttribute('aria-valuenow')).toBe('0');
+        expect(bar.getAttribute('aria-valuemax')).toBe('1');
+        expect(item.getByText('Cette semaine : 0 position rejouée sur 1')).toBeTruthy();
+      });
     });
 
     it('does not offer it for the other objectives', async () => {
