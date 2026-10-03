@@ -40,11 +40,14 @@ test("« S'entraîner » s'ouvre une fois une partie analysée, sans erreur d'af
   await page.goto('/');
   await page.getByRole('textbox', { name: 'Pseudo chess.com' }).fill('testeur');
   await page.getByRole('button', { name: 'Chercher' }).click();
-  await page.getByRole('button', { name: /adversaire/ }).click();
+  await page
+    .locator('#main-content')
+    .getByRole('button', { name: /adversaire/ })
+    .click();
   await page.getByRole('button', { name: /Lancer l'Analyse/ }).click();
   await waitForAnalysis(page);
 
-  await openFromMenu(page, /S'entraîner/);
+  await openFromMenu(page, /S'entraîner sur mes erreurs/);
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: "S'entraîner sur mes erreurs" })).toBeVisible();
   // Le chargement se termine : ni message d'attente ni alerte

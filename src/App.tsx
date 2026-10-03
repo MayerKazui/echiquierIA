@@ -44,7 +44,7 @@ import {
   WeaknessProfile,
   prefetchViews,
 } from './lazyViews';
-import type { PuzzleStart } from './components/Puzzles/Puzzles';
+import type { PuzzleMode, PuzzleStart } from './components/Puzzles/Puzzles';
 import type { View as OpeningsView } from './components/Openings/Openings';
 import type { PlayStart } from './utils/playGame';
 import { LiveRegion, useAnnouncer } from './components/a11y/LiveRegion';
@@ -56,6 +56,8 @@ import { PgnInput } from './components/PgnInput/PgnInput';
 import type { ImportedGame } from './services/gameImport';
 import { jobsFromGames } from './services/batchAnalysis';
 import { AppHeader } from './components/AppHeader/AppHeader';
+import { AppSidebar } from './components/AppHeader/AppSidebar';
+import { buildNavigation } from './components/AppHeader/navigation';
 import { BottomNav } from './components/AppHeader/BottomNav';
 import { AnalysisProgressBanner } from './components/AppHeader/AnalysisProgressBanner';
 import { BatchAnalysisBanner } from './components/AppHeader/BatchAnalysisBanner';
@@ -94,6 +96,8 @@ export default function App() {
   const [trainingFilter, setTrainingFilter] = useState<TrainingFilter | undefined>();
   // ... and the themes of the puzzles to start with
   const [puzzleStart, setPuzzleStart] = useState<PuzzleStart | undefined>();
+  // ... and the mode the menu asked for (free session, Woodpecker, statistics)
+  const [puzzleMode, setPuzzleMode] = useState<PuzzleMode | undefined>();
   const [openingsStart, setOpeningsStart] = useState<{ view: OpeningsView; sans: string[] } | undefined>();
   const { announcement, announce } = useAnnouncer();
 
@@ -575,6 +579,34 @@ export default function App() {
     </div>
   );
 
+  const navigation = buildNavigation({
+    isMuted,
+    onToggleSound: toggleSoundAnnounced,
+    onInstall: canInstall ? () => void install() : undefined,
+    onOpenHistory: () => setIsHistoryOpen(true),
+    onOpenProfile: () => setIsProfileOpen(true),
+    onOpenPlan: () => setIsPlanOpen(true),
+    onOpenTraining: () => {
+      setTrainingFilter(undefined);
+      setIsTrainingOpen(true);
+    },
+    onOpenPuzzles: (mode) => {
+      setPuzzleStart(undefined);
+      setPuzzleMode(mode);
+      setIsPuzzlesOpen(true);
+    },
+    onOpenOpenings: (view) => {
+      setOpeningsStart({ view, sans: [] });
+      setIsOpeningsOpen(true);
+    },
+    onOpenEndgames: (category) => {
+      setEndgamesCategory(category);
+      setIsEndgamesOpen(true);
+    },
+    onOpenStudies: () => setIsStudiesOpen(true),
+    onOpenPlay: () => openPlay(),
+  });
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-indigo-500 selection:text-white font-sans antialiased">
       <a
@@ -591,91 +623,74 @@ export default function App() {
         activeTab={visibleTab}
         userPseudo={userPseudo}
         userColor={userColor}
-        isMuted={isMuted}
+        navigation={navigation}
         onChangeTab={setActiveTab}
         onUpdatePseudo={setUserPseudo}
         onUpdateUserColor={handleUpdateUserColor}
-        onToggleSound={toggleSoundAnnounced}
         onOpenPgnModal={() => setIsPgnModalOpen(true)}
-        onOpenHistory={() => setIsHistoryOpen(true)}
-        onOpenProfile={() => setIsProfileOpen(true)}
-        onOpenTraining={() => {
-          setTrainingFilter(undefined);
-          setIsTrainingOpen(true);
-        }}
-        onOpenOpenings={() => {
-          setOpeningsStart(undefined);
-          setIsOpeningsOpen(true);
-        }}
-        onOpenOpponent={() => {
-          setOpeningsStart({ view: 'opponent', sans: [] });
-          setIsOpeningsOpen(true);
-        }}
-        onOpenPuzzles={() => {
-          setPuzzleStart(undefined);
-          setIsPuzzlesOpen(true);
-        }}
-        onOpenEndgames={() => {
-          setEndgamesCategory(null);
-          setIsEndgamesOpen(true);
-        }}
-        onOpenStudies={() => setIsStudiesOpen(true)}
-        onOpenPlay={() => openPlay()}
-        onOpenPlan={() => setIsPlanOpen(true)}
-        onInstall={canInstall ? () => void install() : undefined}
       />
 
-      <PwaBanner isOnline={isOnline} updateReady={updateReady} onUpdate={applyUpdate} />
+      <div className="flex flex-1 w-full min-w-0">
+        <AppSidebar sections={navigation} />
+        <div className="flex flex-col flex-1 min-w-0">
+          <PwaBanner isOnline={isOnline} updateReady={updateReady} onUpdate={applyUpdate} />
 
-      <DriveSyncBanner />
+          <DriveSyncBanner />
 
-      <BatchAnalysisBanner batch={batch} onResume={batch.resume} onCancel={batch.cancel} onDismiss={batch.dismiss} />
+          <BatchAnalysisBanner
+            batch={batch}
+            onResume={batch.resume}
+            onCancel={batch.cancel}
+            onDismiss={batch.dismiss}
+          />
 
-      {isAnalyzing && progress && analysis && !isPgnModalVisible && (
-        <AnalysisProgressBanner progress={progress} onCancel={cancelFromBanner} />
-      )}
-
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className={`flex-1 w-full mx-auto max-w-[1600px] p-2.5 sm:p-4 lg:px-6 lg:py-4 flex flex-col gap-4 sm:gap-6 overflow-x-hidden ${
-          analysis ? 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pb-4 lg:pb-4' : ''
-        }`}
-      >
-        <Suspense fallback={<ViewFallback />}>
-          {isRestoring ? (
-            <ViewFallback />
-          ) : !analysis ? (
-            <div className="flex flex-col items-center justify-center my-auto py-8">
-              <div className="max-w-2xl w-full">
-                <PgnInput
-                  currentPgn={pgn}
-                  userPseudo={userPseudo}
-                  onUpdatePseudo={setUserPseudo}
-                  onAnalyze={runAnalysis}
-                  isAnalyzing={isAnalyzing}
-                  progress={progress}
-                  onCancel={cancelAnalysis}
-                  onAnalyzeBatch={runBatch}
-                  isBatchBusy={batch.status === 'running' || batch.status === 'paused'}
-                  analyzedRevision={batch.done}
-                />
-              </div>
-            </div>
-          ) : visibleTab === 'dashboard' && analysis ? (
-            <Dashboard
-              analysis={analysis}
-              pgn={pgn}
-              userPseudo={userPseudo}
-              userColor={userColor}
-              onUpdateUserColor={handleUpdateUserColor}
-              onUpdatePseudo={setUserPseudo}
-            />
-          ) : (
-            gameView
+          {isAnalyzing && progress && analysis && !isPgnModalVisible && (
+            <AnalysisProgressBanner progress={progress} onCancel={cancelFromBanner} />
           )}
-        </Suspense>
-      </main>
+
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className={`flex-1 w-full mx-auto max-w-[1600px] p-2.5 sm:p-4 lg:px-6 lg:py-4 flex flex-col gap-4 sm:gap-6 overflow-x-hidden ${
+              analysis ? 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pb-4 lg:pb-4' : ''
+            }`}
+          >
+            <Suspense fallback={<ViewFallback />}>
+              {isRestoring ? (
+                <ViewFallback />
+              ) : !analysis ? (
+                <div className="flex flex-col items-center justify-center my-auto py-8">
+                  <div className="max-w-2xl w-full">
+                    <PgnInput
+                      currentPgn={pgn}
+                      userPseudo={userPseudo}
+                      onUpdatePseudo={setUserPseudo}
+                      onAnalyze={runAnalysis}
+                      isAnalyzing={isAnalyzing}
+                      progress={progress}
+                      onCancel={cancelAnalysis}
+                      onAnalyzeBatch={runBatch}
+                      isBatchBusy={batch.status === 'running' || batch.status === 'paused'}
+                      analyzedRevision={batch.done}
+                    />
+                  </div>
+                </div>
+              ) : visibleTab === 'dashboard' && analysis ? (
+                <Dashboard
+                  analysis={analysis}
+                  pgn={pgn}
+                  userPseudo={userPseudo}
+                  userColor={userColor}
+                  onUpdateUserColor={handleUpdateUserColor}
+                  onUpdatePseudo={setUserPseudo}
+                />
+              ) : (
+                gameView
+              )}
+            </Suspense>
+          </main>
+        </div>
+      </div>
 
       {analysis && <BottomNav activeTab={visibleTab} isAnalyzing={isAnalyzing} onChangeTab={setActiveTab} />}
 
@@ -789,7 +804,12 @@ export default function App() {
       {isPuzzlesOpen && (
         <Modal title="Puzzles" onClose={() => setIsPuzzlesOpen(false)} className="w-full max-w-[min(96vw,84rem)]">
           <Suspense fallback={null}>
-            <Puzzles boardTheme={boardTheme} start={puzzleStart} onClose={() => setIsPuzzlesOpen(false)} />
+            <Puzzles
+              boardTheme={boardTheme}
+              start={puzzleStart}
+              initialMode={puzzleMode}
+              onClose={() => setIsPuzzlesOpen(false)}
+            />
           </Suspense>
         </Modal>
       )}

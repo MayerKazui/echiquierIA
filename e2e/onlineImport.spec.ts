@@ -40,7 +40,7 @@ test("importe les parties d'un pseudo chess.com et en analyse une", async ({ pag
   await page.getByRole('textbox', { name: 'Pseudo chess.com' }).fill('testeur');
   await page.getByRole('button', { name: 'Chercher' }).click();
 
-  const row = page.getByRole('button', { name: /adversaire/ });
+  const row = page.locator('#main-content').getByRole('button', { name: /adversaire/ });
   await expect(row).toBeVisible();
   await row.click();
   // Le PGN de la partie choisie est dans le champ, prêt à analyser

@@ -99,3 +99,10 @@ html {
 .game-view {
   --board: clamp(18rem, min(100dvh - 16.5rem, 100vw - 34rem), 56rem);
 }
+
+/* From 80rem the side panel (14rem) takes its share of the width */
+@media (min-width: 80rem) {
+  .game-view {
+    --board: clamp(18rem, min(100dvh - 16.5rem, 100vw - 48rem), 56rem);
+  }
+}
