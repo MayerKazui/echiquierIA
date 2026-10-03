@@ -10,6 +10,7 @@ import {
   GraduationCap,
   History,
   Puzzle,
+  Swords,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -40,6 +41,7 @@ interface AppHeaderProps {
   onOpenOpenings: () => void;
   onOpenEndgames: () => void;
   onOpenStudies: () => void;
+  onOpenPlay: () => void;
   onOpenPlan: () => void;
   /** Installs the app: given only when the browser offers it. */
   onInstall?: () => void;
@@ -65,6 +67,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onOpenOpenings,
   onOpenEndgames,
   onOpenStudies,
+  onOpenPlay,
   onOpenPlan,
   onInstall,
 }) => {
@@ -125,6 +128,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       hint: 'Mes chapitres de coups commentés, à jouer contre l’ordinateur',
       icon: <GraduationCap className={ICON} />,
       onSelect: onOpenStudies,
+    },
+    {
+      id: 'play',
+      label: 'Jouer contre Stockfish',
+      hint: 'Une partie à la force réglable, depuis le début ou une position',
+      icon: <Swords className={ICON} />,
+      onSelect: onOpenPlay,
     },
     {
       id: 'sound',

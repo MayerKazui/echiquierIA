@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BookOpen, X } from 'lucide-react';
 import type { BoardTheme } from '../../types/ui';
+import type { PlayStart } from '../../utils/playGame';
 import { OpeningDrill } from './OpeningDrill';
 import { OpeningExplorer } from './OpeningExplorer';
 import { OpeningRepertoire } from './OpeningRepertoire';
@@ -11,6 +12,8 @@ interface OpeningsProps {
   onClose: () => void;
   /** Opens the import of online games (offered while there is no game of the player to count). */
   onImport: () => void;
+  /** Starts a game against Stockfish from a position of the explorer. */
+  onPlay?: (start: PlayStart) => void;
   boardTheme?: BoardTheme;
   /** What to show first (the plan sends the player to a position of the explorer). */
   start?: { view: View; sans: string[] };
@@ -23,7 +26,7 @@ export const VIEWS: Array<{ value: View; label: string }> = [
 ];
 
 /** "Ouvertures": the tree of the openings to walk through, the player's own repertoire, and training on it. */
-export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardTheme, start }) => {
+export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardTheme, start, onPlay }) => {
   const [view, setView] = useState<View>(start?.view ?? 'explorer');
   // Kept here so that the repertoire can send the player to a position of the explorer
   const [sans, setSans] = useState<string[]>(start?.sans ?? []);
@@ -85,7 +88,13 @@ export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardThem
         className="overflow-y-auto min-h-0 pr-1 flex flex-col gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-lg"
       >
         {view === 'explorer' && (
-          <OpeningExplorer sans={sans} onSansChange={setSans} onImport={onImport} boardTheme={boardTheme} />
+          <OpeningExplorer
+            sans={sans}
+            onSansChange={setSans}
+            onImport={onImport}
+            onPlay={onPlay}
+            boardTheme={boardTheme}
+          />
         )}
         {view === 'repertoire' && <OpeningRepertoire onImport={onImport} onShowLine={showInExplorer} />}
         {view === 'drill' && <OpeningDrill onImport={onImport} onShowLine={showInExplorer} boardTheme={boardTheme} />}

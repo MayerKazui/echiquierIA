@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Download, FileUp, Lock, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, FileUp, Lock, Plus, Swords, Trash2 } from 'lucide-react';
 import type { Study, StudyChapter } from '../../types/study';
 import type { BoardTheme } from '../../types/ui';
 import { downloadTextFile } from '../../utils/download';
 import type { ParsedStudyPgn } from '../../utils/studyPgn';
 import { chapterToPgn, studyToPgn } from '../../utils/studyPgn';
-import { countMoves, createChapter, moveItem } from '../../utils/studyTree';
+import type { PlayStart } from '../../utils/playGame';
+import { START_FEN, countMoves, createChapter, findNode, moveItem, pathTo } from '../../utils/studyTree';
 import { BUTTON, SECONDARY } from '../Openings/shared';
 import { StudyEditor } from './StudyEditor';
 import { StudyImport } from './StudyImport';
@@ -16,6 +17,8 @@ interface StudyViewProps {
   boardTheme?: BoardTheme;
   onChange: (study: Study) => void;
   onBack: () => void;
+  /** Starts a game against Stockfish from a position of the chapter. */
+  onPlay?: (start: PlayStart) => void;
 }
 
 /** A file name from a title: no characters a file system refuses. */
@@ -25,7 +28,7 @@ const FIELD =
   'rounded-lg bg-slate-950 border border-slate-700 px-2 py-1.5 text-xs font-normal text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400';
 
 /** One study: its introduction, its chapters, and the chapter on screen to write or to play (locked). */
-export const StudyView: React.FC<StudyViewProps> = ({ study, boardTheme, onChange, onBack }) => {
+export const StudyView: React.FC<StudyViewProps> = ({ study, boardTheme, onChange, onBack, onPlay }) => {
   const [chapterId, setChapterId] = useState(study.chapters[0]?.id ?? '');
   const [selection, setSelection] = useState<Record<string, string>>({});
   const [isLocked, setIsLocked] = useState(false);
@@ -36,6 +39,20 @@ export const StudyView: React.FC<StudyViewProps> = ({ study, boardTheme, onChang
 
   const changeChapter = (next: StudyChapter) =>
     onChange({ ...study, chapters: study.chapters.map((c) => (c.id === next.id ? next : c)) });
+
+  /** The position selected in the chapter's tree (the root, until another is chosen), to play from. */
+  const playFromSelection = () => {
+    if (!onPlay) return;
+    const id = selection[chapter.id] ?? chapter.root.id;
+    const node = findNode(chapter.root, id) ?? chapter.root;
+    const isFromStart = chapter.root.fen === START_FEN;
+    const path = pathTo(chapter.root, node.id) ?? [];
+    onPlay({
+      fen: node.fen,
+      label: `Position de l'étude « ${study.name || 'Sans nom'} », chapitre « ${chapter.name || 'Sans nom'} »`,
+      prefix: isFromStart ? path.slice(1).map((n) => n.san) : undefined,
+    });
+  };
 
   const addChapter = () => {
     const created = createChapter(`Chapitre ${study.chapters.length + 1}`);
@@ -171,6 +188,12 @@ export const StudyView: React.FC<StudyViewProps> = ({ study, boardTheme, onChang
               Supprimer le chapitre
             </button>
           ))}
+        {!isLocked && onPlay && (
+          <button type="button" className={SECONDARY} onClick={playFromSelection}>
+            <Swords className="w-3.5 h-3.5" aria-hidden="true" />
+            Jouer contre Stockfish
+          </button>
+        )}
         {!isLocked && countMoves(chapter.root) > 0 && (
           <button
             type="button"

@@ -37,6 +37,7 @@ import {
   MoveList,
   Openings,
   Plan,
+  PlayStockfish,
   Puzzles,
   Studies,
   Training,
@@ -44,6 +45,7 @@ import {
   prefetchViews,
 } from './lazyViews';
 import type { PuzzleStart } from './components/Puzzles/Puzzles';
+import type { PlayStart } from './utils/playGame';
 import { LiveRegion, useAnnouncer } from './components/a11y/LiveRegion';
 import { Modal } from './components/a11y/Modal';
 import { GameHistory } from './components/GameHistory/GameHistory';
@@ -84,6 +86,9 @@ export default function App() {
   const [isStudiesOpen, setIsStudiesOpen] = useState(false);
   const [isPuzzlesOpen, setIsPuzzlesOpen] = useState(false);
   const [isPlanOpen, setIsPlanOpen] = useState(false);
+  /** The game against Stockfish: open or not, and the position it starts from (none: the usual start). */
+  const [isPlayOpen, setIsPlayOpen] = useState(false);
+  const [playStart, setPlayStart] = useState<PlayStart | undefined>();
   // Where the plan sends the player: the themes of the training, a position of the opening explorer
   const [trainingFilter, setTrainingFilter] = useState<TrainingFilter | undefined>();
   // ... and the themes of the puzzles to start with
@@ -281,6 +286,12 @@ export default function App() {
     [analyze, announce, exitSandbox, handleUpdateUserColor, setCurrentPly, userColor]
   );
 
+  /** Opens "Jouer contre Stockfish", from a position (a study, an opening, a critical position) or from the start. */
+  const openPlay = useCallback((start?: PlayStart) => {
+    setPlayStart(start);
+    setIsPlayOpen(true);
+  }, []);
+
   /** Shows a stored game at the move of an error (from the training); an old game is analysed again to be shown. */
   const openStoredGame = useCallback(
     async (id: string, ply: number) => {
@@ -365,6 +376,18 @@ export default function App() {
     <PlayerBar color={isFlipped ? 'w' : 'b'} metadata={metadata} userColor={userColor} material={boardMaterial} />
   );
 
+  /** "Jouer ici": the position on the board; the moves that lead there are known unless it was explored freely. */
+  const playFromBoard = () => {
+    const isOnGame = !sandbox.isSandboxMode && !isPreviewingAlternative;
+    openPlay({
+      fen: activeBoardFen,
+      label: activeMove
+        ? `Position de la partie, après le coup ${activeMove.moveNumber}${activeMove.color === 'b' ? '…' : '.'}${toFrenchSan(activeMove.san)}`
+        : 'Position de la partie',
+      prefix: isOnGame ? (moves ?? []).slice(0, currentPly + 1).map((m) => m.san) : undefined,
+    });
+  };
+
   const toolbar = (
     <>
       <BoardToolbar
@@ -375,6 +398,7 @@ export default function App() {
         onHeatmapModeChange={changeHeatmapMode}
         boardTheme={boardTheme}
         onBoardThemeChange={setBoardTheme}
+        onPlay={playFromBoard}
       />
 
       {heatmapMode !== 'none' && boardHeatmapData && (
@@ -591,6 +615,7 @@ export default function App() {
           setIsEndgamesOpen(true);
         }}
         onOpenStudies={() => setIsStudiesOpen(true)}
+        onOpenPlay={() => openPlay()}
         onOpenPlan={() => setIsPlanOpen(true)}
         onInstall={canInstall ? () => void install() : undefined}
       />
@@ -701,6 +726,10 @@ export default function App() {
                 setIsTrainingOpen(false);
                 void openStoredGame(id, ply);
               }}
+              onPlay={(start) => {
+                setIsTrainingOpen(false);
+                openPlay(start);
+              }}
               onClose={() => setIsTrainingOpen(false)}
               onImport={() => {
                 setIsTrainingOpen(false);
@@ -763,7 +792,35 @@ export default function App() {
       {isStudiesOpen && (
         <Modal title="Études" onClose={() => setIsStudiesOpen(false)} className="w-full max-w-[min(96vw,84rem)]">
           <Suspense fallback={null}>
-            <Studies boardTheme={boardTheme} onClose={() => setIsStudiesOpen(false)} />
+            <Studies
+              boardTheme={boardTheme}
+              onClose={() => setIsStudiesOpen(false)}
+              onPlay={(start) => {
+                setIsStudiesOpen(false);
+                openPlay(start);
+              }}
+            />
+          </Suspense>
+        </Modal>
+      )}
+
+      {isPlayOpen && (
+        <Modal
+          title="Jouer contre Stockfish"
+          onClose={() => setIsPlayOpen(false)}
+          className="w-full max-w-[min(96vw,84rem)]"
+        >
+          <Suspense fallback={null}>
+            <PlayStockfish
+              start={playStart}
+              boardTheme={boardTheme}
+              userName={userPseudo || undefined}
+              onAnalyze={(gamePgn) => {
+                setIsPlayOpen(false);
+                void runAnalysis(gamePgn);
+              }}
+              onClose={() => setIsPlayOpen(false)}
+            />
           </Suspense>
         </Modal>
       )}
@@ -787,6 +844,10 @@ export default function App() {
               boardTheme={boardTheme}
               start={openingsStart}
               onClose={() => setIsOpeningsOpen(false)}
+              onPlay={(start) => {
+                setIsOpeningsOpen(false);
+                openPlay(start);
+              }}
               onImport={() => {
                 setIsOpeningsOpen(false);
                 // Without a game on screen the start screen already shows the import form

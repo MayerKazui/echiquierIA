@@ -7,6 +7,7 @@ import { formatPvToFrench, toFrenchSan } from '../../utils/chessNotation';
 import { FAULT_KIND_TEXT } from '../../utils/faultKinds';
 import { themeLabel } from '../../utils/puzzleThemes';
 import { isSuccess, judgeAnswer, type Verdict } from '../../utils/judgeAnswer';
+import type { PlayStart } from '../../utils/playGame';
 import type { TrainingPosition } from '../../utils/trainingPositions';
 import { ChessBoard } from '../ChessBoard/ChessBoard';
 import type { BoardTheme } from '../../types/ui';
@@ -27,6 +28,8 @@ interface TrainingExerciseProps {
   onNext: () => void;
   /** Shows the game at the position of the error; no button without it. */
   onOpenGame?: (gameId: string, ply: number) => void;
+  /** Starts a game against Stockfish from the position; no button without it. */
+  onPlay?: (start: PlayStart) => void;
 }
 
 const BUTTON =
@@ -64,6 +67,7 @@ export const TrainingExercise: React.FC<TrainingExerciseProps> = ({
   onVerdict,
   onNext,
   onOpenGame,
+  onPlay,
 }) => {
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [answer, setAnswer] = useState<Answer | null>(null);
@@ -247,6 +251,15 @@ export const TrainingExercise: React.FC<TrainingExerciseProps> = ({
               className={`${BUTTON} bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700`}
             >
               Voir dans la partie
+            </button>
+          )}
+          {verdict && onPlay && (
+            <button
+              type="button"
+              onClick={() => onPlay({ fen: position.fen, label: 'Position critique de vos parties' })}
+              className={`${BUTTON} bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700`}
+            >
+              Jouer cette position contre Stockfish
             </button>
           )}
           {verdict && (

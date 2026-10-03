@@ -298,6 +298,23 @@ describe('Training', () => {
       expect((await loadCards()).has(`${id}:6`)).toBe(true);
     });
 
+    it('offers a game against Stockfish from the position, once the answer is known', async () => {
+      const onPlay = vi.fn();
+      const user = userEvent.setup();
+      await store({ 6: faultMove() });
+      renderTraining({ onPlay });
+      await user.click(await screen.findByRole('button', { name: /Commencer/ }));
+      expect(screen.queryByRole('button', { name: /contre Stockfish/ })).toBeNull();
+
+      await user.click(screen.getByRole('button', { name: 'Voir la solution' }));
+      await user.click(screen.getByRole('button', { name: 'Jouer cette position contre Stockfish' }));
+      expect(onPlay).toHaveBeenCalledTimes(1);
+      const [start] = onPlay.mock.calls[0] as [{ fen: string; label: string; prefix?: string[] }];
+      expect(start.fen).toBe(faultMove().fenBefore);
+      expect(start.label).toBe('Position critique de vos parties');
+      expect(start.prefix).toBeUndefined();
+    });
+
     it('has no such button when it cannot open a game', async () => {
       const { user } = await begin();
       await user.click(screen.getByRole('button', { name: 'Voir la solution' }));

@@ -10,9 +10,9 @@ vi.mock('../../utils/chessAudio', () => ({ chessAudio: { playForMove: vi.fn() } 
 
 const cell = (square: string) => document.querySelector(`[data-square="${square}"]`) as HTMLElement;
 
-const renderStudies = () => {
+const renderStudies = (props: Partial<React.ComponentProps<typeof Studies>> = {}) => {
   const onClose = vi.fn();
-  const view = render(<Studies onClose={onClose} />);
+  const view = render(<Studies onClose={onClose} {...props} />);
   return { onClose, ...view };
 };
 
@@ -199,6 +199,40 @@ describe('Studies', () => {
     await user.click(screen.getByRole('button', { name: /^Supprimer « À supprimer »/ }));
     await waitFor(() => expect(screen.queryByRole('list', { name: 'Mes études' })).toBeNull());
     expect(await listStudies()).toEqual([]);
+  });
+});
+
+describe('Studies, playing from a position', () => {
+  async function openChapter(user: ReturnType<typeof userEvent.setup>, onPlay: () => void) {
+    renderStudies({ onPlay });
+    await user.click(await screen.findByRole('button', { name: 'Importer un PGN' }));
+    await user.click(screen.getByLabelText('PGN'));
+    await user.paste('1. e4 e5 2. Nf3 *');
+    await user.click(screen.getByRole('button', { name: "Créer l'étude" }));
+  }
+
+  it('starts a game against Stockfish from the position selected in the chapter', async () => {
+    const onPlay = vi.fn();
+    const user = userEvent.setup();
+    await openChapter(user, onPlay);
+    await user.click(await screen.findByRole('button', { name: 'Jouer contre Stockfish' }));
+    expect(onPlay).toHaveBeenCalledTimes(1);
+    const [start] = onPlay.mock.calls[0] as [{ fen: string; label: string; prefix: string[] }];
+    // Nothing selected yet: the start of the chapter
+    expect(start.fen.startsWith('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w')).toBe(true);
+    expect(start.prefix).toEqual([]);
+    expect(start.label).toContain('chapitre');
+  });
+
+  it('has no such button without a way to play', async () => {
+    const user = userEvent.setup();
+    renderStudies();
+    await user.click(await screen.findByRole('button', { name: 'Importer un PGN' }));
+    await user.click(screen.getByLabelText('PGN'));
+    await user.paste('1. e4 e5 *');
+    await user.click(screen.getByRole('button', { name: "Créer l'étude" }));
+    await screen.findByRole('button', { name: /Jouer ce chapitre/ });
+    expect(screen.queryByRole('button', { name: 'Jouer contre Stockfish' })).toBeNull();
   });
 });
 

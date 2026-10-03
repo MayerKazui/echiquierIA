@@ -48,4 +48,15 @@ test.describe('accessibilité (axe-core)', () => {
     await expect(page.getByRole('button', { name: 'Exporter mes données' })).toBeVisible();
     expect(await violations(page)).toEqual([]);
   });
+
+  test('« Jouer contre Stockfish » : le choix de la partie, puis la partie', async ({ page }) => {
+    await page.goto('/');
+    await openFromMenu(page, /Jouer contre Stockfish/);
+    await expect(page.getByRole('button', { name: 'Jouer', exact: true })).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+
+    await page.getByRole('button', { name: 'Jouer', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'À vous de jouer' })).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+  });
 });

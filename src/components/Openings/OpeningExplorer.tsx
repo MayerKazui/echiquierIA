@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { Chess } from 'chess.js';
-import { ArrowLeft, FlipVertical2, RotateCcw } from 'lucide-react';
+import { ArrowLeft, FlipVertical2, RotateCcw, Swords } from 'lucide-react';
 import { useOpeningExplorerData } from '../../hooks/useOpeningExplorerData';
 import { getOpeningPosition } from '../../services/openingBook';
 import { toFrenchSan } from '../../utils/chessNotation';
 import { continuationsOf, walkLine, type Continuation } from '../../utils/openingExplorer';
 import { INDEX_PLIES, gamesIn, talliesAt } from '../../utils/openingIndex';
 import { toFrenchOpeningName } from '../../utils/openingNames';
+import type { PlayStart } from '../../utils/playGame';
 import type { BoardTheme } from '../../types/ui';
 import { ChessBoard } from '../ChessBoard/ChessBoard';
 import { SECONDARY, TallyBar, numbered } from './shared';
@@ -17,6 +18,8 @@ interface OpeningExplorerProps {
   onSansChange: (sans: string[]) => void;
   /** Opens the import of online games (offered while there is no game of the player to count). */
   onImport: () => void;
+  /** Starts a game against Stockfish from the position on the board. */
+  onPlay?: (start: PlayStart) => void;
   boardTheme?: BoardTheme;
 }
 
@@ -29,7 +32,13 @@ const SIDES: Array<{ value: Side; label: string }> = [
 ];
 
 /** Walk the tree of the openings, move by move, next to how the player's own games went. */
-export const OpeningExplorer: React.FC<OpeningExplorerProps> = ({ sans, onSansChange, onImport, boardTheme }) => {
+export const OpeningExplorer: React.FC<OpeningExplorerProps> = ({
+  sans,
+  onSansChange,
+  onImport,
+  onPlay,
+  boardTheme,
+}) => {
   const { data, retry } = useOpeningExplorerData();
   const [side, setSide] = useState<Side>('all');
   const [isFlipped, setIsFlipped] = useState(false);
@@ -138,6 +147,22 @@ export const OpeningExplorer: React.FC<OpeningExplorerProps> = ({ sans, onSansCh
                 <FlipVertical2 className="w-3.5 h-3.5" aria-hidden="true" />
                 Retourner
               </button>
+              {onPlay && sans.length > 0 && (
+                <button
+                  type="button"
+                  className={SECONDARY}
+                  onClick={() =>
+                    onPlay({
+                      fen: walk.fen,
+                      label: title ? `Position de l'explorateur : ${title}` : "Position de l'explorateur",
+                      prefix: sans,
+                    })
+                  }
+                >
+                  <Swords className="w-3.5 h-3.5" aria-hidden="true" />
+                  Jouer contre Stockfish
+                </button>
+              )}
             </div>
           </div>
 
