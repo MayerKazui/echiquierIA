@@ -42,7 +42,8 @@ Sans clé Gemini, l'application fonctionne : les explications de l'entraîneur I
 | `bun run dev`            | Serveur de développement (Express + Vite, rechargement à chaud)                       |
 | `bun run build`          | Construit l'interface (`dist/`) et compile le serveur en `server.js`                  |
 | `bun run start`          | Sert `dist/` en production (`NODE_ENV=production`, via tsx) : lancer `build` avant    |
-| `bun run test`           | Tests unitaires (Vitest)                                                              |
+| `bun run test`           | Tests unitaires et de composants (Vitest)                                             |
+| `bun run test:e2e`       | Tests de bout en bout (Playwright) : construit l'application et la teste en vrai      |
 | `bun run lint`           | ESLint                                                                                |
 | `bun run typecheck`      | `tsc --noEmit` (mode `strict`)                                                        |
 | `bun run format`         | Formate avec Prettier (`format:check` pour seulement vérifier)                        |
@@ -52,7 +53,11 @@ Sans clé Gemini, l'application fonctionne : les explications de l'entraîneur I
 | `bun run calibrate`      | Écart de la précision avec chess.com sur les parties de référence (`fetch`, `record`) |
 | `bun run faultstats`     | Erreurs de référence par type et thème (`faultstats theme:fork` : exemples)           |
 
-La CI (GitHub Actions) exécute lint, typecheck, format, tests et build à chaque pull request.
+La CI (GitHub Actions) exécute lint, typecheck, format, tests et build à chaque pull request, et dans un second job les tests de bout en bout.
+
+### Tests de bout en bout
+
+`bun run test:e2e` construit l'application (`vite build`), la sert (`vite preview`, port 3100) et la pilote dans Chromium avec le vrai Stockfish. Une fois, pour installer le navigateur : `bunx playwright install chromium`. Les tests couvrent l'import d'un PGN et son analyse, le rechargement, l'import des parties d'un pseudo chess.com, l'export et l'import d'une sauvegarde, la synchronisation entre deux appareils par Google Drive, et un contrôle d'accessibilité (axe-core, WCAG A et AA). Rien ne sort de la machine : chess.com, la connexion Google et Drive sont remplacés par des faux (`e2e/support/`). Les traces des tests en échec sont dans `test-results/` (`bunx playwright show-trace <fichier>`).
 
 ## Configuration
 

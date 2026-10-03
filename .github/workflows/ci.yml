@@ -33,3 +33,28 @@ jobs:
 
       - name: Check the engine is in the build
         run: test -s dist/stockfish-19.js && test -s dist/stockfish-19.wasm
+
+  e2e:
+    # The built application in a real browser, with Stockfish: import, analysis, backup and Drive sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install the browser
+        run: bunx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: bun run test:e2e
+
+      - name: Keep the traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
