@@ -1,25 +1,11 @@
 import React from 'react';
-import {
-  BarChart3,
-  BookOpen,
-  ClipboardList,
-  Crown,
-  Download,
-  Dumbbell,
-  FileText,
-  GraduationCap,
-  History,
-  Puzzle,
-  Swords,
-  Users,
-  Volume2,
-  VolumeX,
-} from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { GameMetadata } from '../../types/chess';
 import { AppTab, PlayerColor } from '../../types/ui';
 import { ViewTabs } from './ViewTabs';
 import { PseudoEditor } from './PseudoEditor';
-import { AppMenu, type AppMenuItem } from './AppMenu';
+import { AppMenu } from './AppMenu';
+import type { NavSection } from './navigation';
 
 interface AppHeaderProps {
   metadata?: GameMetadata;
@@ -29,24 +15,12 @@ interface AppHeaderProps {
   activeTab: AppTab;
   userPseudo: string;
   userColor: PlayerColor;
-  isMuted: boolean;
+  /** The tree of the app, in the burger menu of the screens too small for the side panel. */
+  navigation: NavSection[];
   onChangeTab: (tab: AppTab) => void;
   onUpdatePseudo: (pseudo: string) => void;
   onUpdateUserColor: (color: PlayerColor) => void;
-  onToggleSound: () => void;
   onOpenPgnModal: () => void;
-  onOpenHistory: () => void;
-  onOpenProfile: () => void;
-  onOpenTraining: () => void;
-  onOpenPuzzles: () => void;
-  onOpenOpenings: () => void;
-  onOpenOpponent: () => void;
-  onOpenEndgames: () => void;
-  onOpenStudies: () => void;
-  onOpenPlay: () => void;
-  onOpenPlan: () => void;
-  /** Installs the app: given only when the browser offers it. */
-  onInstall?: () => void;
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -56,117 +30,12 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   activeTab,
   userPseudo,
   userColor,
-  isMuted,
+  navigation,
   onChangeTab,
   onUpdatePseudo,
   onUpdateUserColor,
-  onToggleSound,
   onOpenPgnModal,
-  onOpenHistory,
-  onOpenProfile,
-  onOpenTraining,
-  onOpenPuzzles,
-  onOpenOpenings,
-  onOpenOpponent,
-  onOpenEndgames,
-  onOpenStudies,
-  onOpenPlay,
-  onOpenPlan,
-  onInstall,
 }) => {
-  const ICON = 'w-4 h-4';
-  const menuItems: AppMenuItem[] = [
-    {
-      id: 'history',
-      label: 'Mes parties',
-      hint: 'Rouvrir une partie déjà analysée',
-      icon: <History className={ICON} />,
-      onSelect: onOpenHistory,
-    },
-    {
-      id: 'profile',
-      label: 'Mon profil',
-      hint: 'Mes points faibles et mes points forts',
-      icon: <BarChart3 className={ICON} />,
-      onSelect: onOpenProfile,
-    },
-    {
-      id: 'plan',
-      label: 'Mon plan',
-      hint: 'Les objectifs de la semaine, tirés de mes parties',
-      icon: <ClipboardList className={ICON} />,
-      onSelect: onOpenPlan,
-    },
-    {
-      id: 'training',
-      label: "S'entraîner",
-      hint: 'Rejouer mes erreurs, au bon rythme',
-      icon: <Dumbbell className={ICON} />,
-      onSelect: onOpenTraining,
-    },
-    {
-      id: 'puzzles',
-      label: 'Puzzles',
-      hint: 'Des puzzles par niveau et par thème, avec chronomètre',
-      icon: <Puzzle className={ICON} />,
-      onSelect: onOpenPuzzles,
-    },
-    {
-      id: 'openings',
-      label: 'Ouvertures',
-      hint: 'Explorer les ouvertures et voir mon répertoire',
-      icon: <BookOpen className={ICON} />,
-      onSelect: onOpenOpenings,
-    },
-    {
-      id: 'opponent',
-      label: 'Préparer un adversaire',
-      hint: "Les ouvertures qu'un pseudo joue, lues sur chess.com ou Lichess",
-      icon: <Users className={ICON} />,
-      onSelect: onOpenOpponent,
-    },
-    {
-      id: 'endgames',
-      label: 'Finales',
-      hint: 'Les finales théoriques, jouées contre le moteur',
-      icon: <Crown className={ICON} />,
-      onSelect: onOpenEndgames,
-    },
-    {
-      id: 'studies',
-      label: 'Études',
-      hint: 'Mes chapitres de coups commentés, à jouer contre l’ordinateur',
-      icon: <GraduationCap className={ICON} />,
-      onSelect: onOpenStudies,
-    },
-    {
-      id: 'play',
-      label: 'Jouer contre Stockfish',
-      hint: 'Une partie à la force réglable, depuis le début ou une position',
-      icon: <Swords className={ICON} />,
-      onSelect: onOpenPlay,
-    },
-    {
-      id: 'sound',
-      label: 'Son des coups',
-      icon: isMuted ? <VolumeX className={ICON} /> : <Volume2 className={ICON} />,
-      checked: !isMuted,
-      onSelect: onToggleSound,
-      separated: true,
-    },
-    ...(onInstall
-      ? [
-          {
-            id: 'install',
-            label: "Installer l'application",
-            hint: 'Elle fonctionne alors aussi hors ligne',
-            icon: <Download className={ICON} />,
-            onSelect: onInstall,
-          },
-        ]
-      : []),
-  ];
-
   return (
     <header className="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur sticky top-0 z-40 px-3 sm:px-4 lg:px-8 py-2 sm:py-3 w-full max-w-full">
       {/* One row on every screen: on a phone the labels give way to icons and the views move to the bottom bar */}
@@ -209,7 +78,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             </button>
           </div>
 
-          <AppMenu items={menuItems} />
+          {/* From 1280px the side panel carries the tree, open: the burger is for the smaller screens */}
+          <div className="xl:hidden">
+            <AppMenu sections={navigation} />
+          </div>
 
           {hasAnalysis && (
             <>

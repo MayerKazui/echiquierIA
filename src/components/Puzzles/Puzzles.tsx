@@ -37,6 +37,8 @@ interface PuzzlesProps {
   boardTheme?: BoardTheme;
   /** Opens on a free session with these themes, instead of the player's last choice (until they change it). */
   start?: PuzzleStart;
+  /** Opens on this mode (the menu has an entry for each), instead of the one the player used last. */
+  initialMode?: PuzzleMode;
 }
 
 type Screen =
@@ -48,7 +50,8 @@ type Screen =
   | { kind: 'woodpecker-run' }
   | { kind: 'woodpecker-summary'; cycleNumber: number };
 
-type Mode = 'free' | 'woodpecker' | 'stats';
+export type PuzzleMode = 'free' | 'woodpecker' | 'stats';
+type Mode = PuzzleMode;
 const MODES: ReadonlyArray<{ id: Mode; label: string }> = [
   { id: 'free', label: 'Séance libre' },
   { id: 'woodpecker', label: 'Woodpecker' },
@@ -67,7 +70,7 @@ const toNumber = (raw: string): number | undefined => {
 };
 
 /** "Puzzles": the puzzles of Lichess to solve against the clock, by rating and theme, and the missed ones to review. */
-export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme, start: initialStart }) => {
+export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme, start: initialStart, initialMode }) => {
   // Held in memory, not stored: the choices of the player are not overwritten until they make one
   const [preset, setPreset] = useState<PuzzleStart | undefined>(initialStart);
   const [storedMode, setStoredMode] = usePersistentState<Mode>('puzzle_mode', 'free', (raw) =>
@@ -85,9 +88,12 @@ export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme, start: in
     return TIMER_OPTIONS.includes(value) ? value : undefined;
   });
   const elo = usePlayerElo();
-  const mode: Mode = preset ? 'free' : storedMode;
+  // Held in memory like the preset: the mode the player used last stays the one stored until they pick another
+  const [pickedMode, setPickedMode] = useState<Mode | undefined>(initialMode);
+  const mode: Mode = preset ? 'free' : (pickedMode ?? storedMode);
   const setMode = (next: Mode) => {
     setPreset(undefined);
+    setPickedMode(undefined);
     setStoredMode(next);
   };
   const choice: PuzzleChoice = {
