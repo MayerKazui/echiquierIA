@@ -204,6 +204,26 @@ describe('Openings', () => {
   });
 });
 
+describe('Openings, playing from a position', () => {
+  it('offers a game against Stockfish from the line on the board, with the moves that lead there', async () => {
+    const onPlay = vi.fn();
+    const user = userEvent.setup();
+    renderOpenings({ onPlay, start: { view: 'explorer', sans: ['e4', 'c5'] } });
+    await user.click(await screen.findByRole('button', { name: 'Jouer contre Stockfish' }));
+    expect(onPlay).toHaveBeenCalledTimes(1);
+    const [start] = onPlay.mock.calls[0] as [{ fen: string; label: string; prefix: string[] }];
+    expect(start.prefix).toEqual(['e4', 'c5']);
+    expect(start.fen).toBe(walkLine(['e4', 'c5'], getOpeningPosition).fen);
+    expect(start.label).toContain("Position de l'explorateur");
+  });
+
+  it('does not offer it on the initial position (the menu has the complete game)', async () => {
+    renderOpenings({ onPlay: vi.fn() });
+    await table();
+    expect(screen.queryByRole('button', { name: 'Jouer contre Stockfish' })).toBeNull();
+  });
+});
+
 describe('Openings, opened on a position', () => {
   it('starts on the line it is given, in the explorer', async () => {
     renderOpenings({ start: { view: 'explorer', sans: ['e4', 'c5'] } });

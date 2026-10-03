@@ -32,6 +32,7 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 - **Puzzles** : 200 000 puzzles Lichess embarqués (73 thèmes en français, tranche d'Elo, chronomètre sans pénalité), puzzles ratés en répétition espacée, statistiques sur 7 jours, 30 jours ou tout, et courbe de la réussite semaine après semaine (12 semaines, un point par semaine d'au moins 5 puzzles joués).
 - **Woodpecker** : lot figé de 20 à 500 puzzles, cycles chronométrés avec pause, temps comparé au cycle précédent, reprise d'un ancien lot.
 - **Études** (privées, à la manière de Lichess) : chapitres, variantes, commentaires, glyphes, flèches et cercles, import et export PGN, chapitre verrouillable contre l'ordinateur, réordonnancement.
+- **Jouer contre Stockfish** (menu) : une partie contre le moteur, depuis la position initiale, une FEN collée ou une position à travailler : « Jouer ici » sur la partie analysée (la position affichée), « Jouer contre Stockfish » dans l'explorateur d'ouvertures (la ligne affichée), dans une étude (la position choisie du chapitre) et après la réponse à une position de « S'entraîner » (la position critique de ses parties). Sept niveaux : Débutant (`Skill Level` 0), puis Facile, Club, Confirmé, Expert et Maître (`UCI_Elo` de 1 320 à 2 600, avec `UCI_LimitStrength`) et Maximum ; le niveau choisi est gardé pour la prochaine fois. Le moteur de jeu a son propre Web Worker (`EnginePlayer`), à part du lot d'analyse, et une seule recherche à la fois (une nouvelle demande arrête la précédente). On choisit son camp (ou le hasard : le moteur ouvre si l'on prend les Noirs), on peut reprendre son coup (avec la réponse du moteur) ou abandonner ; la fin par les règles (mat, pat, matériel insuffisant, triple répétition, 50 coups) est reconnue. « Analyser la partie » envoie la partie à l'analyse quand son chemin depuis la position initiale est connu (partie complète, ligne de l'explorateur, partie analysée, étude partie de la position initiale) ; pas pour une FEN ou une position critique seule (l'analyse rejoue depuis la position initiale).
 
 ### Confort et technique
 
@@ -44,7 +45,7 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 ### Décisions prises : abandonné ou clos
 
 - **Abandonné**, car il faudrait un serveur : partage d'études, étude collaborative, classements entre joueurs, clé Gemini côté navigateur, mise à jour automatique du profil.
-- **Abandonné** après mesure, Stockfish multi-thread (idée 5) : sur 4 cœurs, 8 positions à la profondeur 14 prennent 0,7 s avec 4 workers mono-thread (le fonctionnement actuel) et 4,1 s avec un seul moteur à 4 threads, donc l'analyse en lot n'y gagne rien ; une position isolée à la profondeur 18 passe de 1,3 s à 0,86 s seulement. Les résultats varient d'une exécution à l'autre (cela fragiliserait le calage `bun run calibrate`), et il faudrait les en-têtes COOP/COEP, que GitHub Pages n'envoie pas (un service worker pourrait les ajouter, au risque de casser la connexion Google Drive ; Safari n'est pas couvert). À revoir seulement pour « Jouer contre Stockfish » (idée 2), où une seule recherche à la fois pourrait profiter des threads.
+- **Abandonné** après mesure, Stockfish multi-thread (idée 5) : sur 4 cœurs, 8 positions à la profondeur 14 prennent 0,7 s avec 4 workers mono-thread (le fonctionnement actuel) et 4,1 s avec un seul moteur à 4 threads, donc l'analyse en lot n'y gagne rien ; une position isolée à la profondeur 18 passe de 1,3 s à 0,86 s seulement. Les résultats varient d'une exécution à l'autre (cela fragiliserait le calage `bun run calibrate`), et il faudrait les en-têtes COOP/COEP, que GitHub Pages n'envoie pas (un service worker pourrait les ajouter, au risque de casser la connexion Google Drive ; Safari n'est pas couvert). À revoir seulement pour « Jouer contre Stockfish » (idée 2, faite en mono-thread), où une seule recherche à la fois pourrait profiter des threads.
 - **Clos** : stats mondiales d'ouverture. L'API Explorer de Lichess répond 401 sans jeton (vérifié le 2026-10-03) : on garde seulement ses propres statistiques, il n'y a pas de clé à mettre dans le navigateur.
 - **Sujets clos** : plafond de 500 parties, données conservées dans le navigateur, limites de débit des API d'import, extension du coach IA aux puzzles et aux études.
 
@@ -71,6 +72,12 @@ Faites sur de vrais appareils (2026-10-03), sans défaut constaté : lecteur d'�
 - [ ] Les seuils (70 % de chances de gain pour une promotion, 12 coups pour tenir une nulle, 40 coups pour une position gagnée, 2 coups de mat de marge) sont posés sans calage sur de vraies parties de joueurs : ils sont assez larges pour que le moteur qui joue les deux camps réussisse chaque position (vérifié). Contrôle ajouté avec un joueur qui prend, parmi huit coups légaux au hasard, le plus lent encore accepté : il finit « gagné » en 10 à 37 coups sur le pion devant (de justesse sous les 40), mais n'arrive pas au mat avec la dame ni avec la tour en 40 coups, car la marge de 2 coups de mat lui laisse errer. Un joueur qui vise le mat ne s'y expose pas (le mat à la dame se fait en 7 coups avec le moteur), mais les 40 coups sont une limite serrée pour un débutant sur le mat à la tour : à ajuster si des joueurs échouent là.
 - [ ] « Mon plan » désigne une famille de finales (pions, tours, mats), pas la position précise à revoir (Lucena ou Philidor plutôt qu'une autre finale de tours) : il faudrait reconnaître la structure (pion en septième, tour en défense…). Les seuils de la désignation (3 erreurs, 40 %) ne sont pas calés sur de vraies parties.
 
+### Jouer contre Stockfish
+
+- [ ] Les niveaux reposent sur l'échelle `UCI_Elo` du moteur (mesurée contre d'autres moteurs, à cadence courte) : contre une personne elle ne donne qu'un repère, et le niveau « Débutant » (`Skill Level` 0) n'a pas de valeur Elo. Les temps de réflexion (150 ms à 1,5 s par coup) sont posés sans calage : à ajuster selon le ressenti sur de vrais appareils (un téléphone lent joue plus faiblement à temps égal).
+- [ ] Pas de pendule, pas d'offre de nulle (le moteur n'en accepterait ni n'en proposerait), pas de conseil ni d'évaluation pendant la partie : l'analyse se fait après coup. Pas de sauvegarde de la partie en cours (fermer la fenêtre l'arrête) ni d'historique des parties jouées contre le moteur, qui n'entrent pas dans le profil.
+- [ ] Le mode multi-thread (écarté pour l'analyse en lot) pourrait servir ici, une seule recherche à la fois : non essayé, il demande les en-têtes COOP/COEP (voir « Décisions prises »).
+
 ## 3. Idées d'évolution et d'amélioration
 
 Ce sont des suggestions, pas des décisions. « Précision par ouverture » et « Entraînement au répertoire d'ouvertures » ont été faites, avec leurs limites (précision limitée aux coups qui suivent la sortie du livre, lignes qui marchent, lien depuis « Mon plan ») : elles sont décrites dans « Ce qui est fait » (Ouvertures), et ce qui reste dans « Ouvertures » de la section 2.
@@ -78,7 +85,7 @@ Ce sont des suggestions, pas des décisions. « Précision par ouverture » et �
 | #   | Idée                         | Intérêt                                                                                                                                     |
 | --- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Préparer ses adversaires     | Analyser le répertoire d'un pseudo avec les briques de l'import et de l'explorateur.                                                        |
-| 2   | Jouer contre Stockfish       | Niveau réglable, depuis une position d'étude, d'ouverture ou d'une position critique de ses parties.                                        |
+| 2   | ~~Jouer contre Stockfish~~   | Fait : voir « Ce qui est fait » (Outils d'entraînement) et « Jouer contre Stockfish » dans la section 2.                                    |
 | 3   | ~~Entraînement aux finales~~ | Fait : voir « Finales » dans « Ce qui est fait ».                                                                                           |
 | 4   | Puzzles : mode « tempête »   | Score à battre, et puzzles tirés de ses propres erreurs avec les statistiques des puzzles.                                                  |
 | 5   | ~~Stockfish multi-thread~~   | Abandonné (2026-10-03) : voir « Décisions prises ».                                                                                         |
@@ -94,4 +101,5 @@ Ce sont des suggestions, pas des décisions. « Précision par ouverture » et �
 4. ~~Vérifications sur de vrais appareils et un vrai lecteur d'écran.~~ Fait, tout est bon.
 5. ~~Couvrir les ouvertures : précision par ouverture et entraînement au répertoire.~~ Fait.
 6. ~~Tests de bout en bout et ménage du dépôt (points 7 et 8).~~ Fait.
-7. Ensuite seulement les grosses évolutions (adversaires, jeu contre Stockfish, version anglaise). Les finales sont faites.
+7. ~~Jouer contre Stockfish.~~ Fait.
+8. Ensuite seulement les grosses évolutions (préparation des adversaires, version anglaise).

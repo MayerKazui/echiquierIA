@@ -11,6 +11,7 @@ import {
   pickSession,
   type TrainingFilter,
 } from '../../utils/spacedRepetition';
+import type { PlayStart } from '../../utils/playGame';
 import type { TrainingPosition } from '../../utils/trainingPositions';
 import type { BoardTheme } from '../../types/ui';
 import { TrainingExercise } from './TrainingExercise';
@@ -23,6 +24,8 @@ interface TrainingProps {
   boardTheme?: BoardTheme;
   /** Shows the game at the position of the error (the training closes): the id of the game and the move index. */
   onOpenGame?: (gameId: string, ply: number) => void;
+  /** Starts a game against Stockfish from the position on screen. */
+  onPlay?: (start: PlayStart) => void;
   /** The themes to start with (the plan sends the player to one), none to take all the errors. */
   initialFilter?: TrainingFilter;
 }
@@ -40,7 +43,14 @@ const SECONDARY =
   'px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300';
 
 /** "S'entraîner": replay the positions where the player went wrong, and come back to them at growing intervals. */
-export const Training: React.FC<TrainingProps> = ({ onClose, onImport, boardTheme, onOpenGame, initialFilter }) => {
+export const Training: React.FC<TrainingProps> = ({
+  onClose,
+  onImport,
+  boardTheme,
+  onOpenGame,
+  onPlay,
+  initialFilter,
+}) => {
   const { data, record } = useTrainingData();
   const [filter, setFilter] = useState<TrainingFilter>(initialFilter ?? NO_FILTER);
   const [session, setSession] = useState<Session | null>(null);
@@ -150,6 +160,7 @@ export const Training: React.FC<TrainingProps> = ({ onClose, onImport, boardThem
             onVerdict={onVerdict}
             onNext={next}
             onOpenGame={onOpenGame}
+            onPlay={onPlay}
           />
         )}
 

@@ -3,6 +3,7 @@ import { GraduationCap, X } from 'lucide-react';
 import type { Study } from '../../types/study';
 import type { BoardTheme } from '../../types/ui';
 import { useStudies } from '../../hooks/useStudies';
+import type { PlayStart } from '../../utils/playGame';
 import type { ParsedStudyPgn } from '../../utils/studyPgn';
 import { createChapter, newId } from '../../utils/studyTree';
 import { STUDY_SCHEMA_VERSION } from '../../services/studyStore';
@@ -12,6 +13,8 @@ import { StudyView } from './StudyView';
 interface StudiesProps {
   onClose: () => void;
   boardTheme?: BoardTheme;
+  /** Starts a game against Stockfish from a position of a chapter. */
+  onPlay?: (start: PlayStart) => void;
 }
 
 function blankStudy(name: string, chapters = [createChapter('Chapitre 1')], description = ''): Study {
@@ -28,7 +31,7 @@ function blankStudy(name: string, chapters = [createChapter('Chapitre 1')], desc
 }
 
 /** "Études": the player's own studies (chapters of annotated moves with variations), kept in the browser. */
-export const Studies: React.FC<StudiesProps> = ({ onClose, boardTheme }) => {
+export const Studies: React.FC<StudiesProps> = ({ onClose, boardTheme, onPlay }) => {
   const { studies, status, saveFailed, update, remove } = useStudies();
   const [openId, setOpenId] = useState<string | null>(null);
   const open = studies.find((s) => s.id === openId) ?? null;
@@ -86,7 +89,13 @@ export const Studies: React.FC<StudiesProps> = ({ onClose, boardTheme }) => {
         className="overflow-y-auto min-h-0 pr-1 flex flex-col gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-lg"
       >
         {open ? (
-          <StudyView study={open} boardTheme={boardTheme} onChange={update} onBack={() => setOpenId(null)} />
+          <StudyView
+            study={open}
+            boardTheme={boardTheme}
+            onChange={update}
+            onBack={() => setOpenId(null)}
+            onPlay={onPlay}
+          />
         ) : (
           <StudyList
             studies={studies}
