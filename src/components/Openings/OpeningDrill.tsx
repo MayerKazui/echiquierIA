@@ -2,9 +2,15 @@ import React, { useCallback, useState } from 'react';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { useOpeningDrill } from '../../hooks/useOpeningDrill';
 import { numberedFrenchMove, toFrenchSan } from '../../utils/chessNotation';
-import { drillPositionsOf, isDrillSuccess, type DrillPosition, type DrillVerdict } from '../../utils/openingDrill';
+import {
+  drillPositionsOf,
+  isDrillSuccess,
+  type DrillKind,
+  type DrillPosition,
+  type DrillVerdict,
+} from '../../utils/openingDrill';
 import { toFrenchOpeningName } from '../../utils/openingNames';
-import { COSTLY_EXIT } from '../../utils/openingRepertoire';
+import { COSTLY_EXIT, MIN_RECURRENCE } from '../../utils/openingRepertoire';
 import { MASTERED_LEVEL, SESSION_SIZE, describeDelay, pickItems, summarizeItems } from '../../utils/spacedRepetition';
 import type { BoardTheme } from '../../types/ui';
 import { Tile } from '../Training/TrainingSetup';
@@ -26,6 +32,11 @@ const COLORS: Array<{ value: Color; label: string }> = [
   { value: 'b', label: 'Avec les Noirs' },
 ];
 
+const KINDS: Array<{ value: DrillKind; label: string }> = [
+  { value: 'exit', label: 'Mes sorties de théorie' },
+  { value: 'line', label: 'Mes lignes qui marchent' },
+];
+
 interface Session {
   positions: DrillPosition[];
   /** Index of the position on screen; past the last one, the session is over. */
@@ -36,6 +47,23 @@ interface Session {
 const CHIP =
   'px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400';
 
+function Chip({ isOn, onClick, children }: { isOn: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={isOn}
+      onClick={onClick}
+      className={`${CHIP} ${
+        isOn
+          ? 'bg-indigo-600/30 border-indigo-500 text-white'
+          : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:bg-slate-800/80'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
 
 /** "Réviser mes sorties de théorie": replay the positions where the player left the theory at a cost. */
@@ -43,6 +71,7 @@ export const OpeningDrill: React.FC<OpeningDrillProps> = ({ onImport, onShowLine
   const { data, record, retry } = useOpeningDrill();
   // None chosen: both sides
   const [color, setColor] = useState<Color | null>(null);
+  const [kind, setKind] = useState<DrillKind | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   // Fixed while a screen is shown: the figures must not change under the player's eyes
   const [now, setNow] = useState(() => Date.now());
@@ -53,7 +82,7 @@ export const OpeningDrill: React.FC<OpeningDrillProps> = ({ onImport, onShowLine
     if (data.status !== 'ready') return;
     const moment = Date.now();
     setNow(moment);
-    const positions = pickItems(drillPositionsOf(data.positions, color), data.cards, moment, {
+    const positions = pickItems(drillPositionsOf(data.positions, color, kind), data.cards, moment, {
       includeUpcoming: isEarly,
     });
     if (positions.length > 0) setSession({ positions, index: 0, results: [] });
@@ -79,7 +108,7 @@ export const OpeningDrill: React.FC<OpeningDrillProps> = ({ onImport, onShowLine
   if (data.status === 'loading') {
     return (
       <p role="status" className="text-sm text-slate-400 py-8 text-center">
-        Recherche de vos sorties de théorie…
+        Recherche de vos positions à rejouer…
       </p>
     );
   }
@@ -103,12 +132,12 @@ export const OpeningDrill: React.FC<OpeningDrillProps> = ({ onImport, onShowLine
     return (
       <div className="flex flex-col items-center gap-3 text-center py-8 px-2">
         <p className="text-sm font-semibold text-slate-200">
-          {data.games === 0 ? 'Aucune partie enregistrée' : 'Aucune sortie de théorie à rejouer'}
+          {data.games === 0 ? 'Aucune partie enregistrée' : 'Aucune position à rejouer'}
         </p>
         <p className="text-xs text-slate-400 max-w-md">
           {data.games === 0
             ? "Cet entraînement se construit sur vos parties analysées. Importez les dernières depuis chess.com ou Lichess : elles s'analysent en arrière-plan."
-            : `Une position est proposée quand vous quittez la théorie avec un coup qui coûte au moins ${COSTLY_EXIT} points de chances de gain (en moyenne, si plusieurs parties y passent). Dans vos ${plural(data.games, 'partie enregistrée', 'parties enregistrées')}, il n'y en a aucune pour l'instant : soit votre pseudo n'y figure pas (renseignez-le en haut de l'écran, puis importez vos parties), soit vos sorties de théorie ne vous coûtent pas cher.`}
+            : `Deux sortes de positions sont proposées : celles où vous quittez la théorie avec un coup qui coûte au moins ${COSTLY_EXIT} points de chances de gain (en moyenne, si plusieurs parties y passent), et celles où vous suivez une ligne de théorie dans au moins ${MIN_RECURRENCE} parties. Dans vos ${plural(data.games, 'partie enregistrée', 'parties enregistrées')}, il n'y en a aucune pour l'instant : soit votre pseudo n'y figure pas (renseignez-le en haut de l'écran, puis importez vos parties), soit vos parties sont trop différentes ou sortent de la théorie à bon compte.`}
         </p>
         <button type="button" onClick={onImport} className={PRIMARY}>
           Importer mes parties
@@ -165,7 +194,7 @@ export const OpeningDrill: React.FC<OpeningDrillProps> = ({ onImport, onShowLine
                     .slice(0, 3)
                     .map((san) => numberedFrenchMove(position.moveNumber, position.color === 'w', san))
                     .join(', ')}{' '}
-                  (vous aviez joué {toFrenchSan(position.played[0].san)})
+                  ({position.kind === 'line' ? 'vous jouez' : 'vous aviez joué'} {toFrenchSan(position.played[0].san)})
                   <span className="text-slate-400">
                     {card && card.level >= MASTERED_LEVEL
                       ? ' · maîtrisée'
@@ -187,21 +216,24 @@ export const OpeningDrill: React.FC<OpeningDrillProps> = ({ onImport, onShowLine
     );
   }
 
-  const chosen = drillPositionsOf(data.positions, color);
+  const chosen = drillPositionsOf(data.positions, color, kind);
   const summary = summarizeItems(chosen, data.cards, now);
   const available = summary.due + summary.fresh;
   const sessionSize = Math.min(SESSION_SIZE, available);
-  // What a chip would bring
-  const countFor = (value: Color) => {
-    const s = summarizeItems(drillPositionsOf(data.positions, value), data.cards, now);
+  // What a chip would bring, the other choice being kept
+  const countOf = (positions: readonly DrillPosition[]) => {
+    const s = summarizeItems(positions, data.cards, now);
     return s.due + s.fresh;
   };
+  const countForColor = (value: Color) => countOf(drillPositionsOf(data.positions, value, kind));
+  const countForKind = (value: DrillKind) => countOf(drillPositionsOf(data.positions, color, value));
 
   return (
     <div className="flex flex-col gap-4">
       <p className="text-xs text-slate-400">
-        Les positions où vous avez quitté la théorie en perdant des chances de gain : trouvez le coup que la base des
-        ouvertures connaît, avant qu&apos;il ne se présente en partie.
+        Trouvez le coup que la base des ouvertures connaît, avant qu&apos;il ne se présente en partie : dans les
+        positions où vous avez quitté la théorie en perdant des chances de gain, et dans les lignes qui marchent pour
+        vous, afin de ne pas les oublier.
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -215,30 +247,33 @@ export const OpeningDrill: React.FC<OpeningDrillProps> = ({ onImport, onShowLine
         <Tile label="Maîtrisées" value={summary.mastered} hint={`retrouvées ${MASTERED_LEVEL} fois de suite`} />
       </div>
 
+      <div role="group" aria-label="Positions" className="flex flex-col gap-2">
+        <p className="text-xs font-semibold text-slate-300">Positions</p>
+        <div className="flex flex-wrap gap-2">
+          {KINDS.map(({ value, label }) => (
+            <Chip key={value} isOn={kind === value} onClick={() => setKind(kind === value ? null : value)}>
+              {label} <span className="text-slate-400 tabular-nums">({countForKind(value)})</span>
+            </Chip>
+          ))}
+        </div>
+        <p className="text-[11px] text-slate-400">
+          Les sorties : les coups hors théorie qui vous ont coûté au moins {COSTLY_EXIT} points. Les lignes : la
+          position la plus profonde que vos parties partagent dans la théorie ({MIN_RECURRENCE} au moins), où vous avez
+          joué un coup du livre.
+        </p>
+      </div>
+
       <div role="group" aria-label="Couleur" className="flex flex-col gap-2">
         <p className="text-xs font-semibold text-slate-300">Couleur</p>
         <div className="flex flex-wrap gap-2">
-          {COLORS.map(({ value, label }) => {
-            const isOn = color === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={isOn}
-                onClick={() => setColor(isOn ? null : value)}
-                className={`${CHIP} ${
-                  isOn
-                    ? 'bg-indigo-600/30 border-indigo-500 text-white'
-                    : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:bg-slate-800/80'
-                }`}
-              >
-                {label} <span className="text-slate-400 tabular-nums">({countFor(value)})</span>
-              </button>
-            );
-          })}
+          {COLORS.map(({ value, label }) => (
+            <Chip key={value} isOn={color === value} onClick={() => setColor(color === value ? null : value)}>
+              {label} <span className="text-slate-400 tabular-nums">({countForColor(value)})</span>
+            </Chip>
+          ))}
         </div>
         <p className="text-[11px] text-slate-400">
-          Sans choix, les deux couleurs sont prises. Les nombres sont les positions à travailler maintenant.
+          Sans choix, tout est pris. Les nombres sont les positions à travailler maintenant.
         </p>
       </div>
 

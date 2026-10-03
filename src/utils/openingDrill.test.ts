@@ -5,6 +5,7 @@ import { game, mv, PSEUDO } from '../test/profileFixtures';
 import { loadOpeningsFromDisk } from '../test/openings';
 import {
   DRILL_ID_PREFIX,
+  MIN_LINE_PLIES,
   collectDrillPositions,
   drillId,
   drillPositionsOf,
@@ -64,12 +65,20 @@ beforeAll(async () => {
   await ensureOpeningBookLoaded(loadOpeningsFromDisk);
 });
 
-const collect = (sources: ProfileSource[]) => collectDrillPositions(sources, getOpeningPosition);
+const collectAll = (sources: ProfileSource[]) => collectDrillPositions(sources, getOpeningPosition);
+/** The exits only: the games of the fixture also follow the theory for some moves, which makes lines. */
+const collect = async (sources: ProfileSource[]) => (await collectAll(sources)).filter((p) => p.kind === 'exit');
+/** The lines that work only. */
+const collectLines = async (sources: ProfileSource[]) => (await collectAll(sources)).filter((p) => p.kind === 'line');
+
+/** The line of the theory the games below follow: 4.Ba4 Nf6, then 5.O-O. */
+const RUY_BA4 = ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'Ba4', 'Nf6', 'O-O', 'Be7', 'Re1', 'b5'];
 
 describe('collectDrillPositions', () => {
   it('is the position before a costly move that left the theory, with the theory and what was played', async () => {
     const [position] = await collect([played({ date: '2026.03.14' })]);
     expect(position).toEqual({
+      kind: 'exit',
       id: `${DRILL_ID_PREFIX}${normalizeFen(AFTER_A6)}`,
       fen: AFTER_A6,
       color: 'w',
@@ -196,6 +205,139 @@ describe('collectDrillPositions', () => {
   });
 });
 
+describe('the lines that work', () => {
+  const AFTER_BA4_NF6 = 'r1bqkb1r/1ppp1ppp/p1n2n2/4p3/B3P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 2 5';
+  /** Both games follow the theory up to 5.O-O, then Black (the opponent) leaves it. */
+  const shared = (ids = ['a', 'b']) => ids.map((id) => played({ id, sans: RUY_BA4, bookPlies: 9, loss: 0 }));
+
+  it('is the deepest position the games share in the theory, with the move the player played in it', async () => {
+    const [position] = await collectLines(shared());
+    expect(position).toMatchObject({
+      kind: 'line',
+      id: drillId(AFTER_BA4_NF6),
+      fen: AFTER_BA4_NF6,
+      color: 'w',
+      moveNumber: 5,
+      line: RUY_BA4.slice(0, 8),
+      opening: 'Ruy Lopez: Morphy Defense',
+      played: [{ san: 'O-O', games: 2 }],
+      games: 2,
+      loss: 0,
+    });
+    expect(position.bookMoves).toContain('O-O');
+    expect(await collectLines(shared())).toHaveLength(1);
+  });
+
+  it('needs the position to be met in at least two games', async () => {
+    expect(await collectLines(shared(['a']))).toEqual([]);
+    expect(await collectLines(shared(['a', 'b']))).toHaveLength(1);
+  });
+
+  it('keeps for each game the deepest position it shares with another: not the ones on the way to it', async () => {
+    // The second game leaves the theory a move earlier, so the games only share the position before 4.Ba4
+    const positions = await collectLines([
+      played({ id: 'a', sans: RUY_BA4, bookPlies: 9 }),
+      played({ id: 'b', sans: RUY_BA4, bookPlies: 8 }),
+    ]);
+    expect(positions).toHaveLength(1);
+    expect(positions[0]).toMatchObject({
+      moveNumber: 4,
+      line: RUY_BA4.slice(0, 6),
+      played: [{ san: 'Ba4', games: 2 }],
+    });
+  });
+
+  it('is only the moves of the player: a game as Black', async () => {
+    const sans = ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'Ba4', 'Nf6', 'O-O', 'Be7', 'Re1', 'b5'];
+    const games = ['a', 'b'].map((id) => played({ id, sans, bookPlies: 8, color: 'b' }));
+    const [position] = await collectLines(games);
+    expect(position).toMatchObject({
+      color: 'b',
+      moveNumber: 4,
+      line: sans.slice(0, 7),
+      played: [{ san: 'Nf6', games: 2 }],
+    });
+    expect(position.fen.split(' ')[1]).toBe('b');
+  });
+
+  it('puts the moves played from the same position together', async () => {
+    const sans = (move: string) => [...RUY_BA4.slice(0, 8), move, 'Be7', 'Re1', 'b5'];
+    const positions = await collectLines([
+      played({ id: 'a', sans: sans('O-O'), bookPlies: 9 }),
+      played({ id: 'b', sans: sans('O-O'), bookPlies: 9 }),
+      played({ id: 'c', sans: sans('d3'), bookPlies: 9 }),
+    ]);
+    expect(positions).toHaveLength(1);
+    expect(positions[0].games).toBe(3);
+    expect(positions[0].played.map((m) => m.san)).toEqual(['O-O', 'd3']);
+  });
+
+  it('leaves out the first moves, where nearly every move is theory', async () => {
+    expect(
+      await collectLines(shared(['a', 'b']).map(() => played({ sans: RUY_BA4, bookPlies: MIN_LINE_PLIES })))
+    ).toEqual([]);
+  });
+
+  it('leaves out a position that is an exit with a cost: it is an exit', async () => {
+    const [exit] = await collect([played({ id: 'a', loss: 12 })]);
+    const positions = await collectAll([
+      played({ id: 'a', loss: 12 }),
+      played({ id: 'b', sans: RUY_BA4, bookPlies: 8 }),
+      played({ id: 'c', sans: RUY_BA4, bookPlies: 8 }),
+    ]);
+    expect(positions.filter((p) => p.id === exit.id).map((p) => p.kind)).toEqual(['exit']);
+  });
+
+  it('leaves out the games whose exit is replayed: the line that leads to it is replayed with it', async () => {
+    // Both games share the position before 3.Bb5, but they leave the theory a few moves later, at a cost
+    expect(await collectLines([played({ id: 'a' }), played({ id: 'b' })])).toEqual([]);
+    // Cheap exits are not replayed: their games give a line
+    expect(await collectLines([played({ id: 'a', loss: 2 }), played({ id: 'b', loss: 2 })])).toHaveLength(1);
+  });
+
+  it('is a line again when the exits from it are cheap', async () => {
+    const positions = await collectAll([
+      played({ id: 'a', loss: 2 }),
+      played({ id: 'b', sans: RUY_BA4, bookPlies: 8 }),
+      played({ id: 'c', sans: RUY_BA4, bookPlies: 8 }),
+    ]);
+    expect(positions.filter((p) => p.fen === AFTER_A6).map((p) => p.kind)).toEqual(['line']);
+  });
+
+  it('leaves out a move the database does not know today: the game was analysed with another database', async () => {
+    // 4.a3 is marked theory in the games, but is not in the database
+    expect(await collectLines(['a', 'b'].map((id) => played({ id, sans: RUY_A3, bookPlies: 9 })))).toEqual([]);
+  });
+
+  it('leaves out a position from which the database knows nothing to play, and the games that are too short', async () => {
+    const strange = ['a3', 'a6', 'b3', 'b6', 'c3', 'c6', 'd3', 'd6', 'e3', 'e6', 'f3', 'f6'];
+    expect(await collectLines(['a', 'b'].map((id) => played({ id, sans: strange, bookPlies: 9 })))).toEqual([]);
+    expect(await collectLines(['a', 'b'].map((id) => played({ id, sans: RUY_BA4.slice(0, 8), bookPlies: 8 })))).toEqual(
+      []
+    );
+  });
+
+  it('puts the exits first, the costliest of them first, then the lines the player met most often', async () => {
+    const italian = ['e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Bc5', 'c3', 'Nf6', 'd3', 'd6', 'O-O', 'a6'];
+    const positions = await collectAll([
+      ...shared(['a', 'b', 'c']),
+      ...['d', 'e'].map((id) => played({ id, sans: italian, bookPlies: 9, name: 'Italian Game', eco: 'C50' })),
+      played({ id: 'f', sans: RUY_A3, loss: 15 }),
+    ]);
+    expect(positions.map((p) => [p.kind, p.games])).toEqual([
+      ['exit', 1],
+      ['line', 3],
+      ['line', 2],
+    ]);
+  });
+
+  it('is judged by the theory: any move of it is right, the one that was played too', async () => {
+    const [position] = await collectLines(shared());
+    expect(judgeDrillMove(position, 'O-O')).toEqual({ kind: 'book' });
+    expect(judgeDrillMove(position, 'h3')).toEqual({ kind: 'off' });
+  });
+});
+
 describe('judgeDrillMove', () => {
   let position: DrillPosition;
   beforeAll(async () => {
@@ -240,5 +382,17 @@ describe('drillPositionsOf', () => {
     expect(drillPositionsOf(positions, 'w').map((p) => p.color)).toEqual(['w']);
     expect(drillPositionsOf(positions, 'b').map((p) => p.color)).toEqual(['b']);
     expect(drillPositionsOf(positions, null)).toHaveLength(2);
+  });
+
+  it('keeps the positions of one kind, or all of them', async () => {
+    const positions = await collectAll([
+      played({ id: 'a', loss: 12 }),
+      played({ id: 'b', sans: RUY_BA4, bookPlies: 9 }),
+      played({ id: 'c', sans: RUY_BA4, bookPlies: 9 }),
+    ]);
+    expect(drillPositionsOf(positions, null, 'exit').map((p) => p.kind)).toEqual(['exit']);
+    expect(drillPositionsOf(positions, null, 'line').every((p) => p.kind === 'line')).toBe(true);
+    expect(drillPositionsOf(positions, 'w', null)).toHaveLength(positions.length);
+    expect(drillPositionsOf(positions, 'b', 'line')).toEqual([]);
   });
 });

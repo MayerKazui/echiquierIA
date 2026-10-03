@@ -16,6 +16,8 @@ vi.mock('../../utils/chessAudio', () => ({ chessAudio: { playForMove: vi.fn() } 
 
 /** After 3…a6 of the Ruy Lopez, White plays 4.a3, which the openings database does not know (4.Ba4, 4.Bxc6 it does). */
 const RUY_A3 = ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'a3', 'Nf6', 'O-O', 'Be7', 'Re1', 'b5'];
+/** The theory followed up to 5.O-O: games that stay in it that long make a line that works. */
+const RUY_BA4 = ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'Ba4', 'Nf6', 'O-O', 'Be7', 'Re1', 'b5'];
 const AFTER_A6 = 'r1bqkbnr/1ppp1ppp/p1n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4';
 /** Black’s 3…h6 instead of the theory (3…a6, 3…Nf6…). */
 const RUY_H6 = ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'h6', 'O-O', 'Nf6', 'd3', 'd6', 'Nc3', 'Be7'];
@@ -78,12 +80,12 @@ beforeEach(() => {
 });
 
 describe('OpeningDrill', () => {
-  it('says it is looking for the exits from the theory while the games are read', async () => {
+  it('says it is looking for the positions to replay while the games are read', async () => {
     await store('a');
     renderDrill();
-    expect(screen.getByRole('status').textContent).toBe('Recherche de vos sorties de théorie…');
+    expect(screen.getByRole('status').textContent).toBe('Recherche de vos positions à rejouer…');
     await screen.findByRole('button', { name: /Commencer/ });
-    expect(screen.queryByText('Recherche de vos sorties de théorie…')).toBeNull();
+    expect(screen.queryByText('Recherche de vos positions à rejouer…')).toBeNull();
   });
 
   describe('with nothing to replay', () => {
@@ -97,7 +99,7 @@ describe('OpeningDrill', () => {
     it('explains it when games are stored but none left the theory at a cost', async () => {
       await store('a', { loss: 3 });
       renderDrill();
-      expect(await screen.findByText('Aucune sortie de théorie à rejouer')).toBeTruthy();
+      expect(await screen.findByText('Aucune position à rejouer')).toBeTruthy();
       expect(screen.getByText(/Dans vos 1 partie enregistrée, il n'y en a aucune pour l'instant/)).toBeTruthy();
     });
 
@@ -105,7 +107,7 @@ describe('OpeningDrill', () => {
       // 4.Ba4 is theory: the game was analysed before the database was complete
       await store('a', { sans: [...RUY_A3.slice(0, 6), 'Ba4', 'Nf6', 'O-O', 'Be7', 'Re1', 'b5'], loss: 20 });
       renderDrill();
-      expect(await screen.findByText('Aucune sortie de théorie à rejouer')).toBeTruthy();
+      expect(await screen.findByText('Aucune position à rejouer')).toBeTruthy();
     });
   });
 
@@ -179,6 +181,102 @@ describe('OpeningDrill', () => {
     });
   });
 
+  describe('the lines that work', () => {
+    /** Two games that follow the theory up to 5.O-O, where the opponent leaves it. */
+    const storeLine = async () => {
+      await store('x', { sans: RUY_BA4, bookPlies: 9 });
+      await store('y', { sans: RUY_BA4, bookPlies: 9 });
+    };
+
+    it('counts them apart from the exits, and lets the player choose', async () => {
+      const user = userEvent.setup();
+      await storeLine();
+      await store('a');
+      renderDrill();
+      await screen.findByRole('button', { name: /Commencer/ });
+      expect(screen.getByRole('button', { name: /Mes sorties de théorie \(1\)/ })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Mes lignes qui marchent \(1\)/ })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Commencer (2 positions)' })).toBeTruthy();
+
+      await user.click(screen.getByRole('button', { name: /Mes lignes qui marchent/ }));
+      expect(screen.getByRole('button', { name: /Mes lignes qui marchent/ }).getAttribute('aria-pressed')).toBe('true');
+      expect(screen.getByRole('button', { name: 'Commencer (1 position)' })).toBeTruthy();
+      // The count of a colour follows the kind chosen
+      expect(screen.getByRole('button', { name: /Avec les Blancs \(1\)/ })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Avec les Noirs \(0\)/ })).toBeTruthy();
+
+      await user.click(screen.getByRole('button', { name: /Mes lignes qui marchent/ }));
+      await user.click(screen.getByRole('button', { name: /Mes sorties de théorie/ }));
+      expect(screen.getByRole('button', { name: 'Commencer (1 position)' })).toBeTruthy();
+    });
+
+    it('starts the session with the exits, which cost something, then the lines', async () => {
+      const user = userEvent.setup();
+      await storeLine();
+      await store('a');
+      renderDrill();
+      await user.click(await screen.findByRole('button', { name: /Commencer/ }));
+      expect(screen.getByText(/Sortie de théorie/)).toBeTruthy();
+      await user.click(screen.getByRole('button', { name: 'Voir la solution' }));
+      await user.click(screen.getByRole('button', { name: 'Position suivante' }));
+      expect(screen.getByText(/Ligne qui marche/)).toBeTruthy();
+    });
+
+    it('does not say what was played before the answer, which is the answer', async () => {
+      const user = userEvent.setup();
+      await storeLine();
+      renderDrill();
+      await user.click(await screen.findByRole('button', { name: /Commencer/ }));
+      expect(screen.getByText(/Position 1 sur 1/).textContent).toMatch(/coup 5/);
+      const text = () => screen.getByText(/Ligne qui marche/).textContent;
+      expect(text()).toBe('Ligne qui marche : vous suivez la théorie ici dans 2 de vos parties.');
+      await user.click(cell('e1'));
+      await user.click(cell('g1'));
+      expect(await screen.findByText(/Réussi\./)).toBeTruthy();
+      expect(text()).toBe(
+        'Ligne qui marche : vous suivez la théorie ici dans 2 de vos parties : vous avez joué 5.O-O (2 fois).'
+      );
+    });
+
+    it('accepts the move played in the game, and brings the position back tomorrow', async () => {
+      const user = userEvent.setup();
+      await storeLine();
+      renderDrill();
+      await user.click(await screen.findByRole('button', { name: /Commencer/ }));
+      await user.click(cell('e1'));
+      await user.click(cell('g1'));
+      expect(await screen.findByText('Réussi.')).toBeTruthy();
+      expect(screen.getByText(/O-O est un coup de la théorie\./)).toBeTruthy();
+      const cards = await waitForCards(1);
+      const [card] = [...cards.values()];
+      expect(card.id).toBe(drillId('r1bqkb1r/1ppp1ppp/p1n2n2/4p3/B3P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 2 5'));
+      expect(card.level).toBe(1);
+    });
+
+    it('refuses a move the database does not know there, and counts a failure', async () => {
+      const user = userEvent.setup();
+      await storeLine();
+      renderDrill();
+      await user.click(await screen.findByRole('button', { name: /Commencer/ }));
+      await user.click(cell('h2'));
+      await user.click(cell('h3'));
+      expect(await screen.findByText(/La base des ouvertures ne connaît pas h3 ici/)).toBeTruthy();
+      expect(screen.getByText('Raté.')).toBeTruthy();
+      const [card] = [...(await waitForCards(1)).values()];
+      expect(card.level).toBe(0);
+    });
+
+    it('says in the summary what the player plays', async () => {
+      const user = userEvent.setup();
+      await storeLine();
+      renderDrill();
+      await user.click(await screen.findByRole('button', { name: /Commencer/ }));
+      await user.click(screen.getByRole('button', { name: 'Voir la solution' }));
+      await user.click(screen.getByRole('button', { name: 'Terminer la séance' }));
+      expect(screen.getByText(/\(vous jouez O-O\)/)).toBeTruthy();
+    });
+  });
+
   describe('a position', () => {
     it('shows the line, the opening and what happened in the games', async () => {
       await begin();
@@ -187,7 +285,7 @@ describe('OpeningDrill', () => {
       expect(screen.getByText('1. e4 e5 2. Cf3 Cc6 3. Fb5 a6')).toBeTruthy();
       expect(
         screen.getByText(
-          /Dans une de vos parties, vous avez quitté la théorie ici : 4\.a3, ce qui a coûté en moyenne 12 points de chances de gain/
+          /Sortie de théorie : dans une de vos parties, vous avez quitté la théorie ici : 4\.a3, ce qui a coûté en moyenne 12 points de chances de gain/
         )
       ).toBeTruthy();
       expect(cell('b5')).toBeTruthy();

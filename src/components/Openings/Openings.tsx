@@ -47,7 +47,7 @@ export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardThem
             <h2 className="text-base font-bold text-slate-100">Ouvertures</h2>
             <p className="text-xs text-slate-400 mt-0.5">
               Parcourez l&apos;arbre des ouvertures coup par coup, voyez celles que vous jouez vraiment et révisez vos
-              sorties de théorie.
+              lignes et vos sorties de théorie.
             </p>
           </div>
         </div>

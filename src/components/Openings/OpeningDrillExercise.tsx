@@ -109,6 +109,14 @@ export const OpeningDrillExercise: React.FC<OpeningDrillExerciseProps> = ({
     .slice(0, SHOWN_BOOK_MOVES)
     .map((san) => toFrenchSan(san))
     .join(', ');
+  const played = position.played
+    .map(
+      ({ san, games }) =>
+        `${numberedFrenchMove(position.moveNumber, position.color === 'w', san)}${
+          position.played.length > 1 || games > 1 ? ` (${times(games)})` : ''
+        }`
+    )
+    .join(', ');
   const hiddenBookMoves = Math.max(0, position.bookMoves.length - SHOWN_BOOK_MOVES);
 
   return (
@@ -153,20 +161,21 @@ export const OpeningDrillExercise: React.FC<OpeningDrillExerciseProps> = ({
             </p>
           )}
           <p className="text-xs text-slate-400 mt-1">
-            {position.games > 1
-              ? `Dans ${position.games} de vos parties, vous avez quitté la théorie ici`
-              : 'Dans une de vos parties, vous avez quitté la théorie ici'}
-            {' : '}
-            {position.played
-              .map(
-                ({ san, games }) =>
-                  `${numberedFrenchMove(position.moveNumber, position.color === 'w', san)}${
-                    position.played.length > 1 || games > 1 ? ` (${times(games)})` : ''
-                  }`
-              )
-              .join(', ')}
-            , ce qui a coûté en moyenne {decimal.format(position.loss)} points de chances de gain
-            {position.date > 0 && ` (dernière fois le ${formatPlayedDate(position.date)})`}.
+            {position.kind === 'line' ? (
+              // What the player played is theory: it is the answer, shown once the player has answered
+              <>
+                Ligne qui marche : vous suivez la théorie ici dans {position.games} de vos parties
+                {verdict ? ` : vous avez joué ${played}` : ''}.
+              </>
+            ) : (
+              <>
+                {position.games > 1
+                  ? `Sortie de théorie : dans ${position.games} de vos parties, vous avez quitté la théorie ici : `
+                  : 'Sortie de théorie : dans une de vos parties, vous avez quitté la théorie ici : '}
+                {played}, ce qui a coûté en moyenne {decimal.format(position.loss)} points de chances de gain
+                {position.date > 0 && ` (dernière fois le ${formatPlayedDate(position.date)})`}.
+              </>
+            )}
           </p>
         </div>
 

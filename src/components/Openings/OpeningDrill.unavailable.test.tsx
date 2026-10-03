@@ -44,7 +44,7 @@ describe('OpeningDrill without the openings database', () => {
     const user = userEvent.setup();
 
     render(<OpeningDrill onImport={vi.fn()} onShowLine={vi.fn()} />);
-    expect(screen.getByRole('status').textContent).toBe('Recherche de vos sorties de théorie…');
+    expect(screen.getByRole('status').textContent).toBe('Recherche de vos positions à rejouer…');
     await screen.findByText('Les ouvertures ne sont pas disponibles');
 
     await user.click(screen.getByRole('button', { name: 'Réessayer' }));

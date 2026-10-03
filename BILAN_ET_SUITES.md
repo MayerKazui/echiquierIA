@@ -27,7 +27,7 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 - **S'entraîner** : rejouer ses propres erreurs avec correction par le moteur, en répétition espacée (1, 3 puis 7 jours), filtres par type d'erreur et par phase ; une même position ratée dans plusieurs parties n'est proposée qu'une fois ; « Voir dans la partie » ouvre la partie au coup de l'erreur.
 - **Résumé de la partie** : trois lignes en tête du bilan (moment décisif avec son type de faute, précision comparée à sa moyenne sur les autres parties, fautes et phase la plus fragile).
 - **Mon plan** : trois objectifs au plus, avec progression sur 7 jours et le bouton qui lance chacun, plus les puzzles du thème correspondant.
-- **Ouvertures** : explorateur en arbre avec ses résultats par coup ; « Mes ouvertures » (répertoire réel, score, précision de ses coups hors théorie comparée à sa moyenne, ouverture la plus solide et la plus fragile, coup de sortie qui coûte cher) ; « S'entraîner » : les positions où l'on a quitté la théorie en perdant au moins 8 points de chances de gain, rejouées en répétition espacée (1, 3 puis 7 jours, comme dans « S'entraîner » sur ses erreurs) ; est juste tout coup que la base d'ouvertures connaît à cet endroit (ou qui mène à une de ses positions) ; filtre par couleur, « Voir dans l'explorateur » après chaque réponse.
+- **Ouvertures** : explorateur en arbre avec ses résultats par coup ; « Mes ouvertures » (répertoire réel, score, précision de ses 10 coups qui suivent la sortie du livre comparée à sa moyenne calculée de la même façon, ouverture la plus solide et la plus fragile, coup de sortie qui coûte cher) ; « S'entraîner » : les positions où l'on a quitté la théorie en perdant au moins 8 points de chances de gain, et les lignes qui marchent (la position la plus profonde que 2 parties au moins partagent dans la théorie), rejouées en répétition espacée (1, 3 puis 7 jours, comme dans « S'entraîner » sur ses erreurs) ; est juste tout coup que la base d'ouvertures connaît à cet endroit (ou qui mène à une de ses positions) ; filtres par type de position et par couleur, « Voir dans l'explorateur » après chaque réponse ; « Mon plan » renvoie vers cet entraînement depuis l'objectif sur la sortie de théorie.
 - **Puzzles** : 200 000 puzzles Lichess embarqués (73 thèmes en français, tranche d'Elo, chronomètre sans pénalité), puzzles ratés en répétition espacée, statistiques sur 7 jours, 30 jours ou tout.
 - **Woodpecker** : lot figé de 20 à 500 puzzles, cycles chronométrés avec pause, temps comparé au cycle précédent, reprise d'un ancien lot.
 - **Études** (privées, à la manière de Lichess) : chapitres, variantes, commentaires, glyphes, flèches et cercles, import et export PGN, chapitre verrouillable contre l'ordinateur, réordonnancement.
@@ -63,9 +63,9 @@ Faites sur de vrais appareils (2026-10-03), sans défaut constaté : lecteur d'�
 
 ### Ouvertures
 
-- [ ] « S'entraîner » (ouvertures) ne rejoue que les sorties de théorie qui coûtent cher (8 points ou plus en moyenne). Pas encore : rejouer aussi les lignes qui marchent, pour ne pas les oublier.
-- [ ] Pas de lien depuis « Mon plan » vers cet entraînement (l'objectif « Préparez votre sortie de théorie » ne propose que l'explorateur).
-- [ ] La précision par ouverture se calcule sur tous les coups hors théorie de la partie, pas seulement sur ceux qui suivent la sortie du livre : à affiner si elle paraît trop liée au milieu de jeu.
+- [ ] La précision par ouverture compte les 10 coups du joueur qui suivent la sortie du livre (`ACCURACY_PLIES`, 20 demi-coups) : valeur choisie sans calage sur de vraies parties, à revoir si elle paraît trop courte ou trop longue.
+- [ ] Une ligne qui marche n'est rejouée qu'à son point le plus profond partagé par 2 parties : les coups d'avant ne sont pas interrogés. Une partie dont la sortie coûteuse est déjà rejouée ne donne pas de ligne (celle qui y mène est rejouée avec la sortie).
+- [ ] L'objectif « Préparez votre sortie de théorie » de « Mon plan » ouvre l'entraînement mais n'a pas de barre de progression de la semaine, comme les objectifs sur les erreurs : il faudrait charger la base d'ouvertures dans le plan.
 
 ### Question ouverte
 
@@ -73,7 +73,7 @@ Faites sur de vrais appareils (2026-10-03), sans défaut constaté : lecteur d'�
 
 ## 3. Idées d'évolution et d'amélioration
 
-Ce sont des suggestions, pas des décisions. « Précision par ouverture » et « Entraînement au répertoire d'ouvertures » ont été faites : elles sont décrites dans « Ce qui est fait » (Ouvertures), et ce qui reste dans « Ouvertures » de la section 2.
+Ce sont des suggestions, pas des décisions. « Précision par ouverture » et « Entraînement au répertoire d'ouvertures » ont été faites, avec leurs limites (précision limitée aux coups qui suivent la sortie du livre, lignes qui marchent, lien depuis « Mon plan ») : elles sont décrites dans « Ce qui est fait » (Ouvertures), et ce qui reste dans « Ouvertures » de la section 2.
 
 | #   | Idée                       | Intérêt                                                                                                                                                  |
 | --- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
