@@ -3,6 +3,7 @@ import { bucket, calmProfile } from '../test/profileFixtures';
 import type { Family, RecurringExit, Repertoire } from './openingRepertoire';
 import { DAY_MS, SESSION_SIZE, type Card, type Pickable } from './spacedRepetition';
 import { MAX_ITEMS, MIN_PLAN_GAMES, buildPlan, type PlanAction } from './trainingPlan';
+import { PLAN_PUZZLE_TARGET } from './puzzleHistory';
 import type { Profile } from './weaknessProfile';
 
 const NOW = 100 * DAY_MS;
@@ -146,7 +147,32 @@ describe('buildPlan', () => {
         title: 'Faites des puzzles : pièce laissée en prise',
         why: '50 % de vos erreurs (10 sur 20) sont de ce type.',
         action: { kind: 'puzzles', themes: ['hangingPiece'] },
+        puzzleGoal: { done: 0, target: PLAN_PUZZLE_TARGET },
       });
+    });
+
+    it('counts the puzzles of the theme played this week, up to the target', () => {
+      const attempt = (ago: number, themes: string[], id: string) => ({
+        at: NOW - ago,
+        id,
+        ok: true,
+        rating: 1000,
+        themes,
+      });
+      const log = [
+        attempt(DAY_MS, ['hangingPiece', 'short'], 'a'),
+        attempt(2 * DAY_MS, ['hangingPiece'], 'b'),
+        attempt(3 * DAY_MS, ['fork'], 'c'), // another theme
+        attempt(9 * DAY_MS, ['hangingPiece'], 'd'), // too long ago
+      ];
+      const [item] = plan({
+        profile: hangingProfile(),
+        positions: positions(6, { kind: 'hanging' }),
+        puzzleLog: log,
+      }).items;
+      expect(item.puzzleGoal).toEqual({ done: 2, target: PLAN_PUZZLE_TARGET });
+      const many = Array.from({ length: 15 }, (_, i) => attempt(i * 1000, ['hangingPiece'], `m${i}`));
+      expect(plan({ profile: hangingProfile(), puzzleLog: many }).items[0].puzzleGoal?.done).toBe(PLAN_PUZZLE_TARGET);
     });
 
     it('goes to the puzzles too when everything is mastered or waits for later and nothing was replayed this week', () => {

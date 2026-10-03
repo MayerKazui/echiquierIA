@@ -645,6 +645,11 @@ export default function App() {
                 // Without a game on screen the start screen already shows the import form
                 if (analysis) setIsPgnModalOpen(true);
               }}
+              onPuzzles={(themes) => {
+                setIsProfileOpen(false);
+                setPuzzleStart({ themes });
+                setIsPuzzlesOpen(true);
+              }}
             />
           </Suspense>
         </Modal>

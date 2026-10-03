@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveGame } from '../../services/gameStore';
+import { savePuzzleAttempt } from '../../services/puzzleHistoryStore';
 import { blunder, game, mv } from '../../test/profileFixtures';
 import { WeaknessProfile } from './WeaknessProfile';
 
@@ -196,5 +197,44 @@ describe('WeaknessProfile', () => {
       await screen.findByText('Parties comptées');
       expect(screen.getByRole('button', { name: 'Toutes', pressed: true })).toBeTruthy();
     });
+  });
+});
+
+describe('WeaknessProfile: the puzzles', () => {
+  const play = async (id: string, themes: string[], ok: boolean, ago = 1000) => {
+    const at = Date.now() - ago;
+    await savePuzzleAttempt({ id, plays: 1, wins: ok ? 1 : 0, lastAt: at }, { at, id, ok, rating: 1100, themes });
+  };
+
+  it('says nothing of puzzles when none was played', async () => {
+    await store(6);
+    renderProfile();
+    await screen.findByText('Parties comptées');
+    expect(screen.queryByRole('region', { name: 'Vos puzzles' })).toBeNull();
+  });
+
+  it('tells how the puzzles go, and offers the theme that is failed most', async () => {
+    await store(6);
+    for (let i = 0; i < 6; i++) await play(`f${i}`, ['fork'], i < 2, i + 1);
+    for (let i = 0; i < 6; i++) await play(`p${i}`, ['pin'], i < 5, i + 10);
+    const user = userEvent.setup();
+    const onPuzzles = vi.fn();
+    renderProfile({ onPuzzles });
+    const section = within(await screen.findByRole('region', { name: 'Vos puzzles' }));
+    expect(section.getByText(/12 puzzles joués, 58 % réussis du premier coup/)).toBeTruthy();
+    expect(section.getByText(/Le thème le plus fragile : Fourchette, 33 % sur 6 puzzles/)).toBeTruthy();
+    await user.click(section.getByRole('button', { name: 'Puzzles : Fourchette' }));
+    expect(onPuzzles).toHaveBeenCalledWith(['fork']);
+  });
+
+  it('does not name a theme before it was played enough, and ignores old puzzles', async () => {
+    await store(6);
+    await play('a', ['fork'], false);
+    for (let i = 0; i < 6; i++) await play(`old${i}`, ['pin'], false, 40 * 24 * 3600_000);
+    renderProfile({ onPuzzles: vi.fn() });
+    const section = within(await screen.findByRole('region', { name: 'Vos puzzles' }));
+    expect(section.getByText(/1 puzzle joué, 0 % réussis/)).toBeTruthy();
+    expect(section.getByText(/Aucun thème n’a encore 5 puzzles joués/)).toBeTruthy();
+    expect(section.queryByRole('button')).toBeNull();
   });
 });

@@ -2,17 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { Puzzle as PuzzleIcon, X } from 'lucide-react';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { usePlayerElo } from '../../hooks/usePlayerElo';
+import { usePuzzleHistory } from '../../hooks/usePuzzleHistory';
 import { usePuzzleReview } from '../../hooks/usePuzzleReview';
 import { useWoodpecker } from '../../hooks/useWoodpecker';
 import { loadPuzzleIndex, loadPuzzles } from '../../services/puzzleBook';
 import type { BoardTheme } from '../../types/ui';
 import type { Puzzle, PuzzleIndex } from '../../utils/puzzleData';
+import { EMPTY_HISTORY, orderForPlay } from '../../utils/puzzleHistory';
 import { pickReview, type PuzzleEntry } from '../../utils/puzzleReview';
 import {
   DEFAULT_RANGE,
   TIMER_OPTIONS,
   normalizeRange,
-  shuffle,
   suggestRange,
   toFilter,
   type EloRange,
@@ -20,6 +21,7 @@ import {
 import { beginCycle, createSet, drawLot } from '../../utils/woodpecker';
 import { PuzzleRun, type RunReport } from './PuzzleRun';
 import { PuzzleSetup, type PuzzleChoice } from './PuzzleSetup';
+import { PuzzleStats } from './PuzzleStats';
 import { PuzzleSummary } from './PuzzleSummary';
 import { WoodpeckerHome } from './WoodpeckerHome';
 import { WoodpeckerRun } from './WoodpeckerRun';
@@ -46,10 +48,11 @@ type Screen =
   | { kind: 'woodpecker-run' }
   | { kind: 'woodpecker-summary'; cycleNumber: number };
 
-type Mode = 'free' | 'woodpecker';
+type Mode = 'free' | 'woodpecker' | 'stats';
 const MODES: ReadonlyArray<{ id: Mode; label: string }> = [
   { id: 'free', label: 'Séance libre' },
   { id: 'woodpecker', label: 'Woodpecker' },
+  { id: 'stats', label: 'Statistiques' },
 ];
 
 const NO_ENTRIES: ReadonlyMap<string, PuzzleEntry> = new Map();
@@ -67,7 +70,7 @@ export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme, start: in
   // Held in memory, not stored: the choices of the player are not overwritten until they make one
   const [preset, setPreset] = useState<PuzzleStart | undefined>(initialStart);
   const [storedMode, setStoredMode] = usePersistentState<Mode>('puzzle_mode', 'free', (raw) =>
-    raw === 'free' || raw === 'woodpecker' ? raw : undefined
+    raw === 'free' || raw === 'woodpecker' || raw === 'stats' ? raw : undefined
   );
   const [from, setFrom] = usePersistentState<number>('puzzle_from', DEFAULT_RANGE.from, toNumber);
   const [to, setTo] = usePersistentState<number>('puzzle_to', DEFAULT_RANGE.to, toNumber);
@@ -108,6 +111,8 @@ export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme, start: in
   // Fixed while a screen is shown: the figures must not change under the player's eyes
   const [now, setNow] = useState(() => Date.now());
   const { data, record } = usePuzzleReview();
+  const history = usePuzzleHistory();
+  const played = history.data.status === 'ready' ? history.data.history : EMPTY_HISTORY;
   const woodpecker = useWoodpecker();
   const [isDrawing, setIsDrawing] = useState(false);
   const woodpeckerSet = woodpecker.data.status === 'ready' ? woodpecker.data.set : null;
@@ -141,7 +146,7 @@ export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme, start: in
         });
         return;
       }
-      setScreen({ kind: 'run', puzzles: shuffle(pool), minutes: choice.minutes, isReview: false });
+      setScreen({ kind: 'run', puzzles: orderForPlay(pool, played.seen), minutes: choice.minutes, isReview: false });
     } catch {
       setScreen({
         kind: 'error',
@@ -279,6 +284,10 @@ export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme, start: in
           />
         )}
 
+        {screen.kind === 'setup' && index && mode === 'stats' && (
+          <PuzzleStats history={played} now={now} onPractice={(theme) => setPreset({ themes: [theme] })} />
+        )}
+
         {screen.kind === 'setup' && index && mode === 'free' && (
           <PuzzleSetup
             index={index}
@@ -287,6 +296,7 @@ export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme, start: in
             elo={elo}
             entries={entries}
             now={now}
+            playedCount={played.seen.size}
             onStart={start}
             onReview={review}
           />
@@ -315,8 +325,22 @@ export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme, start: in
             minutes={screen.minutes}
             isReview={screen.isReview}
             boardTheme={boardTheme}
-            onResult={record}
-            onFinish={(report) => setScreen({ kind: 'summary', report, isReview: screen.isReview })}
+            onResult={(puzzle, isSuccess) => {
+              record(puzzle, isSuccess);
+              history.record(puzzle, isSuccess);
+            }}
+            onFinish={(report) => {
+              if (report.results.length > 0) {
+                history.recordSession({
+                  mode: screen.isReview ? 'review' : 'free',
+                  solved: report.results.filter((r) => r.isSuccess).length,
+                  total: report.results.length,
+                  elapsedMs: report.elapsedMs,
+                  minutes: screen.minutes,
+                });
+              }
+              setScreen({ kind: 'summary', report, isReview: screen.isReview });
+            }}
           />
         )}
 
@@ -324,6 +348,7 @@ export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme, start: in
           <WoodpeckerRun
             set={{ ...woodpeckerSet, progress: woodpeckerSet.progress }}
             boardTheme={boardTheme}
+            onAttempt={history.record}
             onChange={woodpecker.update}
             onFinish={(cycleNumber) => setScreen({ kind: 'woodpecker-summary', cycleNumber })}
             onLeave={backToSetup}

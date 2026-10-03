@@ -13,6 +13,7 @@ import {
   type TrainingFilter,
 } from './spacedRepetition';
 import { FAULT_PUZZLE_THEMES, PHASE_PUZZLE_THEMES, themeLabel } from './puzzleThemes';
+import { PLAN_PUZZLE_TARGET, weeklyAttempts, type PuzzleAttempt } from './puzzleHistory';
 import { MIN_BUCKET_MOVES, dominantFaultKind, weakestPhase, type Profile } from './weaknessProfile';
 
 /**
@@ -43,6 +44,8 @@ export interface PlanItem {
   puzzles?: string[];
   /** Progress over the last 7 days (positions replayed out of those to replay). */
   goal?: { done: number; target: number };
+  /** Progress over the last 7 days of the puzzles on the theme (puzzles played out of the target). */
+  puzzleGoal?: { done: number; target: number };
 }
 
 export interface Plan {
@@ -56,6 +59,8 @@ export interface PlanInput {
   repertoire: Repertoire;
   positions: readonly Pickable[];
   cards: ReadonlyMap<string, Card>;
+  /** The puzzles played lately (for the progress of the objectives that offer puzzles). */
+  puzzleLog?: readonly PuzzleAttempt[];
   now: number;
 }
 
@@ -85,7 +90,7 @@ function trainingItem(
   why: string,
   filter: TrainingFilter,
   themes: readonly string[],
-  { positions, cards, now }: Pick<PlanInput, 'positions' | 'cards' | 'now'>
+  { positions, cards, now, puzzleLog = [] }: Pick<PlanInput, 'positions' | 'cards' | 'now' | 'puzzleLog'>
 ): PlanItem | null {
   const { due, fresh } = summarize(positions, cards, now, filter);
   const replayed = positions.filter(
@@ -97,13 +102,19 @@ function trainingItem(
       ? null
       : { id, title, why, action: { kind: 'train', filter }, goal: { done: Math.min(replayed, target), target } };
   }
-  if (target === 0) return { id, title: puzzleTitle, why, action: { kind: 'puzzles', themes: [...themes] } };
+  const puzzleGoal = {
+    done: Math.min(weeklyAttempts(puzzleLog, themes, now), PLAN_PUZZLE_TARGET),
+    target: PLAN_PUZZLE_TARGET,
+  };
+  if (target === 0)
+    return { id, title: puzzleTitle, why, action: { kind: 'puzzles', themes: [...themes] }, puzzleGoal };
   return {
     id,
     title,
     why,
     action: { kind: 'train', filter },
     puzzles: [...themes],
+    puzzleGoal,
     goal: { done: Math.min(replayed, target), target },
   };
 }

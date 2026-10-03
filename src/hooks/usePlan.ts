@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listGames } from '../services/gameStore';
+import { loadPuzzleHistory } from '../services/puzzleHistoryStore';
 import { loadCards } from '../services/trainingStore';
 import { buildRepertoire } from '../utils/openingRepertoire';
 import { buildPlan, type Plan } from '../utils/trainingPlan';
@@ -26,7 +27,7 @@ export function usePlan(now: () => number = Date.now): PlanState {
     let isCancelled = false;
     void (async () => {
       try {
-        const [games, cards] = await Promise.all([listGames(), loadCards()]);
+        const [games, cards, puzzles] = await Promise.all([listGames(), loadCards(), loadPuzzleHistory()]);
         if (games.length === 0) {
           if (!isCancelled) setState({ status: 'empty' });
           return;
@@ -38,7 +39,10 @@ export function usePlan(now: () => number = Date.now): PlanState {
           collectPositions(games, options),
         ]);
         if (isCancelled) return;
-        setState({ status: 'ready', plan: buildPlan({ profile, repertoire, positions, cards, now: now() }) });
+        setState({
+          status: 'ready',
+          plan: buildPlan({ profile, repertoire, positions, cards, puzzleLog: puzzles.log, now: now() }),
+        });
       } catch {
         // cancelled
       }

@@ -546,7 +546,7 @@ Menu d'en-tête « Puzzles » (`src/components/Puzzles/`), au niveau et sur les 
 - Vérifié dans Chromium (bureau et mobile) sur la version de production : réglages, séance, solution, bilan, aucune erreur de console ; les fichiers de puzzles sont servis compressés (872 Ko pour la tranche 1000).
 - Tests : 23 pour l'écran (réglages, séance, mat alternatif, rater et réessayer, chrono, puzzles ratés), 23 pour les thèmes, la répétition et le stockage, 12 pour la tranche d'Elo et la durée, 5 pour l'Elo du joueur, 10 pour la sauvegarde et Drive.
 - **Limites** :
-  - Le tirage est au hasard : un puzzle déjà joué peut revenir (l'historique des puzzles vus, prévu dans un second temps, l'évitera).
+  - (Résolu depuis par l'historique des puzzles : voir « Suite : l'historique des puzzles ».)
   - Le nombre de puzzles d'une combinaison de thèmes n'est connu qu'au lancement (l'index compte par thème) : un choix vide est signalé quand l'index le sait, sinon au chargement.
   - Pas de lien depuis « Mon plan » (voir la suite).
 
@@ -580,6 +580,24 @@ Les objectifs de « Mon plan » qui portent sur un type d'erreur ou sur une phas
 - Vérifié dans Chromium sur la version de production avec six parties factices (pièce en prise à chaque partie) : le plan propose « Commencer » et « Puzzles : Pièce en prise », la fenêtre s'ouvre sur ce thème avec la tranche 1200 à 1800 (Elo 1432), rien n'est écrit dans `puzzle_themes`, et les puzzles tirés portent bien le thème « Pièce en prise ».
 - Tests : 7 pour le calcul du plan, 3 pour l'écran du plan, 4 pour l'ouverture de la fenêtre Puzzles.
 - **Limites** : pas de progression chiffrée sur les puzzles (elle viendra avec l'historique des puzzles) ; un seul préréglage par ouverture (le lien depuis « Mon profil » reste à faire).
+
+### Suite : l'historique des puzzles — fait
+
+Le « second temps » annoncé : garder ce qui a été joué pour éviter les répétitions, montrer où l'on réussit ou non, et donner une progression au plan. Onglet « Statistiques » de la fenêtre « Puzzles ».
+
+- [x] **Trois enregistrements** (`utils/puzzleHistory`, `services/puzzleHistoryStore`, base IndexedDB propre) : `seen` (un par puzzle joué : combien de fois, quand en dernier), `log` (les 5 000 dernières tentatives : puzzle, réussi ou non, Elo, thèmes) et `sessions` (les 200 dernières séances). Une tentative est le premier résultat d'un puzzle, comme pour le reste. Au-delà de 20 000 puzzles retenus, ceux joués le plus anciennement sont oubliés.
+- [x] **Qui enregistre** : les séances libres et les révisions de puzzles ratés (chaque puzzle, puis la séance), et le Woodpecker (la première fois qu'un puzzle est joué dans un cycle ; ses reprises après un raté ne comptent pas, pour ne pas gonfler la réussite).
+- [x] **Sans répétition** : une séance libre joue d'abord les puzzles jamais joués (dans un ordre aléatoire), puis les autres, le plus anciennement joué en premier. L'écran de choix dit combien de puzzles différents ont été joués.
+- [x] **Statistiques** : puzzles joués (et différents), réussite sur 30 jours, jouées cette semaine ; réussite par thème sur 30 jours, du plus fragile au plus solide, pour les thèmes joués au moins 5 fois (les thèmes qui décrivent la longueur ou l'origine d'un puzzle, comme « Court » ou « Partie de maîtres », sont écartés), avec un bouton « S'entraîner » qui ouvre la séance sur ce thème ; les dernières séances (date, score, durée, rythme).
+- [x] **« Mon plan »** : les objectifs qui offrent des puzzles montrent la progression de la semaine, en puzzles joués sur ce thème sur 10, sous la progression des positions rejouées. L'objectif « puzzles seuls » (quand il n'y a plus rien à rejouer) en a désormais une.
+- [x] **« Mon profil »** : une section « Vos puzzles » (30 jours : joués, réussite, thème le plus fragile) avec le bouton « Puzzles : … » ; elle n'apparaît pas tant qu'aucun puzzle n'a été joué.
+- [x] **Sauvegarde** : `puzzleHistory` dans le fichier JSON et la synchronisation Drive, au **format 6** (une application de format 5 refuse un fichier de format 6 plutôt que de renvoyer une copie sans l'historique et d'écraser Drive). Fusion : les tentatives et les séances s'unissent (chacune compte une fois), un puzzle joué des deux côtés garde l'enregistrement du plus récent. Un fichier de format 5 se lit sans historique ; les éléments illisibles sont écartés et comptés avec les puzzles.
+- Vérifié dans Chromium sur la version de production avec de vrais puzzles : un cycle Woodpecker de 20 puzzles avec 3 ratés volontaires (20 tentatives enregistrées, 17 réussies, reprises non comptées), une séance libre, l'onglet Statistiques (thèmes, séances), le plan (« 1 puzzle joué sur 10 »), le profil (« 22 puzzles joués, 77 % ») et le bouton du profil qui ouvre les puzzles sur le thème, sans erreur de console.
+- Tests : 13 pour la logique, 12 pour le stockage, 9 pour l'enregistrement et les statistiques à l'écran, 2 pour le plan, 3 pour le profil, 9 pour la sauvegarde et Drive.
+- **Limites** :
+  - Pas de suppression de l'historique : la synchronisation Drive unit les copies, une suppression locale reviendrait (il faudrait des traces de suppression, comme pour les parties).
+  - Les temps des cycles du Woodpecker restent dans le lot ; changer de lot efface l'historique de ses cycles.
+  - Les figures par thème sont sur les 5 000 dernières tentatives, et sur 30 jours.
 
 ## Grands plateaux dans les fenêtres — fait
 

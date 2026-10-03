@@ -40,14 +40,12 @@ const BUTTON_SECONDARY =
 
 const themesText = (themes: readonly string[]) => themes.map(themeLabel).join(', ');
 
-function Goal({ done, target }: { done: number; target: number }) {
+function Goal({ done, target, text, label }: { done: number; target: number; text: string; label: string }) {
   const isDone = done >= target;
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between text-[11px] text-slate-400">
-        <span>
-          Cette semaine : {done} position{done > 1 ? 's' : ''} rejouée{done > 1 ? 's' : ''} sur {target}
-        </span>
+        <span>{text}</span>
         {isDone && (
           <span className="inline-flex items-center gap-1 text-emerald-300 font-semibold">
             <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
@@ -57,7 +55,7 @@ function Goal({ done, target }: { done: number; target: number }) {
       </div>
       <div
         role="progressbar"
-        aria-label="Progression de la semaine"
+        aria-label={label}
         aria-valuemin={0}
         aria-valuemax={target}
         aria-valuenow={done}
@@ -97,7 +95,22 @@ export const Plan: React.FC<PlanProps> = ({ onClose, onTrain, onShowLine, onImpo
           <p className="text-xs text-slate-400 mt-0.5">{item.why}</p>
         </div>
       </div>
-      {item.goal && <Goal done={item.goal.done} target={item.goal.target} />}
+      {item.goal && (
+        <Goal
+          done={item.goal.done}
+          target={item.goal.target}
+          label="Progression de la semaine"
+          text={`Cette semaine : ${item.goal.done} position${item.goal.done > 1 ? 's' : ''} rejouée${item.goal.done > 1 ? 's' : ''} sur ${item.goal.target}`}
+        />
+      )}
+      {item.puzzleGoal && (
+        <Goal
+          done={item.puzzleGoal.done}
+          target={item.puzzleGoal.target}
+          label="Progression des puzzles de la semaine"
+          text={`Cette semaine : ${item.puzzleGoal.done} puzzle${item.puzzleGoal.done > 1 ? 's' : ''} joué${item.puzzleGoal.done > 1 ? 's' : ''} sur ${item.puzzleGoal.target}`}
+        />
+      )}
       {item.action.kind !== 'habit' && (
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => run(item.action)} className={BUTTON}>

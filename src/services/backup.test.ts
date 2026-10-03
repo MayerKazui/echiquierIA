@@ -18,6 +18,7 @@ import {
 } from './backup';
 import { deleteGame, gameId, listGames, loadGame, onGamesChanged, saveGame } from './gameStore';
 import { loadPuzzleEntries, savePuzzleEntry } from './puzzleStore';
+import { loadPuzzleHistory, savePuzzleAttempt, savePuzzleSession } from './puzzleHistoryStore';
 import { loadWoodpecker, saveWoodpecker } from './woodpeckerStore';
 import { beginCycle, createSet } from '../utils/woodpecker';
 import { loadCards, saveCard } from './trainingStore';
@@ -150,8 +151,8 @@ describe('createBackup', () => {
     expect(backup.puzzles.map((entry) => entry.id)).toEqual(['p1']);
   });
 
-  it('is of format 5', () => {
-    expect(BACKUP_FORMAT).toBe(5);
+  it('is of format 6', () => {
+    expect(BACKUP_FORMAT).toBe(6);
   });
 });
 
@@ -414,6 +415,7 @@ describe('restoreBackup', () => {
       studyDeletions: [],
       puzzles: [],
       woodpecker: null,
+      puzzleHistory: { seen: [], log: [], sessions: [] },
       preferences: { chess_board_theme: 'wood', chess_sound_enabled: 'false' },
     };
     const data = new Map<string, string>();
@@ -532,6 +534,87 @@ describe('backup of the studies', () => {
     expect(entries.has('new')).toBe(true);
   });
 
+  describe('the history of the puzzles', () => {
+    const played = (id: string, at: number) =>
+      savePuzzleAttempt({ id, plays: 1, wins: 1, lastAt: at }, { at, id, ok: true, rating: 1100, themes: ['fork'] });
+    const sessionAt = (at: number) => ({
+      at,
+      mode: 'free' as const,
+      solved: 2,
+      total: 3,
+      elapsedMs: 5000,
+      minutes: null,
+    });
+
+    it('is held by the backup, and survives the file', async () => {
+      expect((await createBackup(0, fakeStorage())).puzzleHistory).toEqual({ seen: [], log: [], sessions: [] });
+      await played('a', 10);
+      await savePuzzleSession(sessionAt(20));
+      const text = serializeBackup(await createBackup(0, fakeStorage()));
+      Object.defineProperty(globalThis, 'indexedDB', { value: new IDBFactory(), configurable: true, writable: true });
+      const parsed = parseBackup(text);
+      if (!parsed.ok) throw new Error('unreadable');
+      expect(parsed.backup.puzzleHistory.log).toHaveLength(1);
+      const report = await restoreBackup(parsed.backup, fakeStorage());
+      expect(report.puzzleHistory).toEqual({ added: 3 });
+      const history = await loadPuzzleHistory();
+      expect([history.seen.size, history.log.length, history.sessions.length]).toEqual([1, 1, 1]);
+    });
+
+    it('is not empty when it holds only a history', () => {
+      const puzzleHistory = { seen: [{ id: 'a', plays: 1, wins: 0, lastAt: 1 }], log: [], sessions: [] };
+      expect(parseBackup(JSON.stringify({ app: BACKUP_APP, format: 6, puzzleHistory })).ok).toBe(true);
+    });
+
+    it('reads a file from before the history as having none', () => {
+      const parsed = parseBackup(JSON.stringify({ app: BACKUP_APP, format: 5, puzzles: [puzzleEntry('a')] }));
+      expect(parsed.ok && parsed.backup.puzzleHistory).toEqual({ seen: [], log: [], sessions: [] });
+    });
+
+    it('leaves out, and counts, the records that are not valid', () => {
+      const parsed = parseBackup(
+        JSON.stringify({
+          app: BACKUP_APP,
+          format: 6,
+          puzzleHistory: {
+            seen: [{ id: 'a', plays: 1, wins: 0, lastAt: 1 }, { id: 3 }],
+            log: [{ at: 1, id: 'a', ok: true, rating: 1000, themes: [] }, { at: 'x' }],
+            sessions: [7],
+          },
+        })
+      );
+      expect(parsed.ok && parsed.backup.puzzleHistory.seen).toHaveLength(1);
+      expect(parsed.ok && parsed.backup.puzzleHistory.log).toHaveLength(1);
+      expect(parsed.ok && parsed.backup.puzzleHistory.sessions).toHaveLength(0);
+      expect(parsed.ok && parsed.rejected.puzzles).toBe(3);
+    });
+
+    it('refuses a file with too many records', () => {
+      const log = Array.from({ length: 20_001 }, () => 0);
+      expect(parseBackup(JSON.stringify({ app: BACKUP_APP, format: 6, puzzleHistory: { log } })).ok).toBe(false);
+    });
+
+    it('unites the history of the file and the one here', async () => {
+      await played('here', 10);
+      const backup = {
+        ...(await createBackup(0, fakeStorage())),
+        puzzleHistory: {
+          seen: [
+            { id: 'here', plays: 1, wins: 1, lastAt: 10 },
+            { id: 'there', plays: 1, wins: 0, lastAt: 30 },
+          ],
+          log: [
+            { at: 10, id: 'here', ok: true, rating: 1100, themes: ['fork'] },
+            { at: 30, id: 'there', ok: false, rating: 1100, themes: ['pin'] },
+          ],
+          sessions: [],
+        },
+      };
+      expect((await restoreBackup(backup, fakeStorage())).puzzleHistory).toEqual({ added: 2 });
+      expect((await loadPuzzleHistory()).log.map((a) => a.id)).toEqual(['here', 'there']);
+    });
+  });
+
   describe('the Woodpecker lot', () => {
     const lot = (updatedAt = 100, ids = ['a', 'b']) => ({
       ...beginCycle(
@@ -616,6 +699,7 @@ describe('backup of the studies', () => {
       studyDeletions: [{ id: 'new', deletedAt: 999_999_999_999_999 }], // ignored when importing a file
       puzzles: [],
       woodpecker: null,
+      puzzleHistory: { seen: [], log: [], sessions: [] },
       preferences: {},
     };
     const report = await restoreBackup(backup, fakeStorage());
@@ -640,6 +724,7 @@ describe('backup of the studies', () => {
       studyDeletions: [{ id: 'here', deletedAt: updatedAt }],
       puzzles: [],
       woodpecker: null,
+      puzzleHistory: { seen: [], log: [], sessions: [] },
       preferences: {},
     };
     const report = await restoreBackup(backup, fakeStorage(), { mode: 'sync', silent: true });

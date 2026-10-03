@@ -23,6 +23,8 @@ interface PuzzleSetupProps {
   elo: number | null;
   entries: ReadonlyMap<string, PuzzleEntry>;
   now: number;
+  /** How many different puzzles the player has played (they come last in a session). */
+  playedCount: number;
   onStart: () => void;
   /** Starts a review of the missed puzzles; `isEarly` also takes the ones that are not due yet. */
   onReview: (isEarly: boolean) => void;
@@ -55,6 +57,7 @@ export const PuzzleSetup: React.FC<PuzzleSetupProps> = ({
   elo,
   entries,
   now,
+  playedCount,
   onStart,
   onReview,
 }) => {
@@ -172,6 +175,8 @@ export const PuzzleSetup: React.FC<PuzzleSetupProps> = ({
         </div>
         <p className="text-[11px] text-slate-400">
           Un puzzle raté ne coûte rien que le temps passé : le suivant arrive tout de suite.
+          {playedCount > 0 &&
+            ` Vous avez déjà joué ${playedCount.toLocaleString('fr-FR')} puzzle${playedCount > 1 ? 's' : ''} : ils reviennent en dernier.`}
         </p>
       </div>
 

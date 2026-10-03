@@ -41,7 +41,7 @@ Application qui permet soit d'importer une partie pour l'analyser, soit de rense
 | Erreurs évitables avec explication tactique                    | ✅   | Coach IA (Gemini) sur les moments clés, repli local sans clé. Pas d'extension du coach aux puzzles et aux études (sujet clos).                                                                                                                                 |
 | Programme d'entraînement sur ses faiblesses                    | ✅   | « Mon plan » : trois objectifs au plus (erreurs qui reviennent, sortie d'ouverture coûteuse, habitude, phase fragile), avec progression sur 7 jours et le bouton qui lance chacun, plus les puzzles du thème correspondant (mat, pièce en prise, fourchette…). |
 | Woodpecker                                                     | ✅   | Onglet « Woodpecker » de la fenêtre « Puzzles » : lot figé (20 à 500 puzzles, tranche d'Elo au choix), cycles chronométrés avec pause, ratés repris en fin de cycle, temps comparé au cycle précédent. Pas encore d'historique détaillé par thème.             |
-| Puzzles : thèmes, Elo, timer                                   | ✅   | Menu « Puzzles » : 200 000 puzzles Lichess, tranche d'Elo, 73 thèmes en français (un ou tous), timer de 3 à 15 minutes ou sans limite, sans pénalité. Pas encore d'historique des scores.                                                                      |
+| Puzzles : thèmes, Elo, timer                                   | ✅   | Menu « Puzzles » : 200 000 puzzles Lichess, tranche d'Elo, 73 thèmes en français (un ou tous), timer de 3 à 15 minutes ou sans limite, sans pénalité. Onglet « Statistiques » : réussite par thème, séances ; les puzzles déjà joués sont tirés en dernier.    |
 | Puzzles ratés à refaire                                        | ✅   | Répétition espacée : un puzzle raté revient demain, puis après 1, 3 et 7 jours ; « Revoir mes puzzles ratés » et « Réviser en avance ». Dans la sauvegarde JSON (format 4) et la synchronisation Drive.                                                        |
 | Explorateur d'ouvertures                                       | ✅   | Bouton « Ouvertures » : arbre coup par coup (~3 800 lignes lichess, noms français), échiquier, résultats de ses parties, coups hors du livre. Pas de stats mondiales.                                                                                          |
 | Études : création, chapitres, intro, commentaires, annotations | ✅   | Menu « Études » : études privées dans le navigateur (IndexedDB), chapitres, introduction, variantes, commentaires, glyphes (!, ?, ±…). Flèches et cercles dessinés (clic droit) et gardés avec la position.                                                    |
@@ -50,7 +50,7 @@ Application qui permet soit d'importer une partie pour l'analyser, soit de rense
 | Partage d'études                                               | ⛔   | Abandonné : il exigerait un serveur ou un hébergeur tiers.                                                                                                                                                                                                     |
 | Mise à jour automatique du profil                              | ⛔   | Abandonnée : la synchronisation se fera manuellement.                                                                                                                                                                                                          |
 
-Le projet couvre bien l'analyse et le profil, et dépasse le besoin sur le confort : PWA hors ligne, sauvegarde et synchronisation Google Drive, mobile, accessibilité. Les blocs **Woodpecker, puzzles et études** étaient absents au départ ; ils sont faits (le lien avec « Mon plan » et l'historique des puzzles restent à venir).
+Le projet couvre bien l'analyse et le profil, et dépasse le besoin sur le confort : PWA hors ligne, sauvegarde et synchronisation Google Drive, mobile, accessibilité. Les blocs **Woodpecker, puzzles et études** étaient absents au départ ; ils sont faits, avec l'historique des puzzles et son lien avec « Mon plan » et « Mon profil ».
 
 ## 3. Faisabilité de ce qui reste
 
@@ -110,16 +110,16 @@ Une fois les puzzles disponibles, le reste était modeste : timer, cycle Woodpec
    1. ~~Données, chargeur et logique d'un puzzle, avec tests~~ : fait.
    2. ~~Écran Puzzles (filtres, timer sans pénalité, puzzles ratés en répétition espacée, sauvegarde)~~ : fait.
    3. ~~Woodpecker (lot figé, cycles chronométrés avec pause, temps comparé, sauvegarde)~~ : fait.
-   4. ~~Lien avec « Mon plan »~~ : fait. Reste le lien depuis le profil, puis l'historique des puzzles (second temps).
+   4. ~~Lien avec « Mon plan », historique des puzzles, lien avec le profil~~ : fait.
 5. ~~**Études privées**~~ : fait (commencées avant les puzzles, à la demande). Éditeur de chapitres, import et export PGN, chapitre verrouillé contre l'ordinateur.
 6. En parallèle, plus petit : **élargir la détection des thèmes tactiques** au-delà des quatre actuels. Correction : cela ne sert pas au filtrage des puzzles (leurs thèmes viennent de la base Lichess), seulement à relier les erreurs de ses propres parties à ces thèmes.
 
 ## 6. Questions ouvertes
 
 - [x] **Puzzles** : sous-ensemble embarqué de 200 000 puzzles, découpé par tranche d'Elo de 200 (pas par thème : le filtrage par thème se fait côté navigateur sur la tranche chargée). L'API Lichess est écartée (hors ligne impossible, tranche d'Elo non choisissable).
-- [ ] **Historique des puzzles** (second temps) : scores, précision par thème, temps de cycle, branchés sur le profil et « Mon plan ».
+- [x] **Historique des puzzles** (fait) : scores, précision par thème, temps de cycle, branchés sur le profil et « Mon plan ».
 - [x] **Puzzles : nouvelle sélection de données.** Les puzzles ratés gardent leur copie complète (FEN, coups, thèmes) : une nouvelle sélection ne les fait pas disparaître.
-- [ ] **Puzzles : sans répétition.** Un puzzle déjà joué peut revenir dans une séance d'entraînement (tirage au hasard dans la tranche) ; un historique des puzzles vus (second temps) permettrait de l'éviter.
+- [x] **Puzzles : sans répétition** (fait : les puzzles déjà joués passent après les autres). Un puzzle déjà joué peut revenir dans une séance d'entraînement (tirage au hasard dans la tranche) ; un historique des puzzles vus (second temps) permettrait de l'éviter.
 - [ ] **Stats mondiales d'ouverture** : l'API Explorer de Lichess exige-t-elle un jeton ? Si oui, s'en passe-t-on et garde-t-on seulement ses propres stats ?
 - [ ] **Mise à jour manuelle du profil** : bouton « n'analyser que les nouvelles parties » ? Sous quelle forme ?
 - [x] **Parser PGN** : analyseur maison (`utils/studyPgn.ts`), `chess.js` ne servant qu'à jouer les coups. Variantes imbriquées, commentaires, glyphes, `[%cal]` et `[%csl]`.
