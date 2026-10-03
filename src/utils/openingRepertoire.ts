@@ -29,6 +29,11 @@ export const MIN_RECURRENCE = 2;
 const MAX_EXITS = 3;
 /** Games an opening needs before its accuracy is compared with the player's own average: fewer say nothing. */
 export const MIN_ACCURACY_GAMES = 3;
+/**
+ * Plies after the first move outside the book in which the moves count for the accuracy of an opening (10 moves
+ * of each side): the opening sets up the start of the middlegame, not a game that goes on for fifty moves.
+ */
+export const ACCURACY_PLIES = 20;
 
 /** The first move outside the book, in one game. */
 export interface Exit {
@@ -60,7 +65,7 @@ export interface Variation {
   name: string;
   eco: string;
   tally: Tally;
-  /** Accuracy (0-100) of the player's moves outside the theory in these games, null without such a move. */
+  /** Accuracy (0-100) of the player's moves just after the theory in these games, null without such a move. */
   accuracy: number | null;
 }
 
@@ -68,7 +73,7 @@ export interface Family {
   name: string;
   eco: string;
   tally: Tally;
-  /** Accuracy (0-100) of the player's moves outside the theory in these games, null without such a move. */
+  /** Accuracy (0-100) of the player's moves just after the theory in these games, null without such a move. */
   accuracy: number | null;
   /** The most played first. */
   variations: Variation[];
@@ -109,16 +114,23 @@ export function findExit(result: GameAnalysisResult, color: 'w' | 'b'): Exit | n
 }
 
 /**
- * The accuracy of the player's moves outside the theory. The moves of the book are left out, as in the profile:
- * they are always "best" and would flatter an opening that is mostly theory.
+ * The player's moves that count for the accuracy of a game: the ones in the `ACCURACY_PLIES` that follow the first
+ * move outside the book. The moves of the book are left out, as in the profile: they are always "best" and would
+ * flatter an opening that is mostly theory.
  */
+function movesAfterTheory(moves: readonly MoveAnalysis[], color: 'w' | 'b'): MoveAnalysis[] {
+  const first = moves.findIndex((m) => m.classification !== 'book');
+  if (first < 0) return [];
+  return moves.slice(first, first + ACCURACY_PLIES).filter((m) => m.color === color && m.classification !== 'book');
+}
+
 const accuracyOf = (moves: readonly MoveAnalysis[]): number | null =>
   moves.length === 0 ? null : accuracyFromMoves([...moves]);
 
 interface Bucket {
   name: string;
   tally: Tally;
-  /** The player's moves outside the theory, in all the games of the opening. */
+  /** The player's moves just after the theory, in all the games of the opening. */
   moves: MoveAnalysis[];
   variations: Map<string, { variation: Omit<Variation, 'accuracy'>; moves: MoveAnalysis[] }>;
   exits: Family['exits'];
@@ -171,8 +183,7 @@ export async function buildRepertoire(
     bucket.variations.set(name, variation);
     addToTally(variation.variation.tally, outcome);
 
-    const playerMoves = result.moves.filter((m) => m.color === color && m.classification !== 'book');
-    for (const move of playerMoves) {
+    for (const move of movesAfterTheory(result.moves, color)) {
       bucket.moves.push(move);
       variation.moves.push(move);
       allMoves.push(move);

@@ -4,6 +4,7 @@ import { useRepertoire } from '../../hooks/useRepertoire';
 import { toFrenchOpeningName } from '../../utils/openingNames';
 import type { Family, RecurringExit } from '../../utils/openingRepertoire';
 import {
+  ACCURACY_PLIES,
   BOOK_PLIES,
   COSTLY_EXIT,
   MIN_ACCURACY_GAMES,
@@ -288,9 +289,10 @@ export const OpeningRepertoire: React.FC<OpeningRepertoireProps> = ({ onShowLine
         la théorie », c&apos;est jouer le premier coup que la base ne connaît pas (dans les {BOOK_PLIES} premiers
         demi-coups). Une sortie est dite récurrente quand elle revient dans au moins {MIN_RECURRENCE} parties de la même
         ouverture ; son coût est la moyenne des points de chances de gain que ce coup a fait perdre, selon
-        l&apos;analyse, et elle est mise en avant à partir de {COSTLY_EXIT} points. La précision est celle de vos coups
-        hors théorie, comme dans « Mon profil » (les coups du livre, toujours parfaits, sont laissés de côté) ; elle
-        n&apos;est comparée à votre moyenne qu&apos;à partir de {MIN_ACCURACY_GAMES} parties de la même ouverture.
+        l&apos;analyse, et elle est mise en avant à partir de {COSTLY_EXIT} points. La précision est celle de vos
+        {ACCURACY_PLIES / 2} coups qui suivent la sortie du livre (les coups du livre, toujours parfaits, sont laissés
+        de côté, et la suite de la partie ne compte pas) ; elle n&apos;est comparée à votre moyenne, calculée de la même
+        façon, qu&apos;à partir de {MIN_ACCURACY_GAMES} parties de la même ouverture.
       </p>
     </div>
   );

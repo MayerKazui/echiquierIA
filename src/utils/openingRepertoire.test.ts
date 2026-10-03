@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { game, mv, PSEUDO } from '../test/profileFixtures';
 import {
+  ACCURACY_PLIES,
   BOOK_PLIES,
   COSTLY_EXIT,
   MIN_ACCURACY_GAMES,
@@ -278,6 +279,27 @@ describe('buildRepertoire', () => {
       const reference = (await buildRepertoire([game])).colors.w[0].accuracy!;
       game.result.moves[2] = { ...game.result.moves[2], evalAfter: -300 };
       expect((await buildRepertoire([game])).colors.w[0].accuracy).toBe(reference);
+    });
+
+    it('only counts the moves that follow the theory, not the rest of a long game', async () => {
+      const long = [...RUY, ...Array.from({ length: 40 }, (_, i) => `m${i}`)];
+      const lastPly = long.length - 2; // a move of White, well past the window
+      expect(lastPly - 8).toBeGreaterThan(ACCURACY_PLIES);
+      const [late] = (await buildRepertoire([played({ id: 'a', sans: long, blunders: [lastPly] })])).colors.w;
+      expect(late.accuracy).toBe(100);
+      const [early] = (await buildRepertoire([played({ id: 'a', sans: long, blunders: [8 + ACCURACY_PLIES - 2] })]))
+        .colors.w;
+      expect(early.accuracy!).toBeLessThan(100);
+      const [just] = (await buildRepertoire([played({ id: 'a', sans: long, blunders: [8 + ACCURACY_PLIES] })])).colors
+        .w;
+      expect(just.accuracy).toBe(100);
+    });
+
+    it('measures the window from the first move outside the theory of the game', async () => {
+      const long = [...RUY, ...Array.from({ length: 40 }, (_, i) => `m${i}`)];
+      const [ruy] = (await buildRepertoire([played({ id: 'a', sans: long, bookPlies: 4, blunders: [4 + 18] })])).colors
+        .w;
+      expect(ruy.accuracy!).toBeLessThan(100);
     });
 
     it('does not count the opponent’s moves', async () => {
