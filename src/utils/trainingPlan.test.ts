@@ -249,6 +249,17 @@ describe('buildPlan', () => {
       expect(item.puzzles).toEqual(['endgame']);
     });
 
+    it('offers the theoretical endgames beside it, and only for the endgame', () => {
+      const [item] = plan({ profile: weakEndgame(), positions: positions(4, { phase: 'endgame' }) }).items;
+      expect(item.endgames).toBe(true);
+      const [puzzlesOnly] = plan({ profile: weakEndgame() }).items;
+      expect(puzzlesOnly.endgames).toBe(true);
+      const middle = calmProfile();
+      middle.phases.middlegame = bucket(120, 70);
+      const [other] = plan({ profile: middle, positions: positions(4, { phase: 'middlegame' }) }).items;
+      expect(other.endgames).toBeUndefined();
+    });
+
     it('goes to the puzzles of that phase when there is nothing of it to replay', () => {
       const [item] = plan({ profile: weakEndgame() }).items;
       expect(item.title).toBe('Faites des puzzles : finale');

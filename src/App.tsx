@@ -726,6 +726,10 @@ export default function App() {
                 setOpeningsStart({ view: 'drill', sans: [] });
                 setIsOpeningsOpen(true);
               }}
+              onEndgames={() => {
+                setIsPlanOpen(false);
+                setIsEndgamesOpen(true);
+              }}
               onImport={() => {
                 setIsPlanOpen(false);
                 // Without a game on screen the start screen already shows the import form

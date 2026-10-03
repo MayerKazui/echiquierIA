@@ -40,6 +40,7 @@ const renderPlan = (props: Partial<React.ComponentProps<typeof Plan>> = {}) => {
     onTrain: vi.fn(),
     onShowLine: vi.fn(),
     onDrill: vi.fn(),
+    onEndgames: vi.fn(),
     onImport: vi.fn(),
     onPuzzles: vi.fn(),
   };

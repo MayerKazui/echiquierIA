@@ -44,6 +44,8 @@ export interface PlanItem {
   puzzles?: string[];
   /** The training on the opening repertoire as an other way to work on it (beside the action, which only shows the position). */
   drill?: boolean;
+  /** The training on the theoretical endgames as an other way to work on it (the weakest phase being the endgame). */
+  endgames?: boolean;
   /** Progress over the last 7 days (positions replayed out of those to replay). */
   goal?: { done: number; target: number };
   /** Progress over the last 7 days of the puzzles on the theme (puzzles played out of the target). */
@@ -219,17 +221,17 @@ export function buildPlan(input: PlanInput): Plan {
   const phase = weakestPhase(profile);
   if (phase) {
     const accuracy = profile.phases[phase].accuracy!;
-    add(
-      trainingItem(
-        `train-${phase}`,
-        `Rejouez vos erreurs de ${PHASE_LABELS[phase]}`,
-        `Faites des puzzles : ${themeLabel(phase).toLowerCase()}`,
-        `C'est votre phase la plus fragile : ${Math.round(accuracy)} % de précision, contre ${Math.round(profile.baseline.accuracy!)} % en moyenne.`,
-        { kinds: new Set(), phases: new Set([phase]) },
-        PHASE_PUZZLE_THEMES[phase] ?? [],
-        input
-      )
+    const item = trainingItem(
+      `train-${phase}`,
+      `Rejouez vos erreurs de ${PHASE_LABELS[phase]}`,
+      `Faites des puzzles : ${themeLabel(phase).toLowerCase()}`,
+      `C'est votre phase la plus fragile : ${Math.round(accuracy)} % de précision, contre ${Math.round(profile.baseline.accuracy!)} % en moyenne.`,
+      { kinds: new Set(), phases: new Set([phase]) },
+      PHASE_PUZZLE_THEMES[phase] ?? [],
+      input
     );
+    if (item && phase === 'endgame') item.endgames = true;
+    add(item);
   }
 
   return { items: items.slice(0, MAX_ITEMS), note: items.length === 0 ? 'nothing' : null };

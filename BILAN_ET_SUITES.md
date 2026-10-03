@@ -73,7 +73,7 @@ Faites sur de vrais appareils (2026-10-03), sans défaut constaté : lecteur d'�
 
 - [ ] Onze positions seulement. Écartées après essai avec le moteur : le fou de la mauvaise couleur avec un pion de tour (le moteur le voit à −0,88 au lieu de 0 : la nulle théorique n'est pas sûre) et les mats avec deux fous et avec fou et cavalier (le moteur y reste à +2 sans voir le mat : la progression ne se juge pas). Pas encore essayées : Vancura, la dame contre la tour, la dame contre un pion en septième, la triangulation, la règle du carré ; chaque position doit passer la même vérification avec le moteur complet.
 - [ ] Les seuils (70 % de chances de gain pour une promotion, 12 coups pour tenir une nulle, 40 coups pour une position gagnée, 2 coups de mat de marge) sont posés sans calage sur de vraies parties de joueurs : ils sont assez larges pour que le moteur qui joue les deux camps réussisse chaque position (vérifié), mais pas testés sur des joueurs.
-- [ ] « Mon plan » ne renvoie pas vers les finales (rien dans les parties ne dit encore quelle finale revoir).
+- [ ] « Mon plan » renvoie vers les finales (bouton « Finales théoriques ») quand la finale est la phase la plus fragile, mais rien dans les parties ne dit encore quelle finale précise revoir.
 
 ### Question ouverte
 
