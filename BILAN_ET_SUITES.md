@@ -46,18 +46,6 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 
 ## 2. Ce qu'il reste à faire (déjà identifié dans le dépôt)
 
-### Import
-
-- [ ] Import : filtre par mois.
-- [ ] Import : afficher la précision publiée par chess.com (`accuracies`) à côté de la nôtre.
-
-### Études
-
-- [ ] Copier un chapitre.
-- [ ] Mode verrouillé : mémoriser les erreurs par ligne et les rejouer en répétition espacée.
-- [ ] Fusion fine des études. Aujourd'hui une étude est prise en entier (la version modifiée en dernier gagne) : deux appareils qui modifient des chapitres différents en même temps perdent l'une des modifications.
-- [ ] Dessiner des flèches sur téléphone (pas de clic droit).
-
 ### Puzzles
 
 - [ ] Historique : courbe de progression dans le temps.
