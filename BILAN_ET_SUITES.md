@@ -36,7 +36,7 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 
 - Application installable et utilisable hors ligne (PWA).
 - Sauvegarde JSON de tout (format 7) et synchronisation avec Google Drive, manuelle ou automatique, suppressions comprises.
-- Mobile (navigation en bas, balayage) et accessibilité (clavier, lecteurs d'écran, contrastes, mouvement réduit).
+- Mobile (navigation en bas, balayage) et accessibilité (clavier, lecteurs d'écran, contrastes, mouvement réduit), vérifiés sur de vrais appareils et un vrai lecteur d'écran.
 - Sécurité du serveur, limites de débit, CI (lint, typecheck, format, tests, build).
 
 ### Décisions prises : abandonné ou clos
@@ -65,10 +65,10 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 
 - [ ] Historique : courbe de progression dans le temps.
 
-### Vérifications manuelles jamais faites
+### Vérifications manuelles
 
-- [ ] Lecteur d'écran réel (NVDA, VoiceOver) : seuls axe-core et des tests DOM ont servi.
-- [ ] Vrai téléphone, surtout iOS Safari (zone de sécurité, balayage) : le mobile n'a été vérifié que sur Chrome émulé.
+Faites sur de vrais appareils (2026-10-03), sans défaut constaté : lecteur d'écran réel, vrai téléphone dont iOS Safari (zone de sécurité, balayage).
+
 - [ ] Ouvrir « S'entraîner » dans le navigateur après le passage aux grands plateaux (il faut des parties analysées).
 
 ### Types d'erreur et thèmes tactiques
@@ -107,5 +107,5 @@ Ce sont des suggestions, pas des décisions.
 1. ~~Terminer le point 5 : résumé de 3 lignes et comparaison avec sa moyenne.~~ Fait.
 2. ~~Élargir les thèmes tactiques et réduire « autre ».~~ Fait (voir « Types d'erreur et thèmes tactiques » pour le reste).
 3. Petits ajouts d'entraînement : ouvrir la partie depuis « S'entraîner », dédoublonnage, bouton « nouvelles parties ».
-4. Vérifications sur de vrais appareils et un vrai lecteur d'écran.
+4. ~~Vérifications sur de vrais appareils et un vrai lecteur d'écran.~~ Fait, tout est bon.
 5. Ensuite seulement les grosses évolutions (adversaires, jeu contre Stockfish, finales, version anglaise).
