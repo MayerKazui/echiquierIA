@@ -267,6 +267,23 @@ export interface ProfileOptions {
   sliceMs?: number;
 }
 
+/**
+ * Mean accuracy of the player in the stored games that name them, leaving out the game `exceptId` (the one being
+ * looked at, so it is compared with the others). Null when there is no other game.
+ */
+export function meanAccuracyOfOthers(
+  sources: ProfileSource[],
+  exceptId?: string
+): { accuracy: number; games: number } | null {
+  const accuracies: number[] = [];
+  for (const source of sources) {
+    if (source.id === exceptId) continue;
+    const game = countGame(source);
+    if (game) accuracies.push(accuracyFromMoves(game.allMoves));
+  }
+  return accuracies.length === 0 ? null : { accuracy: mean(accuracies), games: accuracies.length };
+}
+
 /** The profile of the games that name the player, `latest` being the number of latest ones to use (all if absent). */
 export async function buildProfile(
   sources: ProfileSource[],

@@ -9,6 +9,7 @@ import {
   buildStrengths,
   buildProfile,
   classifyTimeControl,
+  meanAccuracyOfOthers,
   pressureThreshold,
   type Profile,
 } from './weaknessProfile';
@@ -55,6 +56,19 @@ describe('which games count', () => {
     expect(profile.baseline).toMatchObject({ moves: 0, accuracy: null });
     expect(profile.trendChange).toBeNull();
     expect(profile.insights).toEqual([]);
+  });
+});
+
+describe('meanAccuracyOfOthers', () => {
+  it('averages the games that name the player, leaving out the one given', () => {
+    const sources = [game({ id: 'a' }), game({ id: 'b' }), game({ id: 'c', white: 'Carl', black: 'Dora' })];
+    expect(meanAccuracyOfOthers(sources)?.games).toBe(2);
+    expect(meanAccuracyOfOthers(sources, 'a')?.games).toBe(1);
+  });
+
+  it('is null when no other game counts', () => {
+    expect(meanAccuracyOfOthers([])).toBeNull();
+    expect(meanAccuracyOfOthers([game({ id: 'a' })], 'a')).toBeNull();
   });
 });
 

@@ -604,6 +604,7 @@ export default function App() {
           ) : visibleTab === 'dashboard' && analysis ? (
             <Dashboard
               analysis={analysis}
+              pgn={pgn}
               userPseudo={userPseudo}
               userColor={userColor}
               onUpdateUserColor={handleUpdateUserColor}

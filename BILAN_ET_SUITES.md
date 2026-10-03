@@ -25,6 +25,7 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 
 - **Mon profil** : faiblesses par phase, type d'erreur, zeitnot, couleur, force de l'adversaire, cadence, évolution ; points forts.
 - **S'entraîner** : rejouer ses propres erreurs avec correction par le moteur, en répétition espacée (1, 3 puis 7 jours), filtres par type d'erreur et par phase.
+- **Résumé de la partie** : trois lignes en tête du bilan (moment décisif avec son type de faute, précision comparée à sa moyenne sur les autres parties, fautes et phase la plus fragile).
 - **Mon plan** : trois objectifs au plus, avec progression sur 7 jours et le bouton qui lance chacun, plus les puzzles du thème correspondant.
 - **Ouvertures** : explorateur en arbre avec ses résultats par coup, et « Mes ouvertures » (répertoire réel, score, coup de sortie qui coûte cher).
 - **Puzzles** : 200 000 puzzles Lichess embarqués (73 thèmes en français, tranche d'Elo, chronomètre sans pénalité), puzzles ratés en répétition espacée, statistiques sur 7 jours, 30 jours ou tout.
@@ -44,11 +45,6 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 - **Sujets clos** : plafond de 500 parties, données conservées dans le navigateur, limites de débit des API d'import, extension du coach IA aux puzzles et aux études.
 
 ## 2. Ce qu'il reste à faire (déjà identifié dans le dépôt)
-
-### Retour sur une partie (point 5 de la feuille de route, le dernier non terminé)
-
-- [ ] Résumé de 3 lignes en tête du bilan : « Moment décisif : coup 23, +2,8 puis tour laissée en prise ». Le calcul existait et se récupère facilement.
-- [ ] Comparaison avec soi-même : « précision de 71 %, 6 points sous ta moyenne ».
 
 ### S'entraîner et import
 
@@ -104,7 +100,7 @@ Ce sont des suggestions, pas des décisions.
 
 ## 4. Ordre conseillé
 
-1. Terminer le point 5 : résumé de 3 lignes et comparaison avec sa moyenne. Rapide, visible, sans risque.
+1. ~~Terminer le point 5 : résumé de 3 lignes et comparaison avec sa moyenne.~~ Fait.
 2. Élargir les thèmes tactiques et réduire « autre » : améliore la qualité de tout le profil et du plan.
 3. Petits ajouts d'entraînement : ouvrir la partie depuis « S'entraîner », dédoublonnage, bouton « nouvelles parties ».
 4. Vérifications sur de vrais appareils et un vrai lecteur d'écran.
