@@ -271,11 +271,16 @@ describe('Mes ouvertures', () => {
 describe("Ouvertures, onglet « S'entraîner »", () => {
   const RUY_A3 = ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'a3', 'Nf6', 'O-O', 'Be7', 'Re1', 'b5'];
 
-  it('is one of the views, next to the explorer and the repertoire', async () => {
+  it('is one of the views, next to the explorer, the repertoire and the preparation of an opponent', async () => {
     const user = userEvent.setup();
     render(<Openings onClose={vi.fn()} onImport={vi.fn()} />);
     const views = within(screen.getByRole('group', { name: 'Vue' })).getAllByRole('button');
-    expect(views.map((b) => b.textContent)).toEqual(['Explorateur', 'Mes ouvertures', "S'entraîner"]);
+    expect(views.map((b) => b.textContent)).toEqual([
+      'Explorateur',
+      'Mes ouvertures',
+      "S'entraîner",
+      'Préparer un adversaire',
+    ]);
 
     await user.click(screen.getByRole('button', { name: "S'entraîner" }));
     expect(screen.getByRole('button', { name: "S'entraîner" }).getAttribute('aria-pressed')).toBe('true');

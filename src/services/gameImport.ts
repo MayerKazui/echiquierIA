@@ -419,6 +419,52 @@ export async function fetchGamesPage(
   return source === 'chesscom' ? fetchChessComPage(name, options) : fetchLichessPage(name, options);
 }
 
+/** Pages read for one `fetchGames` at most: a filter that matches little must not walk through years of archives. */
+const MAX_PAGES = 8;
+/** Games asked of the site at once when `fetchGames` walks through the history. */
+const BULK_PAGE_SIZE = 100;
+
+export interface FetchGamesOptions extends Omit<FetchPageOptions, 'cursor' | 'limit'> {
+  /** How many games are wanted: fewer are returned when the history is shorter. */
+  target: number;
+  /** Called after each page with the number of games read so far. */
+  onProgress?: (fetched: number) => void;
+  /** Replaces `fetchGamesPage` (tests). */
+  fetchPage?: typeof fetchGamesPage;
+}
+
+/**
+ * The `target` most recent games of `username`, most recent first: pages are read one after the other (both sites
+ * ask for it) until there are enough, the history ends, or `MAX_PAGES` pages were read. Throws an `ImportError`
+ * (or the `AbortError` of `signal`); nothing is returned from a search that failed half way.
+ */
+export async function fetchGames(
+  source: ImportSource,
+  username: string,
+  { target, onProgress, fetchPage = fetchGamesPage, ...options }: FetchGamesOptions
+): Promise<ImportedGame[]> {
+  const games: ImportedGame[] = [];
+  const known = new Set<string>();
+  let cursor: ImportCursor | null = null;
+  for (let page = 0; page < MAX_PAGES && games.length < target; page++) {
+    const result: ImportPage = await fetchPage(source, username, {
+      ...options,
+      cursor,
+      limit: Math.min(BULK_PAGE_SIZE, target - games.length),
+    });
+    for (const game of result.games) {
+      if (!known.has(game.id)) {
+        known.add(game.id);
+        games.push(game);
+      }
+    }
+    onProgress?.(Math.min(games.length, target));
+    cursor = result.cursor;
+    if (!cursor) break;
+  }
+  return games.slice(0, target);
+}
+
 async function request(
   fetchImpl: typeof fetch,
   url: string,

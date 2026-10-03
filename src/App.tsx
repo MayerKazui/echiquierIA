@@ -45,6 +45,7 @@ import {
   prefetchViews,
 } from './lazyViews';
 import type { PuzzleStart } from './components/Puzzles/Puzzles';
+import type { View as OpeningsView } from './components/Openings/Openings';
 import type { PlayStart } from './utils/playGame';
 import { LiveRegion, useAnnouncer } from './components/a11y/LiveRegion';
 import { Modal } from './components/a11y/Modal';
@@ -93,7 +94,7 @@ export default function App() {
   const [trainingFilter, setTrainingFilter] = useState<TrainingFilter | undefined>();
   // ... and the themes of the puzzles to start with
   const [puzzleStart, setPuzzleStart] = useState<PuzzleStart | undefined>();
-  const [openingsStart, setOpeningsStart] = useState<{ view: 'explorer' | 'drill'; sans: string[] } | undefined>();
+  const [openingsStart, setOpeningsStart] = useState<{ view: OpeningsView; sans: string[] } | undefined>();
   const { announcement, announce } = useAnnouncer();
 
   // While the user reads the start screen: download the engine, the openings database and the game views
@@ -604,6 +605,10 @@ export default function App() {
         }}
         onOpenOpenings={() => {
           setOpeningsStart(undefined);
+          setIsOpeningsOpen(true);
+        }}
+        onOpenOpponent={() => {
+          setOpeningsStart({ view: 'opponent', sans: [] });
           setIsOpeningsOpen(true);
         }}
         onOpenPuzzles={() => {

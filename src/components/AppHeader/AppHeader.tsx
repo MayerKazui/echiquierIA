@@ -11,6 +11,7 @@ import {
   History,
   Puzzle,
   Swords,
+  Users,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -39,6 +40,7 @@ interface AppHeaderProps {
   onOpenTraining: () => void;
   onOpenPuzzles: () => void;
   onOpenOpenings: () => void;
+  onOpenOpponent: () => void;
   onOpenEndgames: () => void;
   onOpenStudies: () => void;
   onOpenPlay: () => void;
@@ -65,6 +67,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onOpenTraining,
   onOpenPuzzles,
   onOpenOpenings,
+  onOpenOpponent,
   onOpenEndgames,
   onOpenStudies,
   onOpenPlay,
@@ -114,6 +117,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       hint: 'Explorer les ouvertures et voir mon répertoire',
       icon: <BookOpen className={ICON} />,
       onSelect: onOpenOpenings,
+    },
+    {
+      id: 'opponent',
+      label: 'Préparer un adversaire',
+      hint: "Les ouvertures qu'un pseudo joue, lues sur chess.com ou Lichess",
+      icon: <Users className={ICON} />,
+      onSelect: onOpenOpponent,
     },
     {
       id: 'endgames',
