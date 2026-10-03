@@ -169,14 +169,14 @@ describe('ProfileView', () => {
       const section_ = section('Vos erreurs, par type');
       expect(within(section_).getByText('6 erreurs (erreurs, gaffes et occasions manquées).')).toBeTruthy();
       const rows = within(within(section_).getAllByRole('list')[0]).getAllByRole('listitem');
-      expect(rows).toHaveLength(9);
+      expect(rows).toHaveLength(10);
       expect(rows[0].textContent).toContain('Mat manqué ou subi');
       expect(rows[0].textContent).toContain('33 % · 2');
       expect(rows[1].textContent).toContain('0 % · 0');
       expect(rows[3].textContent).toContain('Avantage gâché');
       expect(rows[3].textContent).toContain('50 % · 3');
-      expect(rows[8].textContent).toContain('Autres erreurs');
-      expect(rows[8].textContent).toContain('17 % · 1');
+      expect(rows[9].textContent).toContain('Autres erreurs');
+      expect(rows[9].textContent).toContain('17 % · 1');
     });
 
     it('explains each kind', async () => {

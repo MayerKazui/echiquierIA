@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { TACTIC_THEMES } from './tacticThemes';
 import {
   FAULT_PUZZLE_THEMES,
+  NO_PUZZLE_THEMES,
   faultPuzzleThemes,
   faultThemeCounts,
   groupThemes,
@@ -59,7 +60,7 @@ describe('the themes of the faults', () => {
       themes: Record<string, unknown>;
     };
     const wanted = [
-      ...TACTIC_THEMES,
+      ...TACTIC_THEMES.filter((theme) => !NO_PUZZLE_THEMES.has(theme)),
       'mateIn1',
       'mateIn2',
       'mateIn3',
@@ -92,5 +93,10 @@ describe('the themes of the faults', () => {
     expect(faultPuzzleThemes('tactic', {})).toEqual(['fork', 'pin', 'skewer']);
     expect(faultPuzzleThemes('hanging', { fork: 9 })).toEqual(['hangingPiece']);
     expect(faultPuzzleThemes('other')).toEqual([]);
+  });
+
+  it('leave out a theme with no puzzles, so that the plan never offers an empty list', () => {
+    expect(faultPuzzleThemes('tactic', { overloading: 9, fork: 2 })).toEqual(['fork']);
+    expect(faultPuzzleThemes('tactic', { overloading: 9 })).toEqual(['fork', 'pin', 'skewer']);
   });
 });

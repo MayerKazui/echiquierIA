@@ -208,6 +208,15 @@ describe('classifyFault', () => {
       ).toBe('technique');
     });
 
+    it('is a king fault when a pawn is pushed in front of the castled king', () => {
+      expect(classifyFault(move({ fenBefore: middlegame, uci: 'g2g3', bestMoveUci: 'b2b3' }))).toBe('king');
+    });
+
+    it('is passive when a piece is pulled back and the engine move keeps far more moves', () => {
+      const fen = '1rb4r/Rp2k1pp/4pp2/1B1p3n/1b1P4/1P2P3/1P1N1PPP/4K1NR w K - 2 13';
+      expect(classifyFault(move({ fenBefore: fen, uci: 'a7a4', bestMoveUci: 'g2g4' }))).toBe('passive');
+    });
+
     it('is "other" for a quiet move of the middlegame', () => {
       expect(classifyFault(move({ fenBefore: middlegame, uci: 'a2a3', bestMoveUci: 'b2b3' }))).toBe('other');
     });
@@ -253,9 +262,10 @@ describe('classifyFault', () => {
       'king',
       'principles',
       'technique',
+      'passive',
       'other',
     ]);
-    expect(FAULT_KINDS_VERSION).toBeGreaterThan(1);
+    expect(FAULT_KINDS_VERSION).toBeGreaterThan(2);
   });
 });
 

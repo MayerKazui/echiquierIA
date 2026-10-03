@@ -471,6 +471,7 @@ const FAULT_SENTENCES: Record<Exclude<FaultKind, 'other'>, string> = {
   king: "viennent d'un coup de roi ou d'un roque mal placé",
   principles: "viennent d'un coup d'ouverture contraire aux principes",
   technique: 'viennent de la technique de finale',
+  passive: 'laissent les pièces passives',
 };
 
 /** Share of the faults, and the least number of them, from which a kind is worth pointing out. */

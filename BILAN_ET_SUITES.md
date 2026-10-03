@@ -23,7 +23,7 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 
 ### Outils d'entraînement
 
-- **Mon profil** : faiblesses par phase, type d'erreur (neuf types, dont le thème tactique manqué : fourchette, clouage, attaque à la découverte…), zeitnot, couleur, force de l'adversaire, cadence, évolution ; points forts.
+- **Mon profil** : faiblesses par phase, type d'erreur (dix types, dont le thème tactique manqué parmi dix-neuf : fourchette, clouage, déviation, pièce piégée…), zeitnot, couleur, force de l'adversaire, cadence, évolution ; points forts.
 - **S'entraîner** : rejouer ses propres erreurs avec correction par le moteur, en répétition espacée (1, 3 puis 7 jours), filtres par type d'erreur et par phase ; une même position ratée dans plusieurs parties n'est proposée qu'une fois ; « Voir dans la partie » ouvre la partie au coup de l'erreur.
 - **Résumé de la partie** : trois lignes en tête du bilan (moment décisif avec son type de faute, précision comparée à sa moyenne sur les autres parties, fautes et phase la plus fragile).
 - **Mon plan** : trois objectifs au plus, avec progression sur 7 jours et le bouton qui lance chacun, plus les puzzles du thème correspondant.
@@ -58,9 +58,8 @@ Faites sur de vrais appareils (2026-10-03), sans défaut constaté : lecteur d'�
 
 ### Types d'erreur et thèmes tactiques
 
-- [ ] « Autres erreurs » représente encore 12 % des erreurs des parties de référence (`bun run faultstats`, 42 % auparavant). Ce sont des coups tranquilles du milieu de jeu : il faudrait détecter la mobilité, la structure de pions, le centre.
-- [ ] Thèmes tactiques pas encore détectés : rayons X, déviation, attraction, interférence, pièce piégée, surcharge, coup intermédiaire (douze thèmes le sont : fourchette, clouage, enfilade, attaque et échec à la découverte, double échec, capture du défenseur, mat du couloir, mat étouffé, pièce en prise, promotion, sacrifice).
-- [ ] « Matériel laissé en prise » compte aussi un pion perdu quand le coup du moteur ne le perdait pas : à surveiller si le profil montre trop de « pièce laissée en prise ».
+- [ ] « Autres erreurs » représente encore 9 % des erreurs des parties de référence (`bun run faultstats`, 42 % auparavant, 12 % avant le type « Pièces passives » et les pions poussés devant le roi). Ce sont des coups tranquilles du milieu de jeu (dame mal placée, coup de pion qui perd le fil) : il faudrait détecter le centre, ou comparer des évaluations de position. Une détection des pions doublés ou isolés créés par un coup a été essayée : elle ne trouve rien sur ces parties, elle n'a pas été gardée.
+- [ ] Les nouveaux thèmes (pièce piégée, coup intermédiaire, déviation, attraction, interférence, rayon X) sont rares : 1 à 4 fois sur les 994 erreurs de référence, et la surcharge jamais (Lichess n'a pas de puzzles à ce nom : le plan ne propose rien pour ce thème). À revérifier sur d'autres parties avant de s'y fier. Pas encore détectés : dégagement, coup calme, zugzwang, sous-promotion.
 
 ### Question ouverte
 
@@ -86,7 +85,7 @@ Ce sont des suggestions, pas des décisions.
 ## 4. Ordre conseillé
 
 1. ~~Terminer le point 5 : résumé de 3 lignes et comparaison avec sa moyenne.~~ Fait.
-2. ~~Élargir les thèmes tactiques et réduire « autre ».~~ Fait (voir « Types d'erreur et thèmes tactiques » pour le reste).
+2. ~~Élargir les thèmes tactiques et réduire « autre ».~~ Fait : sept thèmes de plus, « autre » de 42 % à 9 % (voir « Types d'erreur et thèmes tactiques » pour le reste).
 3. ~~Petits ajouts d'entraînement : ouvrir la partie depuis « S'entraîner », dédoublonnage, bouton « nouvelles parties ».~~ Fait.
 4. ~~Vérifications sur de vrais appareils et un vrai lecteur d'écran.~~ Fait, tout est bon.
 5. Ensuite seulement les grosses évolutions (adversaires, jeu contre Stockfish, finales, version anglaise).

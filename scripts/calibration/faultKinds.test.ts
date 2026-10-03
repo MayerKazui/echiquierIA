@@ -6,11 +6,11 @@ import { analyseRecorded, loadReference } from './reference';
 
 /**
  * How the faults of real games are sorted (see `scripts/faultStats.ts` for the figures on all the reference games):
- * "other" must stay a minority, or the profile says nothing about the player. About 12 % of the faults of all the
+ * "other" must stay a minority, or the profile says nothing about the player. About 9 % of the faults of all the
  * reference games are "other" today; the limit sits well above, so only a real loss of precision fails here.
  */
 const SAMPLE = 25;
-const MAX_OTHER_SHARE = 0.2;
+const MAX_OTHER_SHARE = 0.15;
 
 const counts: Partial<Record<FaultKind, number>> = {};
 const themes = new Set<string>();

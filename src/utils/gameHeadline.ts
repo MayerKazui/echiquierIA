@@ -29,6 +29,7 @@ const FAULT_PHRASE: Record<FaultKind, string> = {
   king: 'roi mal placé',
   principles: "coup contraire aux principes d'ouverture",
   technique: 'faute de technique en finale',
+  passive: 'pièces passives',
   other: 'erreur de calcul ou de position',
 };
 

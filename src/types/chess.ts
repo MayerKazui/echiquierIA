@@ -31,7 +31,8 @@ export interface MoveAnalysis {
   /** The phase of the game the move was played in, from the material on the board (see `phaseOfPosition`). */
   phase?: GamePhase;
   /** What kind of fault this is (mistake, blunder, miss only); filled in when the game is stored, see `faultKinds`. */
-  faultKind?: 'mate' | 'hanging' | 'tactic' | 'wasted' | 'exchange' | 'king' | 'principles' | 'technique' | 'other';
+  faultKind?:
+    'mate' | 'hanging' | 'tactic' | 'wasted' | 'exchange' | 'king' | 'principles' | 'technique' | 'passive' | 'other';
   /** The tactical theme behind a `tactic` or `mate` fault (a Lichess puzzle theme: "fork", "backRankMate"…). */
   faultTheme?: string;
   clock?: string;

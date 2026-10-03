@@ -1,5 +1,15 @@
-import { Chess, type Color, type PieceSymbol, type Square } from 'chess.js';
+import type { Chess, Color, PieceSymbol, Square } from 'chess.js';
 import { chessFromFen } from './chessFromFen';
+import { VALUE, forks, kingSquareOf, other, pieceSquares, winnable, wins } from './tacticBoard';
+import {
+  attraction,
+  deflection,
+  interference,
+  intermezzo,
+  overloading,
+  trappedPiece,
+  xRayAttack,
+} from './tacticPatterns';
 import { SACRIFICE_MIN, materialSacrificed } from './sacrifice';
 import { analyzeTacticalThreatsForMove } from './tacticalThreats';
 
@@ -22,6 +32,13 @@ export type TacticTheme =
   | 'discoveredCheck'
   | 'doubleCheck'
   | 'capturingDefender'
+  | 'xRayAttack'
+  | 'attraction'
+  | 'deflection'
+  | 'interference'
+  | 'intermezzo'
+  | 'overloading'
+  | 'trappedPiece'
   | 'backRankMate'
   | 'smotheredMate'
   | 'promotion'
@@ -37,7 +54,14 @@ export const TACTIC_THEMES: readonly TacticTheme[] = [
   'fork',
   'skewer',
   'pin',
+  'xRayAttack',
+  'attraction',
+  'deflection',
+  'interference',
+  'intermezzo',
   'capturingDefender',
+  'overloading',
+  'trappedPiece',
   'hangingPiece',
   'promotion',
   'sacrifice',
@@ -78,6 +102,34 @@ export const TACTIC_THEME_TEXT: Record<TacticTheme, { label: string; hint: strin
     label: 'Capture du défenseur',
     hint: 'On prend la pièce qui protégeait une autre, qui tombe ensuite.',
   },
+  xRayAttack: {
+    label: 'Rayon X',
+    hint: "Un échange gagné grâce à la pièce placée derrière, dont la ligne passe à travers d'autres pièces.",
+  },
+  attraction: {
+    label: 'Attraction',
+    hint: 'On offre une pièce que seul le roi peut prendre : il est attiré sur une case où il est maté ou fourchetté.',
+  },
+  deflection: {
+    label: 'Déviation',
+    hint: "On offre une pièce à un défenseur : en la prenant, il abandonne ce qu'il protégeait.",
+  },
+  interference: {
+    label: 'Interférence',
+    hint: "Une pièce s'interpose entre un défenseur et la pièce qu'il protégeait, qui tombe.",
+  },
+  intermezzo: {
+    label: 'Coup intermédiaire',
+    hint: 'Un échec glissé avant la prise qui attendait : elle reste possible, et on a gagné un temps.',
+  },
+  overloading: {
+    label: 'Surcharge',
+    hint: "Un défenseur protège deux pièces à la fois : quand il en reprend une, l'autre tombe.",
+  },
+  trappedPiece: {
+    label: 'Pièce piégée',
+    hint: "Une pièce attaquée n'a plus aucune case sûre : elle est perdue.",
+  },
   hangingPiece: { label: 'Pièce en prise', hint: 'Une pièce adverse est attaquée et personne ne la défend.' },
   promotion: { label: 'Promotion', hint: 'Un pion arrive sur la dernière rangée et devient une pièce.' },
   sacrifice: {
@@ -85,44 +137,6 @@ export const TACTIC_THEME_TEXT: Record<TacticTheme, { label: string; hint: strin
     hint: 'On donne du matériel pour obtenir davantage : une attaque, un mat ou un gain plus grand.',
   },
 };
-
-const VALUE: Record<PieceSymbol, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
-const other = (color: Color): Color => (color === 'w' ? 'b' : 'w');
-
-function pieceSquares(chess: Chess, color: Color): Array<{ square: Square; type: PieceSymbol }> {
-  const result: Array<{ square: Square; type: PieceSymbol }> = [];
-  for (const row of chess.board()) {
-    for (const piece of row)
-      if (piece && piece.color === color) result.push({ square: piece.square, type: piece.type });
-  }
-  return result;
-}
-
-const kingSquareOf = (chess: Chess, color: Color): Square | null =>
-  pieceSquares(chess, color).find((p) => p.type === 'k')?.square ?? null;
-
-/** The attacker (of the squares `attackers`) that costs least: the one that would take. */
-const cheapest = (chess: Chess, attackers: readonly Square[]): number =>
-  Math.min(...attackers.map((a) => VALUE[chess.get(a)!.type] || 100));
-
-/**
- * Whether `attackers` (of the colour `by`) win the piece standing on `target`: nobody defends it, or the cheapest
- * of them is worth less than the piece.
- */
-function wins(chess: Chess, target: Square, by: Color, attackers: readonly Square[]): boolean {
-  const piece = chess.get(target);
-  if (!piece || piece.type === 'k' || attackers.length === 0) return false;
-  const isDefended = chess.attackers(target, other(by)).length > 0;
-  return !isDefended || cheapest(chess, attackers) < VALUE[piece.type];
-}
-
-/** The pieces (not pawns) that `by` could win right now. */
-function winnable(chess: Chess, by: Color): Square[] {
-  return pieceSquares(chess, other(by))
-    .filter(({ type }) => type !== 'k' && VALUE[type] >= 3)
-    .map(({ square }) => square)
-    .filter((square) => wins(chess, square, by, chess.attackers(square, by)));
-}
 
 function checkThemes(after: Chess, mover: Color, to: Square, isCastling: boolean): TacticTheme[] {
   if (!after.inCheck()) return [];
@@ -187,15 +201,6 @@ function capturingDefender(before: Chess, after: Chess, mover: Color, to: Square
       if (wonBefore.has(square)) return false;
       return wins(after, square, mover, after.attackers(square, mover));
     });
-}
-
-/** The piece that moved attacks two things at once: the king (a check) or pieces it wins. */
-function forks(after: Chess, mover: Color, to: Square): boolean {
-  const targets = pieceSquares(after, other(mover)).filter(({ square, type }) => {
-    if (!after.attackers(square, mover).includes(to)) return false;
-    return type === 'k' || (VALUE[type] >= 3 && wins(after, square, mover, [to]));
-  });
-  return targets.length >= 2;
 }
 
 /** A piece that attacks a valuable piece with a less valuable one behind it (the pin the other way round). */
@@ -263,6 +268,7 @@ export function tacticThemesOfMove(fenBefore: string, uci: string): TacticTheme[
     const mover = move.color;
     const to = move.to;
     const isCastling = move.isKingsideCastle() || move.isQueensideCastle();
+    const context = { before, after, move, mover };
     const found = new Set<TacticTheme>([
       ...checkThemes(after, mover, to, isCastling),
       ...mateThemes(after, mover, to, move.piece),
@@ -277,7 +283,16 @@ export function tacticThemesOfMove(fenBefore: string, uci: string): TacticTheme[
       if (!isCastling && discoveredAttack(before, after, mover, to)) found.add('discoveredAttack');
       if (skewers(after, mover, to)) found.add('skewer');
       if (move.captured && capturingDefender(before, after, mover, to, move.captured)) found.add('capturingDefender');
+      if (!isCastling) {
+        if (xRayAttack(context)) found.add('xRayAttack');
+        if (deflection(context)) found.add('deflection');
+        if (interference(context)) found.add('interference');
+        if (intermezzo(context)) found.add('intermezzo');
+        if (overloading(context)) found.add('overloading');
+        if (trappedPiece(context)) found.add('trappedPiece');
+      }
     }
+    if (attraction(context)) found.add('attraction');
     if (move.promotion) found.add('promotion');
     if (materialSacrificed(fenBefore, { from: move.from, to: move.to, promotion: move.promotion }) >= SACRIFICE_MIN) {
       found.add('sacrifice');

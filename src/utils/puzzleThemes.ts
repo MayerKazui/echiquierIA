@@ -28,6 +28,7 @@ const THEMES: Record<string, [string, ThemeGroup]> = {
   intermezzo: ['Coup intermédiaire', 'motifs'],
   xRayAttack: ['Rayon X', 'motifs'],
   zugzwang: ['Zugzwang', 'motifs'],
+  overloading: ['Surcharge', 'motifs'],
   sacrifice: ['Sacrifice', 'motifs'],
   quietMove: ['Coup calme', 'motifs'],
   defensiveMove: ['Coup défensif', 'motifs'],
@@ -109,7 +110,11 @@ export const FAULT_PUZZLE_THEMES: Readonly<Record<string, readonly string[]>> = 
   king: ['exposedKing', 'defensiveMove'],
   principles: ['opening'],
   technique: ['endgame', 'pawnEndgame', 'rookEndgame'],
+  passive: ['quietMove', 'advantage'],
 };
+
+/** Themes the game analysis finds but that Lichess does not tag its puzzles with: no puzzles to offer for them. */
+export const NO_PUZZLE_THEMES: ReadonlySet<string> = new Set(['overloading']);
 
 /** The themes a `mate` fault can carry: the others belong to `tactic`. */
 const MATE_THEMES: ReadonlySet<string> = new Set([
@@ -144,6 +149,7 @@ export function faultThemeCounts(
  */
 export function faultPuzzleThemes(kind: string, found: Readonly<Partial<Record<string, number>>> = {}): string[] {
   const own = faultThemeCounts(kind, found)
+    .filter(([theme]) => !NO_PUZZLE_THEMES.has(theme))
     .slice(0, MAX_FAULT_THEMES)
     .map(([theme]) => theme);
   return own.length > 0 ? own : [...(FAULT_PUZZLE_THEMES[kind] ?? [])];

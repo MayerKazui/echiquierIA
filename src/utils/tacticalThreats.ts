@@ -48,7 +48,7 @@ export function isSquareDefendedBy(chess: Chess, targetSquare: string, defenderC
     const fen = chess.fen();
     const fenParts = fen.split(' ');
     fenParts[1] = defenderColor;
-    const testChess = new Chess(fenParts.join(' '));
+    const testChess = chessFromFen(fenParts.join(' '));
 
     const currentPiece = testChess.get(targetSquare as Square);
     if (currentPiece && currentPiece.color === defenderColor) {
@@ -128,7 +128,7 @@ export function analyzeTacticalThreatsForMove(fenBefore: string, moveUci: string
     // 2. Direct attacks and captures from the landing square 'to'
     const fenParts = fenAfter.split(' ');
     fenParts[1] = movingColor;
-    const attackChess = new Chess(fenParts.join(' '));
+    const attackChess = chessFromFen(fenParts.join(' '));
     const movesFromTo = attackChess.moves({ verbose: true }).filter((m) => m.from === to);
 
     const attacksOnPieces = movesFromTo.filter((m) => Boolean(m.captured));
