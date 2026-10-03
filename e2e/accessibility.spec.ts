@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { analyzeSample, openFromMenu } from './support/app';
+import { chessComGame, fakeChessComPlayer } from './support/chesscom';
 
 const axeSource = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
 
@@ -57,6 +58,25 @@ test.describe('accessibilité (axe-core)', () => {
 
     await page.getByRole('button', { name: 'Jouer', exact: true }).click();
     await expect(page.getByRole('status').filter({ hasText: 'À vous de jouer' })).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+  });
+
+  test("« Préparer un adversaire » : le formulaire, puis les ouvertures et l'explorateur", async ({ page }) => {
+    const moves = '1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6';
+    await fakeChessComPlayer(
+      page,
+      'rival',
+      [1, 2, 3].map((id) => chessComGame(id, 'rival', moves))
+    );
+    await page.goto('/');
+    await openFromMenu(page, /Préparer un adversaire/);
+    await expect(page.getByRole('button', { name: 'Préparer', exact: true })).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+
+    await page.getByRole('textbox', { name: /Pseudo de l'adversaire/ }).fill('rival');
+    await page.getByRole('button', { name: 'Préparer', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Avec les Blancs' })).toBeVisible();
+    await expect(page.getByRole('table')).toBeVisible();
     expect(await violations(page)).toEqual([]);
   });
 });

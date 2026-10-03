@@ -5,12 +5,12 @@ import { useOpeningExplorerData } from '../../hooks/useOpeningExplorerData';
 import { getOpeningPosition } from '../../services/openingBook';
 import { toFrenchSan } from '../../utils/chessNotation';
 import { continuationsOf, walkLine, type Continuation } from '../../utils/openingExplorer';
-import { INDEX_PLIES, gamesIn, talliesAt } from '../../utils/openingIndex';
+import { INDEX_PLIES, gamesIn, talliesAt, type OpeningIndex } from '../../utils/openingIndex';
 import { toFrenchOpeningName } from '../../utils/openingNames';
 import type { PlayStart } from '../../utils/playGame';
 import type { BoardTheme } from '../../types/ui';
 import { ChessBoard } from '../ChessBoard/ChessBoard';
-import { SECONDARY, TallyBar, numbered } from './shared';
+import { SECONDARY, TallyBar, numbered, percent } from './shared';
 
 interface OpeningExplorerProps {
   /** The line on the board (English SAN): kept by the parent, so that another view can send the player to a position. */
@@ -21,15 +21,31 @@ interface OpeningExplorerProps {
   /** Starts a game against Stockfish from the position on the board. */
   onPlay?: (start: PlayStart) => void;
   boardTheme?: BoardTheme;
+  /**
+   * The games of an opponent to prepare for: their moves are counted next to the player's own, the sides become
+   * theirs ("He plays White" means the player has Black), and the most played move of the opponent comes first.
+   */
+  opponent?: { name: string; index: OpeningIndex };
+  /** The side looked at, when the parent decides it (otherwise the explorer keeps it). */
+  side?: Side;
+  onSideChange?: (side: Side) => void;
 }
 
-type Side = 'all' | 'w' | 'b';
+export type Side = 'all' | 'w' | 'b';
 
 const SIDES: Array<{ value: Side; label: string }> = [
   { value: 'all', label: 'Toutes' },
   { value: 'w', label: 'Avec les Blancs' },
   { value: 'b', label: 'Avec les Noirs' },
 ];
+const OPPONENT_SIDES: Array<{ value: Side; label: string }> = [
+  { value: 'all', label: 'Toutes' },
+  { value: 'w', label: 'Il joue les Blancs' },
+  { value: 'b', label: 'Il joue les Noirs' },
+];
+
+/** The side the player has when the opponent has `side`. */
+const otherSide = (side: Side): Side => (side === 'w' ? 'b' : side === 'b' ? 'w' : 'all');
 
 /** Walk the tree of the openings, move by move, next to how the player's own games went. */
 export const OpeningExplorer: React.FC<OpeningExplorerProps> = ({
@@ -38,19 +54,36 @@ export const OpeningExplorer: React.FC<OpeningExplorerProps> = ({
   onImport,
   onPlay,
   boardTheme,
+  opponent,
+  side: controlledSide,
+  onSideChange,
 }) => {
   const { data, retry } = useOpeningExplorerData();
-  const [side, setSide] = useState<Side>('all');
+  const [ownSide, setOwnSide] = useState<Side>('all');
+  const side = controlledSide ?? ownSide;
+  const setSide = onSideChange ?? setOwnSide;
   const [isFlipped, setIsFlipped] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
 
   const isReady = data.status === 'ready';
   const walk = useMemo(() => walkLine(isReady ? sans : [], getOpeningPosition), [isReady, sans]);
+  // Facing an opponent, `mine` of a continuation holds the opponent's games, and the player's own are `own`
   const continuations = useMemo<Continuation[]>(() => {
     if (data.status !== 'ready') return [];
-    return continuationsOf(walk.fen, getOpeningPosition, talliesAt(data.index, walk.fen, side));
-  }, [data, walk.fen, side]);
+    if (!opponent) return continuationsOf(walk.fen, getOpeningPosition, talliesAt(data.index, walk.fen, side));
+    const theirs = continuationsOf(walk.fen, getOpeningPosition, talliesAt(opponent.index, walk.fen, side));
+    // Their most played move first; the others keep the order of the book
+    return theirs
+      .map((c, i) => ({ c, i }))
+      .sort((a, b) => (b.c.mine?.games ?? 0) - (a.c.mine?.games ?? 0) || a.i - b.i)
+      .map(({ c }) => c);
+  }, [data, walk.fen, side, opponent]);
+  const ownTallies = useMemo(
+    () => (opponent && data.status === 'ready' ? talliesAt(data.index, walk.fen, otherSide(side)) : undefined),
+    [opponent, data, walk.fen, side]
+  );
+  const theirGames = continuations.reduce((sum, c) => sum + (c.mine?.games ?? 0), 0);
 
   const playerGames = data.status === 'ready' ? gamesIn(data.index) : 0;
   const last = walk.steps.length > 0 ? walk.steps[walk.steps.length - 1] : null;
@@ -64,7 +97,8 @@ export const OpeningExplorer: React.FC<OpeningExplorerProps> = ({
   const play = (san: string) => go([...walk.steps.map((s) => s.san), san]);
   const chooseSide = (value: Side) => {
     setSide(value);
-    if (value !== 'all') setIsFlipped(value === 'b');
+    // Seen from the player's side: facing an opponent who has White, the player has Black
+    if (value !== 'all') setIsFlipped(opponent ? value === 'w' : value === 'b');
   };
 
   /** A move made on the board: it is followed when the explorer offers it, and refused otherwise. */
@@ -210,8 +244,10 @@ export const OpeningExplorer: React.FC<OpeningExplorerProps> = ({
 
             <div className="flex flex-col gap-1.5">
               <div role="group" aria-label="Parties prises en compte" className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] text-slate-400 mr-1">Mes parties :</span>
-                {SIDES.map(({ value, label }) => (
+                <span className="text-[11px] text-slate-400 mr-1">
+                  {opponent ? `Parties de ${opponent.name} :` : 'Mes parties :'}
+                </span>
+                {(opponent ? OPPONENT_SIDES : SIDES).map(({ value, label }) => (
                   <button
                     key={value}
                     type="button"
@@ -227,7 +263,7 @@ export const OpeningExplorer: React.FC<OpeningExplorerProps> = ({
                   </button>
                 ))}
               </div>
-              {playerGames === 0 && (
+              {!opponent && playerGames === 0 && (
                 <p className="text-[11px] text-slate-400">
                   Aucune de vos parties n&apos;est comptée pour l&apos;instant : renseignez votre pseudo et{' '}
                   <button type="button" onClick={onImport} className="underline text-indigo-300 cursor-pointer">
@@ -243,10 +279,15 @@ export const OpeningExplorer: React.FC<OpeningExplorerProps> = ({
                 {isOutOfBook
                   ? 'Aucun coup proposé : la position sort de la théorie.'
                   : 'Fin de la ligne : aucun coup connu à partir d’ici.'}
+                {opponent && ` ${opponent.name} n'a pas joué cette position dans les parties lues.`}
               </p>
             ) : (
               <table className="w-full text-xs">
-                <caption className="sr-only">Coups possibles depuis cette position, avec vos parties jouées</caption>
+                <caption className="sr-only">
+                  {opponent
+                    ? `Coups possibles depuis cette position, avec les parties de ${opponent.name}${playerGames > 0 ? ' et les vôtres' : ''}`
+                    : 'Coups possibles depuis cette position, avec vos parties jouées'}
+                </caption>
                 <thead>
                   <tr className="text-left text-[11px] text-slate-400">
                     <th scope="col" className="font-medium pb-1 pr-2">
@@ -255,9 +296,19 @@ export const OpeningExplorer: React.FC<OpeningExplorerProps> = ({
                     <th scope="col" className="font-medium pb-1 pr-2">
                       Ouverture
                     </th>
-                    <th scope="col" className="font-medium pb-1">
-                      Mes parties
+                    {opponent && (
+                      <th scope="col" className="font-medium pb-1 pr-2">
+                        Fréquence
+                      </th>
+                    )}
+                    <th scope="col" className="font-medium pb-1 pr-2">
+                      {opponent ? `Parties de ${opponent.name}` : 'Mes parties'}
                     </th>
+                    {opponent && playerGames > 0 && (
+                      <th scope="col" className="font-medium pb-1">
+                        Mes parties
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -287,9 +338,23 @@ export const OpeningExplorer: React.FC<OpeningExplorerProps> = ({
                         )}
                         {c.name && !c.inBook && <span className="text-amber-300 ml-1">hors du livre</span>}
                       </td>
-                      <td className="py-1 align-top">
+                      {opponent && (
+                        <td className="py-1 pr-2 align-top tabular-nums text-slate-200">
+                          {c.mine && theirGames > 0 ? percent.format(c.mine.games / theirGames) : '—'}
+                        </td>
+                      )}
+                      <td className="py-1 pr-2 align-top">
                         {c.mine ? <TallyBar tally={c.mine} /> : <span className="text-slate-500">—</span>}
                       </td>
+                      {opponent && playerGames > 0 && (
+                        <td className="py-1 align-top">
+                          {ownTallies?.get(c.san) ? (
+                            <TallyBar tally={ownTallies.get(c.san)!} />
+                          ) : (
+                            <span className="text-slate-500">—</span>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -297,9 +362,9 @@ export const OpeningExplorer: React.FC<OpeningExplorerProps> = ({
             )}
 
             <p className="text-[11px] text-slate-500">
-              Les coups du livre sont classés selon le nombre de variantes connues qui les suivent. Source : base
-              d&apos;ouvertures de Lichess. Les résultats sont ceux de vos parties enregistrées (les {INDEX_PLIES}{' '}
-              premiers demi-coups), du point de vue du joueur renseigné.
+              {opponent
+                ? `Les coups sont classés par fréquence dans les parties lues de ${opponent.name}, puis selon le nombre de variantes connues qui les suivent. Source : base d'ouvertures de Lichess. Les résultats sont ceux de ses parties, de son point de vue, et de vos parties enregistrées (les ${INDEX_PLIES} premiers demi-coups).`
+                : `Les coups du livre sont classés selon le nombre de variantes connues qui les suivent. Source : base d'ouvertures de Lichess. Les résultats sont ceux de vos parties enregistrées (les ${INDEX_PLIES} premiers demi-coups), du point de vue du joueur renseigné.`}
             </p>
           </div>
         </div>

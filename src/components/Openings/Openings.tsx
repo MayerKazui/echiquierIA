@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { BookOpen, X } from 'lucide-react';
+import { useOpponentPrep } from '../../hooks/useOpponentPrep';
+import type { fetchGamesPage } from '../../services/gameImport';
 import type { BoardTheme } from '../../types/ui';
 import type { PlayStart } from '../../utils/playGame';
 import { OpeningDrill } from './OpeningDrill';
 import { OpeningExplorer } from './OpeningExplorer';
 import { OpeningRepertoire } from './OpeningRepertoire';
+import { OpponentPrep } from './OpponentPrep';
 
-export type View = 'explorer' | 'repertoire' | 'drill';
+export type View = 'explorer' | 'repertoire' | 'drill' | 'opponent';
 
 interface OpeningsProps {
   onClose: () => void;
@@ -17,19 +20,27 @@ interface OpeningsProps {
   boardTheme?: BoardTheme;
   /** What to show first (the plan sends the player to a position of the explorer). */
   start?: { view: View; sans: string[] };
+  /** Replaces the network call that reads an opponent's games (tests). */
+  fetchPage?: typeof fetchGamesPage;
 }
 
 export const VIEWS: Array<{ value: View; label: string }> = [
   { value: 'explorer', label: 'Explorateur' },
   { value: 'repertoire', label: 'Mes ouvertures' },
   { value: 'drill', label: "S'entraîner" },
+  { value: 'opponent', label: 'Préparer un adversaire' },
 ];
 
-/** "Ouvertures": the tree of the openings to walk through, the player's own repertoire, and training on it. */
-export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardTheme, start, onPlay }) => {
+/**
+ * "Ouvertures": the tree of the openings to walk through, the player's own repertoire, training on it, and the
+ * preparation for an opponent.
+ */
+export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardTheme, start, onPlay, fetchPage }) => {
   const [view, setView] = useState<View>(start?.view ?? 'explorer');
   // Kept here so that the repertoire can send the player to a position of the explorer
   const [sans, setSans] = useState<string[]>(start?.sans ?? []);
+  // Kept here too: the games read for an opponent are still there when the player comes back to the view
+  const opponent = useOpponentPrep(fetchPage);
   const showInExplorer = (line: string[]) => {
     setSans(line);
     setView('explorer');
@@ -50,7 +61,7 @@ export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardThem
             <h2 className="text-base font-bold text-slate-100">Ouvertures</h2>
             <p className="text-xs text-slate-400 mt-0.5">
               Parcourez l&apos;arbre des ouvertures coup par coup, voyez celles que vous jouez vraiment et révisez vos
-              lignes et vos sorties de théorie.
+              lignes et vos sorties de théorie, ou préparez-vous à un adversaire.
             </p>
           </div>
         </div>
@@ -98,6 +109,16 @@ export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardThem
         )}
         {view === 'repertoire' && <OpeningRepertoire onImport={onImport} onShowLine={showInExplorer} />}
         {view === 'drill' && <OpeningDrill onImport={onImport} onShowLine={showInExplorer} boardTheme={boardTheme} />}
+        {view === 'opponent' && (
+          <OpponentPrep
+            state={opponent.state}
+            onSearch={(search) => void opponent.search(search)}
+            onReset={opponent.reset}
+            onImport={onImport}
+            onPlay={onPlay}
+            boardTheme={boardTheme}
+          />
+        )}
       </div>
     </div>
   );

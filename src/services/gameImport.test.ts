@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   ImportError,
+  fetchGames,
   fetchGamesPage,
   formatTimeControl,
   isValidUsername,
   parseChessComGame,
   parseLichessGame,
+  type ImportCursor,
+  type ImportedGame,
 } from './gameImport';
 
 const PGN = '[Event "Live Chess"]\n\n1. e4 e5 2. Nf3 Nc6 1-0';
@@ -391,5 +394,55 @@ describe('fetchGamesPage: Lichess', () => {
       cursor: { source: 'chesscom', months: [], carry: [] },
     });
     expect(new URL(String(fetchImpl.mock.calls[0][0])).searchParams.has('until')).toBe(false);
+  });
+});
+
+describe('fetchGames', () => {
+  const imported = (id: string) => ({ id }) as unknown as ImportedGame;
+  const cursor = (until: number): ImportCursor => ({ source: 'lichess', until });
+  type Page = Awaited<ReturnType<typeof fetchGamesPage>>;
+
+  it('reads pages one after the other until there are enough games, then cuts to the target', async () => {
+    const pages: Page[] = [
+      { games: [imported('a'), imported('b')], cursor: cursor(2) },
+      { games: [imported('c'), imported('d')], cursor: cursor(1) },
+      { games: [imported('e')], cursor: null },
+    ];
+    const fetchPage = vi.fn(async () => pages.shift()!);
+    const onProgress = vi.fn();
+    const games = await fetchGames('lichess', 'alice', { target: 3, fetchPage, onProgress });
+    expect(games.map((g) => g.id)).toEqual(['a', 'b', 'c']);
+    expect(fetchPage).toHaveBeenCalledTimes(2);
+    expect(onProgress.mock.calls.map(([n]) => n)).toEqual([2, 3]);
+  });
+
+  it('asks for what is missing, passes the cursor and the filter on', async () => {
+    const fetchPage = vi
+      .fn<typeof fetchGamesPage>()
+      .mockResolvedValueOnce({ games: [imported('a')], cursor: cursor(5) })
+      .mockResolvedValueOnce({ games: [imported('b')], cursor: null });
+    await fetchGames('lichess', 'alice', { target: 150, speed: 'blitz', fetchPage });
+    expect(fetchPage.mock.calls[0][2]).toMatchObject({ limit: 100, speed: 'blitz', cursor: null });
+    expect(fetchPage.mock.calls[1][2]).toMatchObject({ limit: 100, speed: 'blitz', cursor: cursor(5) });
+  });
+
+  it('stops when the history ends, and keeps a game only once', async () => {
+    const fetchPage = vi
+      .fn<typeof fetchGamesPage>()
+      .mockResolvedValueOnce({ games: [imported('a'), imported('b')], cursor: cursor(1) })
+      .mockResolvedValueOnce({ games: [imported('b'), imported('c')], cursor: null });
+    const games = await fetchGames('chesscom', 'alice', { target: 50, fetchPage });
+    expect(games.map((g) => g.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('does not walk through the archives for ever when pages come back empty', async () => {
+    const fetchPage = vi.fn<typeof fetchGamesPage>(async () => ({ games: [], cursor: cursor(1) }));
+    expect(await fetchGames('chesscom', 'alice', { target: 50, fetchPage })).toEqual([]);
+    expect(fetchPage).toHaveBeenCalledTimes(8);
+  });
+
+  it('lets an import error through', async () => {
+    const fetchPage = vi.fn<typeof fetchGamesPage>().mockRejectedValue(new ImportError('not_found', 'Introuvable'));
+    await expect(fetchGames('lichess', 'alice', { target: 10, fetchPage })).rejects.toThrow('Introuvable');
   });
 });

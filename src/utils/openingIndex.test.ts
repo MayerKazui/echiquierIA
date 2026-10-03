@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { game, mv, PSEUDO } from '../test/profileFixtures';
-import { INDEX_PLIES, buildOpeningIndex, gamesIn, talliesAt } from './openingIndex';
+import { INDEX_PLIES, buildOpeningIndex, gamesIn, indexLines, talliesAt } from './openingIndex';
 import { START_FEN } from './openingExplorer';
 
 /** A game of the player given as SAN moves (the engine data does not matter here). */
@@ -91,5 +91,22 @@ describe('gamesIn', () => {
       played(['d4'], { id: 'c', white: 'X', black: 'Y' }),
     ]);
     expect(gamesIn(index)).toBe(2);
+  });
+});
+
+describe('indexLines', () => {
+  it('indexes bare lines, by the colour of the counted player', async () => {
+    const index = await indexLines([
+      { sans: ['e4', 'e5'], color: 'w', outcome: 'win' },
+      { sans: ['e4', 'c5'], color: 'b', outcome: 'loss' },
+    ]);
+    expect(talliesAt(index, START_FEN, 'w')!.get('e4')).toEqual({ games: 1, wins: 1, draws: 0, losses: 0 });
+    expect(talliesAt(index, START_FEN, 'b')!.get('e4')).toEqual({ games: 1, wins: 0, draws: 0, losses: 1 });
+    expect(gamesIn(index)).toBe(2);
+  });
+
+  it('keeps what was read of a line that stops being legal', async () => {
+    const index = await indexLines([{ sans: ['e4', 'e5', 'Ke4'], color: 'w', outcome: null }]);
+    expect(talliesAt(index, AFTER_E4, 'all')!.get('e5')).toEqual({ games: 1, wins: 0, draws: 0, losses: 0 });
   });
 });

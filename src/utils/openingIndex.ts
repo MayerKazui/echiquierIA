@@ -2,7 +2,7 @@ import { Chess } from 'chess.js';
 import type { GameAnalysisResult } from '../types/chess';
 import { normalizeFen } from '../services/openingBook';
 import { START_FEN, addToTally, emptyTally, mergeTallies, type Tally } from './openingExplorer';
-import { parseOutcome, playerColorIn } from './weaknessProfile';
+import { parseOutcome, playerColorIn, type Outcome } from './weaknessProfile';
 
 /**
  * The moves of the player's own games, by position: from each position of the first plies of a game, which moves
@@ -20,25 +20,32 @@ export const INDEX_PLIES = 35;
 
 export type OpeningIndex = Map<string, Map<string, Record<'w' | 'b', Tally>>>;
 
+/** A game reduced to what the index needs: the moves, the side the counted player had, and how it went for them. */
+export interface IndexedLine {
+  sans: readonly string[];
+  color: 'w' | 'b';
+  outcome: Outcome | null;
+}
+
+interface IndexOptions {
+  yieldToUi?: () => Promise<void>;
+}
+
 /**
- * Indexes the games the player is named in. The position keys ignore the move counters (a transposition shares
- * its entry); the tallies are kept by the colour the player had, so that the explorer can look at one side only.
+ * Indexes lines of play. The position keys ignore the move counters (a transposition shares its entry); the
+ * tallies are kept by the colour of the counted player, so that the explorer can look at one side only.
  * `yieldToUi` is called now and then so that a long history does not freeze the page.
  */
-export async function buildOpeningIndex(
-  games: readonly IndexSource[],
-  { yieldToUi }: { yieldToUi?: () => Promise<void> } = {}
+export async function indexLines(
+  lines: readonly IndexedLine[],
+  { yieldToUi }: IndexOptions = {}
 ): Promise<OpeningIndex> {
   const index: OpeningIndex = new Map();
   let sinceYield = 0;
 
-  for (const { result } of games) {
-    const color = playerColorIn(result);
-    if (color === null) continue;
-    const outcome = parseOutcome(result.metadata.result, color);
-
+  for (const { sans, color, outcome } of lines) {
     const chess = new Chess();
-    for (const { san } of result.moves.slice(0, INDEX_PLIES)) {
+    for (const san of sans.slice(0, INDEX_PLIES)) {
       const key = normalizeFen(chess.fen());
       let played: string;
       try {
@@ -59,6 +66,19 @@ export async function buildOpeningIndex(
     }
   }
   return index;
+}
+
+/** Indexes the games the player is named in (the ones where the pseudo kept with the game is not found are left out). */
+export async function buildOpeningIndex(
+  games: readonly IndexSource[],
+  options: IndexOptions = {}
+): Promise<OpeningIndex> {
+  const lines = games.flatMap(({ result }): IndexedLine[] => {
+    const color = playerColorIn(result);
+    if (color === null) return [];
+    return [{ sans: result.moves.map((m) => m.san), color, outcome: parseOutcome(result.metadata.result, color) }];
+  });
+  return indexLines(lines, options);
 }
 
 /** The tallies of a position for the games played with `side` ('all' adds both), by move. */

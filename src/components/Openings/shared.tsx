@@ -2,7 +2,7 @@ import React from 'react';
 import { numberedFrenchMove, toFrenchSan } from '../../utils/chessNotation';
 import { scoreOf, type Tally } from '../../utils/openingExplorer';
 
-const percent = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 0 });
+export const percent = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 0 });
 
 export const BUTTON =
   'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed';
@@ -52,3 +52,8 @@ export const TallyBar: React.FC<{ tally: Tally }> = ({ tally }) => {
 
 /** "8.h3", "8…h6": a move given by its number and its side, when the position is not at hand. */
 export const numberedAt = numberedFrenchMove;
+
+/** "1.e4 e5 2.Cf3": a whole line from the starting position, with its move numbers. */
+export function numberedLine(sans: readonly string[]): string {
+  return sans.map((san, ply) => (ply % 2 === 0 ? `${ply / 2 + 1}.${toFrenchSan(san)}` : toFrenchSan(san))).join(' ');
+}
