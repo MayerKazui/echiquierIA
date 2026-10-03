@@ -36,7 +36,7 @@ export function usePlan(now: () => number = Date.now): PlanState {
         const [profile, repertoire, positions] = await Promise.all([
           buildProfile(games, undefined, options),
           buildRepertoire(games),
-          collectPositions(games, options),
+          collectPositions(games, { ...options, cards }),
         ]);
         if (isCancelled) return;
         setState({

@@ -7,7 +7,7 @@ import { listGames, saveGame } from '../../services/gameStore';
 import { savePuzzleAttempt } from '../../services/puzzleHistoryStore';
 import { saveCard } from '../../services/trainingStore';
 import { game, mv } from '../../test/profileFixtures';
-import { faultMove } from '../../test/trainingFixtures';
+import { distinctFen, faultMove } from '../../test/trainingFixtures';
 import { DAY_MS } from '../../utils/spacedRepetition';
 import { Plan } from './Plan';
 
@@ -25,7 +25,7 @@ async function store(faults: Record<number, ReturnType<typeof faultMove>> = {}, 
 
 /** Six games, each with one piece left hanging: that is all of the faults, so it is the kind that comes back. */
 const storeHangingGames = async (count = 6) => {
-  for (let i = 0; i < count; i++) await store({ 6: faultMove({ faultKind: 'hanging' }) });
+  for (let i = 0; i < count; i++) await store({ 6: faultMove({ faultKind: 'hanging', fenBefore: distinctFen(i) }) });
 };
 
 /** The first objective of the plan. */

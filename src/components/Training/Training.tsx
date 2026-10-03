@@ -21,6 +21,8 @@ interface TrainingProps {
   /** Opens the import of online games (shown when there is nothing to replay). */
   onImport: () => void;
   boardTheme?: BoardTheme;
+  /** Shows the game at the position of the error (the training closes): the id of the game and the move index. */
+  onOpenGame?: (gameId: string, ply: number) => void;
   /** The themes to start with (the plan sends the player to one), none to take all the errors. */
   initialFilter?: TrainingFilter;
 }
@@ -38,7 +40,7 @@ const SECONDARY =
   'px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300';
 
 /** "S'entraîner": replay the positions where the player went wrong, and come back to them at growing intervals. */
-export const Training: React.FC<TrainingProps> = ({ onClose, onImport, boardTheme, initialFilter }) => {
+export const Training: React.FC<TrainingProps> = ({ onClose, onImport, boardTheme, onOpenGame, initialFilter }) => {
   const { data, record } = useTrainingData();
   const [filter, setFilter] = useState<TrainingFilter>(initialFilter ?? NO_FILTER);
   const [session, setSession] = useState<Session | null>(null);
@@ -147,6 +149,7 @@ export const Training: React.FC<TrainingProps> = ({ onClose, onImport, boardThem
             boardTheme={boardTheme}
             onVerdict={onVerdict}
             onNext={next}
+            onOpenGame={onOpenGame}
           />
         )}
 

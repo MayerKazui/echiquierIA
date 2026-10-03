@@ -88,11 +88,17 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
 
   // Which listed games are already in the history (read again when the history grows)
   const [analyzedIds, setAnalyzedIds] = useState<ReadonlySet<string>>(() => new Set());
+  /** False until the history has been read once: before that, every game would look new. */
+  const [areIdsKnown, setAreIdsKnown] = useState(false);
   const gameIds = useMemo(() => new Map(games.map((game) => [gameKey(game), gameId(game.pgn)])), [games]);
   useEffect(() => {
     if (games.length === 0) return;
     let isCurrent = true;
-    void loadAnalyzedIds().then((ids) => isCurrent && setAnalyzedIds(ids));
+    void loadAnalyzedIds().then((ids) => {
+      if (!isCurrent) return;
+      setAnalyzedIds(ids);
+      setAreIdsKnown(true);
+    });
     return () => {
       isCurrent = false;
     };
@@ -154,15 +160,17 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
     onSelect(game, searched.username);
   };
 
-  const startBatch = () => {
+  const startBatch = (selection: ImportedGame[]) => {
     if (!searched || !onAnalyzeBatch) return;
-    onAnalyzeBatch(games.slice(0, batchCount), searched.username);
+    onAnalyzeBatch(selection, searched.username);
   };
 
   const label = SOURCE_LABELS[source];
   // The list is newest first: the batch takes the first ones, and never more than what is shown
   const batchCount = Math.min(batchSize, games.length);
   const batchAnalyzed = games.slice(0, batchCount).filter(isAnalyzed).length;
+  // The games of the list that are not in the history yet (the newest first, as many as a batch can hold)
+  const newGames = areIdsKnown ? games.filter((game) => !isAnalyzed(game)).slice(0, MAX_BATCH_JOBS) : [];
   const status = isLoading
     ? `Recherche des parties de ${username.trim()} sur ${label}…`
     : loadedTitle
@@ -315,7 +323,7 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
             <button
               type="button"
               disabled={isBatchBusy || isLoading}
-              onClick={startBatch}
+              onClick={() => startBatch(games.slice(0, batchCount))}
               className="ml-auto inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold text-white cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
             >
               {isBatchBusy ? 'Analyse en cours…' : `Analyser ${batchCount} partie${batchCount > 1 ? 's' : ''}`}
@@ -326,6 +334,23 @@ export const OnlineGames: React.FC<OnlineGamesProps> = ({
             reprend si vous fermez l'onglet. « Mes parties » garde vos {MAX_GAMES} dernières parties ; les{' '}
             {MAX_FULL_GAMES} plus récentes avec leur analyse complète, les autres en version allégée.
           </p>
+          <div className="flex flex-wrap items-center gap-2 border-t border-slate-800 pt-2">
+            <button
+              type="button"
+              disabled={isBatchBusy || isLoading || newGames.length === 0}
+              onClick={() => startBatch(newGames)}
+              className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-700 text-xs font-semibold text-slate-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+            >
+              {areIdsKnown
+                ? newGames.length === 0
+                  ? 'Aucune nouvelle partie'
+                  : `Analyser seulement les ${newGames.length} nouvelle${newGames.length > 1 ? 's' : ''}`
+                : 'Recherche des nouvelles parties…'}
+            </button>
+            <span className="text-[10px] text-slate-400">
+              Celles de la liste qui ne sont pas encore dans « Mes parties » : pour mettre à jour votre profil.
+            </span>
+          </div>
           {batchAnalyzed > 0 && (
             <p className="text-[10px] text-slate-400">
               {batchAnalyzed} déjà analysée{batchAnalyzed > 1 ? 's' : ''} :{' '}

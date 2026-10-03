@@ -37,7 +37,7 @@ export function useTrainingData(now: () => number = Date.now) {
     void (async () => {
       try {
         const [games, cards] = await Promise.all([listGames(), loadCards()]);
-        const positions = await collectPositions(games, { yieldToUi: yieldToUi(() => isCancelled) });
+        const positions = await collectPositions(games, { yieldToUi: yieldToUi(() => isCancelled), cards });
         if (isCancelled) return;
         const ready: TrainingData = { status: 'ready', positions, cards, games: games.length };
         dataRef.current = ready;

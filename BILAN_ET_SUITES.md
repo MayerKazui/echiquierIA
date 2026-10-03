@@ -18,13 +18,13 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 ### Récupération des parties
 
 - Import par pseudo chess.com ou Lichess (appels directs du navigateur), filtre de cadence, parties plus anciennes à la demande.
-- Analyse en lot des 5 à 100 dernières parties, en tâche de fond, avec reprise.
+- Analyse en lot des 5 à 100 dernières parties, ou seulement des nouvelles (celles de la liste pas encore dans l'historique), en tâche de fond, avec reprise.
 - Historique de 500 parties dans le navigateur (IndexedDB) : les 50 plus récentes complètes, les autres allégées.
 
 ### Outils d'entraînement
 
 - **Mon profil** : faiblesses par phase, type d'erreur (neuf types, dont le thème tactique manqué : fourchette, clouage, attaque à la découverte…), zeitnot, couleur, force de l'adversaire, cadence, évolution ; points forts.
-- **S'entraîner** : rejouer ses propres erreurs avec correction par le moteur, en répétition espacée (1, 3 puis 7 jours), filtres par type d'erreur et par phase.
+- **S'entraîner** : rejouer ses propres erreurs avec correction par le moteur, en répétition espacée (1, 3 puis 7 jours), filtres par type d'erreur et par phase ; une même position ratée dans plusieurs parties n'est proposée qu'une fois ; « Voir dans la partie » ouvre la partie au coup de l'erreur.
 - **Résumé de la partie** : trois lignes en tête du bilan (moment décisif avec son type de faute, précision comparée à sa moyenne sur les autres parties, fautes et phase la plus fragile).
 - **Mon plan** : trois objectifs au plus, avec progression sur 7 jours et le bouton qui lance chacun, plus les puzzles du thème correspondant.
 - **Ouvertures** : explorateur en arbre avec ses résultats par coup, et « Mes ouvertures » (répertoire réel, score, coup de sortie qui coûte cher).
@@ -46,13 +46,10 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 
 ## 2. Ce qu'il reste à faire (déjà identifié dans le dépôt)
 
-### S'entraîner et import
+### Import
 
-- [ ] Ouvrir la partie à l'endroit de l'erreur depuis « S'entraîner ».
-- [ ] Ne proposer qu'une position par situation identique (même position dans deux parties).
 - [ ] Import : filtre par mois.
 - [ ] Import : afficher la précision publiée par chess.com (`accuracies`) à côté de la nôtre.
-- [ ] Bouton « n'analyser que les nouvelles parties » (mise à jour manuelle du profil). La forme n'est pas décidée.
 
 ### Études
 
@@ -106,6 +103,6 @@ Ce sont des suggestions, pas des décisions.
 
 1. ~~Terminer le point 5 : résumé de 3 lignes et comparaison avec sa moyenne.~~ Fait.
 2. ~~Élargir les thèmes tactiques et réduire « autre ».~~ Fait (voir « Types d'erreur et thèmes tactiques » pour le reste).
-3. Petits ajouts d'entraînement : ouvrir la partie depuis « S'entraîner », dédoublonnage, bouton « nouvelles parties ».
+3. ~~Petits ajouts d'entraînement : ouvrir la partie depuis « S'entraîner », dédoublonnage, bouton « nouvelles parties ».~~ Fait.
 4. ~~Vérifications sur de vrais appareils et un vrai lecteur d'écran.~~ Fait, tout est bon.
 5. Ensuite seulement les grosses évolutions (adversaires, jeu contre Stockfish, finales, version anglaise).

@@ -364,6 +364,20 @@ export async function loadGame(pgn: string): Promise<StoredGame | null> {
   }
 }
 
+/** The stored game with this id (what a training position names), or null. */
+export async function loadGameById(id: string): Promise<StoredGame | null> {
+  try {
+    const found = await inTransaction<unknown>('readonly', (store, done) => {
+      const request = store.get(id);
+      request.onsuccess = () => done(request.result);
+    });
+    return isStoredGame(found) && found.id === id ? withFreshStats(found) : null;
+  } catch (err) {
+    console.warn('Could not read the stored game:', err);
+    return null;
+  }
+}
+
 /** The most recently saved game that is still readable and complete (a summary cannot be shown), or null. */
 export async function loadLatestGame(): Promise<StoredGame | null> {
   try {

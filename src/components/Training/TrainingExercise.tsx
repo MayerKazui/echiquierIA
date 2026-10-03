@@ -25,6 +25,8 @@ interface TrainingExerciseProps {
   /** Called once, with the verdict on the first answer of the position (or when the solution is asked for). */
   onVerdict: (position: TrainingPosition, verdict: Verdict) => void;
   onNext: () => void;
+  /** Shows the game at the position of the error; no button without it. */
+  onOpenGame?: (gameId: string, ply: number) => void;
 }
 
 const BUTTON =
@@ -61,6 +63,7 @@ export const TrainingExercise: React.FC<TrainingExerciseProps> = ({
   boardTheme,
   onVerdict,
   onNext,
+  onOpenGame,
 }) => {
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [answer, setAnswer] = useState<Answer | null>(null);
@@ -156,6 +159,12 @@ export const TrainingExercise: React.FC<TrainingExerciseProps> = ({
             Position {index + 1} sur {total} · coup {position.moveNumber} · contre {position.opponent} ·{' '}
             {formatPlayedDate(position.date)}
           </p>
+          {position.repeats ? (
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Cette position s&apos;est aussi présentée dans {position.repeats} autre{position.repeats > 1 ? 's' : ''}{' '}
+              partie{position.repeats > 1 ? 's' : ''} : elle n&apos;est proposée qu&apos;une fois.
+            </p>
+          ) : null}
           <p className="text-sm font-semibold text-slate-100 mt-1">Vous jouez les {side}. Trouvez un meilleur coup.</p>
           <p className="text-xs text-slate-400 mt-1">
             En partie, vous aviez joué{' '}
@@ -229,6 +238,15 @@ export const TrainingExercise: React.FC<TrainingExerciseProps> = ({
               className={`${BUTTON} bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700`}
             >
               Réessayer
+            </button>
+          )}
+          {verdict && onOpenGame && (
+            <button
+              type="button"
+              onClick={() => onOpenGame(position.gameId, position.ply)}
+              className={`${BUTTON} bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700`}
+            >
+              Voir dans la partie
             </button>
           )}
           {verdict && (

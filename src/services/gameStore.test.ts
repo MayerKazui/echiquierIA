@@ -16,6 +16,7 @@ import {
   mergeGames,
   listGames,
   loadGame,
+  loadGameById,
   loadLatestGame,
   normalizePgn,
   reclassifyStoredGames,
@@ -392,6 +393,24 @@ describe('saveGame / loadGame', () => {
     expect(found).not.toBeNull();
     expect(isFullGame(found!)).toBe(true);
     expect((await loadLatestGame())?.pgn).toBe(normalizePgn(PGN));
+  });
+});
+
+describe('loadGameById', () => {
+  it('returns the game with this id, whatever its level of detail', async () => {
+    await saveGame({ pgn: PGN, depth: 14, result: makeResult() });
+    const found = await loadGameById(gameId(PGN));
+    expect(found?.pgn).toBe(normalizePgn(PGN));
+    expect(found?.depth).toBe(14);
+  });
+
+  it('returns null for an id that is not stored', async () => {
+    expect(await loadGameById('nothing')).toBeNull();
+  });
+
+  it('returns null, without failing, when the storage is unavailable', async () => {
+    Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true, writable: true });
+    expect(await loadGameById('nothing')).toBeNull();
   });
 });
 
