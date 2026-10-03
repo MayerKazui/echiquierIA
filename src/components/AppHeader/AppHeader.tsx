@@ -3,6 +3,7 @@ import {
   BarChart3,
   BookOpen,
   ClipboardList,
+  Crown,
   Download,
   Dumbbell,
   FileText,
@@ -37,6 +38,7 @@ interface AppHeaderProps {
   onOpenTraining: () => void;
   onOpenPuzzles: () => void;
   onOpenOpenings: () => void;
+  onOpenEndgames: () => void;
   onOpenStudies: () => void;
   onOpenPlan: () => void;
   /** Installs the app: given only when the browser offers it. */
@@ -61,6 +63,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onOpenTraining,
   onOpenPuzzles,
   onOpenOpenings,
+  onOpenEndgames,
   onOpenStudies,
   onOpenPlan,
   onInstall,
@@ -108,6 +111,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       hint: 'Explorer les ouvertures et voir mon répertoire',
       icon: <BookOpen className={ICON} />,
       onSelect: onOpenOpenings,
+    },
+    {
+      id: 'endgames',
+      label: 'Finales',
+      hint: 'Les finales théoriques, jouées contre le moteur',
+      icon: <Crown className={ICON} />,
+      onSelect: onOpenEndgames,
     },
     {
       id: 'studies',

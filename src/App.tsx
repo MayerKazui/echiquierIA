@@ -31,6 +31,7 @@ import {
   ChessBoard,
   Dashboard,
   EvaluationChart,
+  Endgames,
   MoveComparison,
   MoveList,
   Openings,
@@ -76,6 +77,7 @@ export default function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isTrainingOpen, setIsTrainingOpen] = useState(false);
   const [isOpeningsOpen, setIsOpeningsOpen] = useState(false);
+  const [isEndgamesOpen, setIsEndgamesOpen] = useState(false);
   const [isStudiesOpen, setIsStudiesOpen] = useState(false);
   const [isPuzzlesOpen, setIsPuzzlesOpen] = useState(false);
   const [isPlanOpen, setIsPlanOpen] = useState(false);
@@ -581,6 +583,7 @@ export default function App() {
           setPuzzleStart(undefined);
           setIsPuzzlesOpen(true);
         }}
+        onOpenEndgames={() => setIsEndgamesOpen(true)}
         onOpenStudies={() => setIsStudiesOpen(true)}
         onOpenPlan={() => setIsPlanOpen(true)}
         onInstall={canInstall ? () => void install() : undefined}
@@ -750,6 +753,14 @@ export default function App() {
         <Modal title="Études" onClose={() => setIsStudiesOpen(false)} className="w-full max-w-[min(96vw,84rem)]">
           <Suspense fallback={null}>
             <Studies boardTheme={boardTheme} onClose={() => setIsStudiesOpen(false)} />
+          </Suspense>
+        </Modal>
+      )}
+
+      {isEndgamesOpen && (
+        <Modal title="Finales" onClose={() => setIsEndgamesOpen(false)} className="w-full max-w-[min(96vw,84rem)]">
+          <Suspense fallback={null}>
+            <Endgames boardTheme={boardTheme} onClose={() => setIsEndgamesOpen(false)} />
           </Suspense>
         </Modal>
       )}

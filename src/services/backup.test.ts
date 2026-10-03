@@ -25,6 +25,7 @@ import { loadCards, saveCard } from './trainingStore';
 import { deleteStudy, listStudies, listStudyDeletions, saveStudy, STUDY_SCHEMA_VERSION } from './studyStore';
 import { createChapter } from '../utils/studyTree';
 import { drillId } from '../utils/openingDrill';
+import { endgameCardId } from '../utils/endgameDrill';
 import type { Study } from '../types/study';
 import type { PuzzleEntry } from '../utils/puzzleReview';
 
@@ -400,6 +401,21 @@ describe('restoreBackup', () => {
     const report = await restoreBackup(parsed.backup, fakeStorage());
     expect(report.cards).toMatchObject({ added: 1 });
     expect((await loadCards()).get(id)).toMatchObject({ level: 2, attempts: 3 });
+  });
+
+  it('carries the progress on the theoretical endgames, whose cards are named by the endgame', async () => {
+    const id = endgameCardId({ id: 'lucena-b' });
+    await saveCard(card(id, { level: 1, attempts: 2 }));
+    const backup = await createBackup(Date.parse('2026-10-01T12:00:00Z'), fakeStorage());
+    expect(backup.cards.map((c) => c.id)).toContain(id);
+
+    const parsed = parseBackup(serializeBackup(backup));
+    if (!parsed.ok) throw new Error('should be valid');
+    expect(parsed.rejected.cards).toBe(0);
+    freshDatabase();
+    const report = await restoreBackup(parsed.backup, fakeStorage());
+    expect(report.cards).toMatchObject({ added: 1 });
+    expect((await loadCards()).get(id)).toMatchObject({ level: 1, attempts: 2 });
   });
 
   it('does not overwrite a setting chosen in this browser', async () => {

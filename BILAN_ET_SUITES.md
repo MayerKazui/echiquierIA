@@ -28,6 +28,7 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 - **Résumé de la partie** : trois lignes en tête du bilan (moment décisif avec son type de faute, précision comparée à sa moyenne sur les autres parties, fautes et phase la plus fragile).
 - **Mon plan** : trois objectifs au plus, avec progression sur 7 jours et le bouton qui lance chacun, plus les puzzles du thème correspondant.
 - **Ouvertures** : explorateur en arbre avec ses résultats par coup ; « Mes ouvertures » (répertoire réel, score, précision de ses 10 coups qui suivent la sortie du livre comparée à sa moyenne calculée de la même façon, ouverture la plus solide et la plus fragile, coup de sortie qui coûte cher) ; « S'entraîner » : les positions où l'on a quitté la théorie en perdant au moins 8 points de chances de gain, et les lignes qui marchent (la position la plus profonde que 2 parties au moins partagent dans la théorie), rejouées en répétition espacée (1, 3 puis 7 jours, comme dans « S'entraîner » sur ses erreurs) ; est juste tout coup que la base d'ouvertures connaît à cet endroit (ou qui mène à une de ses positions) ; filtres par type de position et par couleur, « Voir dans l'explorateur » après chaque réponse ; « Mon plan » renvoie vers cet entraînement depuis l'objectif sur la sortie de théorie.
+- **Finales** : onze positions théoriques (mat avec la dame et avec la tour, quatre finales de roi et pion, deux Lucena, trois Philidor), vérifiées avec Stockfish 19 complet, jouées contre le moteur. Il juge chaque coup avec la même mesure que « S'entraîner » (chances de gain perdues, plafonnées à +6 pions pour qu'un mat vu ou non vu ne compte pas pour une faute ; un mat qui s'éloigne de plus de 2 coups est dit « retardé » ; le coup du moteur n'est jamais refusé), répond par son meilleur coup, et l'exercice se termine sur un mat, un pion promu dans une position qui reste gagnée (au moins 70 % de chances de gain), ou la nulle tenue (règles ou 12 coups) ; 40 coups sans conclure sur une position à gagner, c'est « trop long ». Le premier essai compte (un coup raté ou la solution demandée font échouer la position, que l'on peut ensuite reprendre ou recommencer pour s'entraîner), avec la répétition espacée de « S'entraîner » (cartes `finale:…` dans le même magasin, donc dans la sauvegarde et la synchronisation Drive).
 - **Puzzles** : 200 000 puzzles Lichess embarqués (73 thèmes en français, tranche d'Elo, chronomètre sans pénalité), puzzles ratés en répétition espacée, statistiques sur 7 jours, 30 jours ou tout.
 - **Woodpecker** : lot figé de 20 à 500 puzzles, cycles chronométrés avec pause, temps comparé au cycle précédent, reprise d'un ancien lot.
 - **Études** (privées, à la manière de Lichess) : chapitres, variantes, commentaires, glyphes, flèches et cercles, import et export PGN, chapitre verrouillable contre l'ordinateur, réordonnancement.
@@ -68,6 +69,12 @@ Faites sur de vrais appareils (2026-10-03), sans défaut constaté : lecteur d'�
 - [ ] Une ligne qui marche n'est rejouée qu'à son point le plus profond partagé par 2 parties : les coups d'avant ne sont pas interrogés. Une partie dont la sortie coûteuse est déjà rejouée ne donne pas de ligne (celle qui y mène est rejouée avec la sortie).
 - [ ] L'objectif « Préparez votre sortie de théorie » de « Mon plan » ouvre l'entraînement mais n'a pas de barre de progression de la semaine, comme les objectifs sur les erreurs : il faudrait charger la base d'ouvertures dans le plan.
 
+### Finales
+
+- [ ] Onze positions seulement. Écartées après essai avec le moteur : le fou de la mauvaise couleur avec un pion de tour (le moteur le voit à −0,88 au lieu de 0 : la nulle théorique n'est pas sûre) et les mats avec deux fous et avec fou et cavalier (le moteur y reste à +2 sans voir le mat : la progression ne se juge pas). Pas encore essayées : Vancura, la dame contre la tour, la dame contre un pion en septième, la triangulation, la règle du carré ; chaque position doit passer la même vérification avec le moteur complet.
+- [ ] Les seuils (70 % de chances de gain pour une promotion, 12 coups pour tenir une nulle, 40 coups pour une position gagnée, 2 coups de mat de marge) sont posés sans calage sur de vraies parties de joueurs : ils sont assez larges pour que le moteur qui joue les deux camps réussisse chaque position (vérifié), mais pas testés sur des joueurs.
+- [ ] « Mon plan » ne renvoie pas vers les finales (rien dans les parties ne dit encore quelle finale revoir).
+
 ### Question ouverte
 
 - [ ] Stats mondiales d'ouverture : l'API Explorer de Lichess exige-t-elle un jeton ? Si oui, on garde seulement ses propres stats.
@@ -76,16 +83,16 @@ Faites sur de vrais appareils (2026-10-03), sans défaut constaté : lecteur d'�
 
 Ce sont des suggestions, pas des décisions. « Précision par ouverture » et « Entraînement au répertoire d'ouvertures » ont été faites, avec leurs limites (précision limitée aux coups qui suivent la sortie du livre, lignes qui marchent, lien depuis « Mon plan ») : elles sont décrites dans « Ce qui est fait » (Ouvertures), et ce qui reste dans « Ouvertures » de la section 2.
 
-| #   | Idée                       | Intérêt                                                                                                                                                  |
-| --- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Préparer ses adversaires   | Analyser le répertoire d'un pseudo avec les briques de l'import et de l'explorateur.                                                                     |
-| 2   | Jouer contre Stockfish     | Niveau réglable, depuis une position d'étude, d'ouverture ou d'une position critique de ses parties.                                                     |
-| 3   | Entraînement aux finales   | Positions théoriques (Lucena, Philidor…) avec correction par le moteur.                                                                                  |
-| 4   | Puzzles : mode « tempête » | Score à battre, et puzzles tirés de ses propres erreurs avec les statistiques des puzzles.                                                               |
-| 5   | ~~Stockfish multi-thread~~ | Abandonné (2026-10-03) : voir « Décisions prises ».                                                                                                      |
-| 6   | Version anglaise           | Tout est en français (interface, ouvertures, thèmes) ; élargirait le public.                                                                             |
-| 7   | Tests de bout en bout      | Playwright est disponible ; couvrir import, analyse, sauvegarde et synchronisation Drive. Il n'y a aujourd'hui que des tests unitaires et de composants. |
-| 8   | Ménage du dépôt            | `server.ts` et `server.js` compilé, et `dist/` sont présents : vérifier ce qui est versionné par erreur.                                                 |
+| #   | Idée                         | Intérêt                                                                                                                                                  |
+| --- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Préparer ses adversaires     | Analyser le répertoire d'un pseudo avec les briques de l'import et de l'explorateur.                                                                     |
+| 2   | Jouer contre Stockfish       | Niveau réglable, depuis une position d'étude, d'ouverture ou d'une position critique de ses parties.                                                     |
+| 3   | ~~Entraînement aux finales~~ | Fait : voir « Finales » dans « Ce qui est fait ».                                                                                                        |
+| 4   | Puzzles : mode « tempête »   | Score à battre, et puzzles tirés de ses propres erreurs avec les statistiques des puzzles.                                                               |
+| 5   | ~~Stockfish multi-thread~~   | Abandonné (2026-10-03) : voir « Décisions prises ».                                                                                                      |
+| 6   | Version anglaise             | Tout est en français (interface, ouvertures, thèmes) ; élargirait le public.                                                                             |
+| 7   | Tests de bout en bout        | Playwright est disponible ; couvrir import, analyse, sauvegarde et synchronisation Drive. Il n'y a aujourd'hui que des tests unitaires et de composants. |
+| 8   | Ménage du dépôt              | `server.ts` et `server.js` compilé, et `dist/` sont présents : vérifier ce qui est versionné par erreur.                                                 |
 
 ## 4. Ordre conseillé
 
@@ -94,4 +101,4 @@ Ce sont des suggestions, pas des décisions. « Précision par ouverture » et �
 3. ~~Petits ajouts d'entraînement : ouvrir la partie depuis « S'entraîner », dédoublonnage, bouton « nouvelles parties ».~~ Fait.
 4. ~~Vérifications sur de vrais appareils et un vrai lecteur d'écran.~~ Fait, tout est bon.
 5. ~~Couvrir les ouvertures : précision par ouverture et entraînement au répertoire.~~ Fait.
-6. Ensuite seulement les grosses évolutions (adversaires, jeu contre Stockfish, finales, version anglaise).
+6. Ensuite seulement les grosses évolutions (adversaires, jeu contre Stockfish, version anglaise). Les finales sont faites.
