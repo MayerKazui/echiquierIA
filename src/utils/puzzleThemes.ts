@@ -96,6 +96,24 @@ const THEMES: Record<string, [string, ThemeGroup]> = {
   superGM: ['Partie de super-GM', 'others'],
 };
 
+/**
+ * The Lichess themes that work on a kind of fault found in the player's games (see `faultKinds`), for the plan of
+ * the week: the puzzles to do against a habit. Nothing for `other`: there is no theme for a miscalculation.
+ */
+export const FAULT_PUZZLE_THEMES: Readonly<Record<string, readonly string[]>> = {
+  mate: ['mateIn1', 'mateIn2'],
+  hanging: ['hangingPiece'],
+  tactic: ['fork', 'pin', 'skewer'],
+  wasted: ['crushing', 'advantage'],
+};
+
+/** The themes of the phases of a game share the names `GamePhase` has. */
+export const PHASE_PUZZLE_THEMES: Readonly<Record<string, readonly string[]>> = {
+  opening: ['opening'],
+  middlegame: ['middlegame'],
+  endgame: ['endgame'],
+};
+
 /** The name of a theme for the screen. */
 export function themeLabel(theme: string): string {
   return THEMES[theme]?.[0] ?? theme;

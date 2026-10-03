@@ -548,7 +548,38 @@ Menu d'en-tête « Puzzles » (`src/components/Puzzles/`), au niveau et sur les 
 - **Limites** :
   - Le tirage est au hasard : un puzzle déjà joué peut revenir (l'historique des puzzles vus, prévu dans un second temps, l'évitera).
   - Le nombre de puzzles d'une combinaison de thèmes n'est connu qu'au lancement (l'index compte par thème) : un choix vide est signalé quand l'index le sait, sinon au chargement.
-  - Pas encore de Woodpecker, ni de lien depuis « Mon plan ».
+  - Pas de lien depuis « Mon plan » (voir la suite).
+
+### Suite : le Woodpecker — fait
+
+Onglet « Woodpecker » de la fenêtre « Puzzles » (`WoodpeckerHome`, `WoodpeckerRun`, `WoodpeckerSummary`), cadré dans le comparatif (section 4). Le choix « Séance libre / Woodpecker » est gardé dans le navigateur.
+
+- [x] **Lot figé** (`utils/woodpecker`) : tiré une seule fois dans la tranche d'Elo choisie (20, 50, 100, 200 ou 500 puzzles, au plus ce que la tranche contient), avec une graine (générateur mulberry32, le pool étant trié par identifiant : même pool et même graine donnent le même lot). Le lot est stocké en entier (les puzzles, pas leurs seuls identifiants) pour qu'une nouvelle sélection de puzzles dans l'application ne le change pas ; l'ordre est le même à chaque cycle. « Nouveau lot » demande confirmation, car il efface aussi les cycles.
+- [x] **Cycle** : la file contient tout le lot ; un puzzle réussi la quitte, un puzzle raté (mauvais coup ou solution demandée) passe en fin de file et revient jusqu'à être réussi. Le cycle finit quand la file est vide ; les reprises comptent dans le cycle et dans son temps. Le résultat d'un puzzle compte quand le joueur passe au suivant (pas avant d'avoir vu la réponse). « Réessayer » reste possible, sans changer le résultat.
+- [x] **Chronomètre** (`useStopwatch`) : global au cycle, avec **Pause** (le plateau est masqué et inerte pour qu'on ne puisse pas réfléchir à l'arrêt) ; le temps hors de l'écran (onglet caché) met aussi en pause. Le temps vient de l'horloge, pas d'un comptage de ticks.
+- [x] **Reprise** : le cycle en cours (file, puzzles ratés, temps) est écrit après chaque puzzle, en pause, en quittant le cycle et à la fermeture de la fenêtre ; « Reprendre le cycle N » repart où le chronomètre s'était arrêté, après un rechargement aussi. Perte au pire : le puzzle sur le plateau.
+- [x] **Bilan** : temps total du cycle, puzzles réussis du premier coup (et nombre de repris), écart avec le cycle précédent en temps et en pourcentage, « meilleur cycle jusqu'ici ». L'accueil du lot donne les cycles terminés, le dernier et le meilleur temps, et la liste des cycles.
+- [x] **Séparé des puzzles ratés** : les puzzles ratés du Woodpecker ne vont pas dans la répétition espacée des séances libres (le Woodpecker se répète de lui-même, cycle après cycle).
+- [x] **Stockage** (`woodpeckerStore`) : base IndexedDB `echiquier-ia-woodpecker`, un seul enregistrement ; lecture validée (lot sans doublon, file qui ne cite que des puzzles du lot).
+- [x] **Sauvegarde** : le lot, ses cycles et le cycle en cours sont dans le fichier JSON et la synchronisation Drive, au **format 5** (une application de format 4 refuse un fichier de format 5 plutôt que de renvoyer une copie sans le lot et d'écraser Drive). Fusion : un seul lot, celui travaillé en dernier gagne (deux lots ne se mélangent pas : leurs temps ne se comparent pas). Un fichier de format 4 se lit sans lot ; un lot abîmé est écarté et compté avec les éléments illisibles.
+- Vérifié dans Chromium (bureau et mobile) sur la version de production, avec de vrais puzzles : création du lot (20 puzzles de 800 à 1200), cycle complet joué avec un raté volontaire (19 sur 20 du premier coup, le raté repris à la fin), pause (chronomètre et plateau arrêtés), cycle 2 quitté puis repris après rechargement avec le temps d'avant, même ordre des puzzles qu'au cycle 1, aucune erreur de console.
+- Tests : 14 pour l'écran (lot, cycle, reprise des ratés, comparaison, pause, reprise, fermeture), 29 pour la logique et le stockage, 4 pour le chronomètre, 9 pour la sauvegarde et Drive.
+- **Limites** :
+  - Un seul lot à la fois (changer de lot efface l'historique de l'ancien).
+  - Pas de choix des thèmes pour le Woodpecker (lot mélangé, comme la méthode).
+  - Pas encore d'historique détaillé (précision par thème, courbe des temps) ni de lien avec « Mon plan » : c'est le second temps annoncé.
+
+### Suite : le lien avec « Mon plan » — fait
+
+Les objectifs de « Mon plan » qui portent sur un type d'erreur ou sur une phase proposent maintenant les puzzles du thème correspondant (`utils/trainingPlan`, `FAULT_PUZZLE_THEMES` et `PHASE_PUZZLE_THEMES` dans `utils/puzzleThemes`).
+
+- [x] **Correspondance** : mat manqué ou subi → mat en 1 et mat en 2 ; pièce laissée en prise → pièce en prise ; tactique manquée → fourchette, clouage, enfilade ; avantage gâché → gain écrasant et prendre l'avantage ; phase fragile → ouverture, milieu de jeu ou finale. Rien pour « autres erreurs » (pas de thème pour un calcul raté), ni pour la sortie de théorie et les habitudes.
+- [x] **À côté des positions à rejouer** : l'objectif garde son bouton « Commencer » (les erreurs de ses propres parties) et gagne un bouton « Puzzles : Pièce en prise ».
+- [x] **Quand il n'y a plus rien à rejouer** (tout est maîtrisé, ou aucune position de ce type n'est stockée), l'objectif n'est plus écarté : il devient « Faites des puzzles : … » avec le bouton « Faire des puzzles », sans barre de progression (il n'y a pas encore d'historique des puzzles pour la remplir). Avant, le plan disparaissait ou passait à l'objectif suivant.
+- [x] **Ouverture pré-réglée** (`Puzzles`, propriété `start`) : la fenêtre s'ouvre sur une séance libre avec ces thèmes (« l'un des thèmes ») et, si les parties donnent un Elo, la tranche suggérée (trois bandes autour de l'Elo moins 200). Ces choix ne sont pas écrits dans le navigateur : les réglages habituels du joueur ne sont écrasés qu'au premier changement qu'il fait lui-même ; l'ouverture par le menu repart de ses réglages. Un clic sur l'onglet Woodpecker quitte aussi le préréglage.
+- Vérifié dans Chromium sur la version de production avec six parties factices (pièce en prise à chaque partie) : le plan propose « Commencer » et « Puzzles : Pièce en prise », la fenêtre s'ouvre sur ce thème avec la tranche 1200 à 1800 (Elo 1432), rien n'est écrit dans `puzzle_themes`, et les puzzles tirés portent bien le thème « Pièce en prise ».
+- Tests : 7 pour le calcul du plan, 3 pour l'écran du plan, 4 pour l'ouverture de la fenêtre Puzzles.
+- **Limites** : pas de progression chiffrée sur les puzzles (elle viendra avec l'historique des puzzles) ; un seul préréglage par ouverture (le lien depuis « Mon profil » reste à faire).
 
 ## Grands plateaux dans les fenêtres — fait
 

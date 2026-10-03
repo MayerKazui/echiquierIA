@@ -277,6 +277,44 @@ describe('Puzzles: a run', () => {
   });
 });
 
+describe('Puzzles: sent by the plan', () => {
+  it('opens on the themes of the plan, and not on the last choice', async () => {
+    localStorage.setItem('puzzle_themes', 'fork');
+    localStorage.setItem('puzzle_mode', 'woodpecker');
+    render(<Puzzles onClose={vi.fn()} start={{ themes: ['mateIn1', 'backRankMate'] }} />);
+    expect((await screen.findByRole('button', { name: /Mat en 1/ })).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: /Mat du couloir/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: /Fourchette/ }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Séance libre' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('takes the level of the games for the range, and starts on those themes', async () => {
+    const user = userEvent.setup();
+    await saveGame({ pgn: '1. e4 *', depth: 12, result: game({ meta: { whiteElo: '1432' } }).result });
+    render(<Puzzles onClose={vi.fn()} start={{ themes: ['mateIn1'] }} />);
+    await waitFor(() => expect((screen.getByLabelText('Elo minimum') as HTMLSelectElement).value).toBe('1200'));
+    await user.click(screen.getByRole('button', { name: 'Commencer' }));
+    await screen.findByText(/^Puzzle 1/);
+    expect(loadPuzzles).toHaveBeenCalledWith({ minRating: 1200, maxRating: 1799, themes: ['mateIn1'], match: 'any' });
+  });
+
+  it('keeps what the player had stored until they change something', async () => {
+    const user = userEvent.setup();
+    render(<Puzzles onClose={vi.fn()} start={{ themes: ['mateIn1'] }} />);
+    await screen.findByRole('button', { name: 'Commencer' });
+    expect(localStorage.getItem('puzzle_themes')).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Mat du couloir/ }));
+    expect(localStorage.getItem('puzzle_themes')).toBe('mateIn1,backRankMate');
+  });
+
+  it('leaves the Woodpecker reachable', async () => {
+    const user = userEvent.setup();
+    render(<Puzzles onClose={vi.fn()} start={{ themes: ['mateIn1'] }} />);
+    await user.click(await screen.findByRole('button', { name: 'Woodpecker' }));
+    expect(await screen.findByRole('button', { name: 'Créer mon lot' })).toBeTruthy();
+  });
+});
+
 describe('Puzzles: the missed ones', () => {
   const missed = (id: string, dueAt: number, level = 0) => ({
     id,

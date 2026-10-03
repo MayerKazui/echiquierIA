@@ -1,7 +1,8 @@
 import React from 'react';
-import { BookOpen, CheckCircle2, ClipboardList, Dumbbell, Lightbulb, Upload, X } from 'lucide-react';
+import { BookOpen, CheckCircle2, ClipboardList, Dumbbell, Lightbulb, Puzzle, Upload, X } from 'lucide-react';
 import { usePlan } from '../../hooks/usePlan';
 import type { PlanAction, PlanItem } from '../../utils/trainingPlan';
+import { themeLabel } from '../../utils/puzzleThemes';
 import type { TrainingFilter } from '../../utils/spacedRepetition';
 
 interface PlanProps {
@@ -12,6 +13,8 @@ interface PlanProps {
   onShowLine: (line: string[]) => void;
   /** Opens the import of online games. */
   onImport: () => void;
+  /** Opens the puzzles on themes of Lichess. */
+  onPuzzles: (themes: string[]) => void;
 }
 
 const BUTTON =
@@ -21,6 +24,7 @@ const ICONS: Record<PlanAction['kind'], React.ReactNode> = {
   train: <Dumbbell className="w-3.5 h-3.5" aria-hidden="true" />,
   openings: <BookOpen className="w-3.5 h-3.5" aria-hidden="true" />,
   import: <Upload className="w-3.5 h-3.5" aria-hidden="true" />,
+  puzzles: <Puzzle className="w-3.5 h-3.5" aria-hidden="true" />,
   habit: <Lightbulb className="w-4 h-4 text-amber-300" aria-hidden="true" />,
 };
 
@@ -28,7 +32,13 @@ const LABELS: Record<Exclude<PlanAction['kind'], 'habit'>, string> = {
   train: 'Commencer',
   openings: 'Voir la position',
   import: 'Importer mes parties',
+  puzzles: 'Faire des puzzles',
 };
+
+const BUTTON_SECONDARY =
+  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300';
+
+const themesText = (themes: readonly string[]) => themes.map(themeLabel).join(', ');
 
 function Goal({ done, target }: { done: number; target: number }) {
   const isDone = done >= target;
@@ -63,13 +73,14 @@ function Goal({ done, target }: { done: number; target: number }) {
 }
 
 /** "Mon plan": the few objectives of the week, each with the button that starts it. */
-export const Plan: React.FC<PlanProps> = ({ onClose, onTrain, onShowLine, onImport }) => {
+export const Plan: React.FC<PlanProps> = ({ onClose, onTrain, onShowLine, onImport, onPuzzles }) => {
   const state = usePlan();
 
   const run = (action: PlanAction) => {
     if (action.kind === 'train') onTrain(action.filter);
     else if (action.kind === 'openings') onShowLine(action.line);
     else if (action.kind === 'import') onImport();
+    else if (action.kind === 'puzzles') onPuzzles(action.themes);
   };
 
   const renderItem = (item: PlanItem, index: number) => (
@@ -88,11 +99,18 @@ export const Plan: React.FC<PlanProps> = ({ onClose, onTrain, onShowLine, onImpo
       </div>
       {item.goal && <Goal done={item.goal.done} target={item.goal.target} />}
       {item.action.kind !== 'habit' && (
-        <div>
+        <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => run(item.action)} className={BUTTON}>
             {ICONS[item.action.kind]}
             {LABELS[item.action.kind]}
+            {item.action.kind === 'puzzles' && <span className="font-normal">: {themesText(item.action.themes)}</span>}
           </button>
+          {item.puzzles && (
+            <button type="button" onClick={() => onPuzzles(item.puzzles!)} className={BUTTON_SECONDARY}>
+              {ICONS.puzzles}
+              Puzzles : {themesText(item.puzzles)}
+            </button>
+          )}
         </div>
       )}
     </li>

@@ -81,6 +81,11 @@ export function describeRestore(
   } else if (report.puzzles === null) {
     parts.push("Les puzzles ratés n'ont pas pu être écrits dans ce navigateur.");
   }
+  if (report.woodpecker === 'added' || report.woodpecker === 'replaced') {
+    parts.push('Woodpecker : lot et cycles restaurés.');
+  } else if (report.woodpecker === null) {
+    parts.push("Le lot Woodpecker n'a pas pu être écrit dans ce navigateur.");
+  }
   if (report.preferencesApplied > 0) {
     parts.push(
       `${plural(report.preferencesApplied, 'réglage restauré', 'réglages restaurés')} (rechargez la page pour les appliquer).`
@@ -112,7 +117,7 @@ export const DataBackup: React.FC<DataBackupProps> = ({
       download(backupFileName(), serializeBackup(backup));
       setNotice({
         kind: 'success',
-        text: `Sauvegarde exportée : ${plural(backup.games.length, 'partie', 'parties')}, ${plural(backup.cards.length, 'position', 'positions')} d'entraînement${backup.studies.length > 0 ? `, ${plural(backup.studies.length, 'étude', 'études')}` : ''}${backup.puzzles.length > 0 ? `, ${plural(backup.puzzles.length, 'puzzle raté', 'puzzles ratés')}` : ''}.`,
+        text: `Sauvegarde exportée : ${plural(backup.games.length, 'partie', 'parties')}, ${plural(backup.cards.length, 'position', 'positions')} d'entraînement${backup.studies.length > 0 ? `, ${plural(backup.studies.length, 'étude', 'études')}` : ''}${backup.puzzles.length > 0 ? `, ${plural(backup.puzzles.length, 'puzzle raté', 'puzzles ratés')}` : ''}${backup.woodpecker ? `, un lot Woodpecker (${plural(backup.woodpecker.cycles.length, 'cycle', 'cycles')})` : ''}.`,
       });
     } catch (err) {
       console.error('Backup export failed:', err);

@@ -22,13 +22,15 @@ import type { Study } from '../types/study';
 import { isPuzzleEntry, loadPuzzleEntries, mergePuzzleEntries, type PuzzleMergeReport } from './puzzleStore';
 import { isCard, loadCards, mergeCards, type CardMergeReport } from './trainingStore';
 import type { PuzzleEntry } from '../utils/puzzleReview';
+import type { WoodpeckerSet } from '../utils/woodpecker';
+import { isWoodpeckerSet, loadWoodpecker, mergeWoodpecker, type WoodpeckerMergeReport } from './woodpeckerStore';
 
 /**
  * A backup of everything the app keeps in the browser, as one JSON file the player can save and bring back (a
  * cleared cache or another browser would otherwise lose the games, the training progress and the settings).
  *
  * The file holds the analysed games (as stored, light versions included), the training cards, the studies, the
- * missed puzzles and the settings; it does not hold the queue of a running batch analysis (it is transient). It is plain text: anyone who has it can
+ * missed puzzles, the Woodpecker lot with its cycles and the settings; it does not hold the queue of a running batch analysis (it is transient). It is plain text: anyone who has it can
  * read the games and the pseudo.
  */
 
@@ -45,7 +47,11 @@ export const BACKUP_APP = 'echiquier-ia';
  * 4 added the puzzles the player missed (`puzzles`), for the same reason: an application of format 3 would send back
  * a copy without them and overwrite the ones kept in Drive.
  */
-export const BACKUP_FORMAT = 4;
+/**
+ * 5 added the Woodpecker lot (`woodpecker`), for the same reason: an application of format 4 would send back a copy
+ * without it and overwrite the one kept in Drive.
+ */
+export const BACKUP_FORMAT = 5;
 
 /** The settings kept in the backup (localStorage keys): nothing else is read or written there. */
 export const PREFERENCE_KEYS = [
@@ -88,6 +94,8 @@ export interface Backup {
   studyDeletions: StudyDeletion[];
   /** The puzzles missed, each with its card of spaced repetition (empty before format 4). */
   puzzles: PuzzleEntry[];
+  /** The Woodpecker lot, its cycles and the cycle in progress; null when there is none (and before format 5). */
+  woodpecker: WoodpeckerSet | null;
   preferences: Record<string, string>;
 }
 
@@ -121,13 +129,14 @@ export async function createBackup(
   now: number = Date.now(),
   storage: ReadableStorage | undefined = defaultStorage()
 ): Promise<Backup> {
-  const [games, cards, deletions, studies, studyDeletions, puzzles] = await Promise.all([
+  const [games, cards, deletions, studies, studyDeletions, puzzles, woodpecker] = await Promise.all([
     exportGames(),
     loadCards(),
     listDeletions(),
     listStudies(),
     listStudyDeletions(),
     loadPuzzleEntries(),
+    loadWoodpecker(),
   ]);
   return {
     app: BACKUP_APP,
@@ -139,6 +148,7 @@ export async function createBackup(
     studies,
     studyDeletions,
     puzzles: [...puzzles.values()],
+    woodpecker,
     preferences: readPreferences(storage),
   };
 }
@@ -155,7 +165,7 @@ export type ParsedBackup =
   | {
       ok: true;
       backup: Backup;
-      /** Items of the file that were not valid (damaged, or from an older format): they are left out. */
+      /** Items of the file that were not valid (damaged, or from an older format): they are left out. A damaged Woodpecker lot counts as one puzzle item. */
       rejected: { games: number; cards: number; studies: number; puzzles: number };
     }
   | { ok: false; error: string };
@@ -206,6 +216,8 @@ export function parseBackup(text: string): ParsedBackup {
   const validStudies = studies.filter(isStudy);
   const validStudyDeletions = studyDeletions.filter(isStudyDeletion);
   const validPuzzles = puzzles.filter(isPuzzleEntry);
+  const hasWoodpecker = data.woodpecker !== undefined && data.woodpecker !== null;
+  const woodpecker = isWoodpeckerSet(data.woodpecker) ? data.woodpecker : null;
 
   const preferences: Record<string, string> = {};
   if (isObject(data.preferences)) {
@@ -222,6 +234,7 @@ export function parseBackup(text: string): ParsedBackup {
     validStudies.length === 0 &&
     validStudyDeletions.length === 0 &&
     validPuzzles.length === 0 &&
+    woodpecker === null &&
     Object.keys(preferences).length === 0
   ) {
     return { ok: false, error: EMPTY_BACKUP_ERROR };
@@ -238,13 +251,14 @@ export function parseBackup(text: string): ParsedBackup {
       studies: validStudies,
       studyDeletions: validStudyDeletions,
       puzzles: validPuzzles,
+      woodpecker,
       preferences,
     },
     rejected: {
       games: games.length - validGames.length,
       cards: cards.length - validCards.length,
       studies: studies.length - validStudies.length,
-      puzzles: puzzles.length - validPuzzles.length,
+      puzzles: puzzles.length - validPuzzles.length + (hasWoodpecker && woodpecker === null ? 1 : 0),
     },
   };
 }
@@ -257,6 +271,8 @@ export interface RestoreReport {
   studies: StudyMergeReport | null;
   /** Null when the missed puzzles could not be written. */
   puzzles: PuzzleMergeReport | null;
+  /** Null when the Woodpecker lot could not be written. */
+  woodpecker: WoodpeckerMergeReport | null;
   /** Settings written: the ones the browser did not have yet (the settings chosen here are not overwritten). */
   preferencesApplied: number;
 }
@@ -278,7 +294,7 @@ export async function restoreBackup(
   storage: WritableStorage | undefined = defaultStorage(),
   { mode = 'import', silent }: RestoreOptions = {}
 ): Promise<RestoreReport> {
-  const [games, cards, studies, puzzles] = await Promise.all([
+  const [games, cards, studies, puzzles, woodpecker] = await Promise.all([
     mode === 'sync'
       ? mergeGames(backup.games, undefined, backup.deletions, { silent })
       : mergeGames(backup.games, undefined, [], { silent, override: true }),
@@ -287,6 +303,7 @@ export async function restoreBackup(
       ? mergeStudies(backup.studies, backup.studyDeletions, { silent })
       : mergeStudies(backup.studies, [], { silent, override: true }),
     mergePuzzleEntries(backup.puzzles),
+    mergeWoodpecker(backup.woodpecker),
   ]);
   let preferencesApplied = 0;
   for (const key of PREFERENCE_KEYS) {
@@ -301,5 +318,5 @@ export async function restoreBackup(
       // Storage unavailable or full: this setting is not restored
     }
   }
-  return { games, cards, studies, puzzles, preferencesApplied };
+  return { games, cards, studies, puzzles, woodpecker, preferencesApplied };
 }

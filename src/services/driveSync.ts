@@ -97,6 +97,7 @@ export async function syncWithDrive({
     backup.studies.length === 0 &&
     backup.studyDeletions.length === 0 &&
     backup.puzzles.length === 0 &&
+    backup.woodpecker === null &&
     Object.keys(backup.preferences).length === 0
   ) {
     return { restore, rejected, sent: null };

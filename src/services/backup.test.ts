@@ -18,6 +18,8 @@ import {
 } from './backup';
 import { deleteGame, gameId, listGames, loadGame, onGamesChanged, saveGame } from './gameStore';
 import { loadPuzzleEntries, savePuzzleEntry } from './puzzleStore';
+import { loadWoodpecker, saveWoodpecker } from './woodpeckerStore';
+import { beginCycle, createSet } from '../utils/woodpecker';
 import { loadCards, saveCard } from './trainingStore';
 import { deleteStudy, listStudies, listStudyDeletions, saveStudy, STUDY_SCHEMA_VERSION } from './studyStore';
 import { createChapter } from '../utils/studyTree';
@@ -148,8 +150,8 @@ describe('createBackup', () => {
     expect(backup.puzzles.map((entry) => entry.id)).toEqual(['p1']);
   });
 
-  it('is of format 4', () => {
-    expect(BACKUP_FORMAT).toBe(4);
+  it('is of format 5', () => {
+    expect(BACKUP_FORMAT).toBe(5);
   });
 });
 
@@ -411,6 +413,7 @@ describe('restoreBackup', () => {
       studies: [],
       studyDeletions: [],
       puzzles: [],
+      woodpecker: null,
       preferences: { chess_board_theme: 'wood', chess_sound_enabled: 'false' },
     };
     const data = new Map<string, string>();
@@ -529,6 +532,70 @@ describe('backup of the studies', () => {
     expect(entries.has('new')).toBe(true);
   });
 
+  describe('the Woodpecker lot', () => {
+    const lot = (updatedAt = 100, ids = ['a', 'b']) => ({
+      ...beginCycle(
+        createSet(
+          ids.map((id) => puzzleEntry(id).puzzle),
+          { from: 1000, to: 1200 },
+          3,
+          50
+        ),
+        60
+      ),
+      updatedAt,
+    });
+
+    it('is held by the backup, with its cycle in progress', async () => {
+      expect((await createBackup(0, fakeStorage())).woodpecker).toBeNull();
+      await saveWoodpecker(lot());
+      const backup = await createBackup(0, fakeStorage());
+      expect(backup.woodpecker?.puzzles.map((p) => p.id)).toEqual(['a', 'b']);
+      expect(backup.woodpecker?.progress?.queue).toEqual(['a', 'b']);
+    });
+
+    it('survives the file: written, read and put back in a browser that has none', async () => {
+      await saveWoodpecker(lot());
+      const text = serializeBackup(await createBackup(0, fakeStorage()));
+      Object.defineProperty(globalThis, 'indexedDB', { value: new IDBFactory(), configurable: true, writable: true });
+      const parsed = parseBackup(text);
+      expect(parsed.ok && parsed.backup.woodpecker?.seed).toBe(3);
+      if (!parsed.ok) throw new Error('unreadable');
+      const report = await restoreBackup(parsed.backup, fakeStorage());
+      expect(report.woodpecker).toBe('added');
+      expect((await loadWoodpecker())?.progress?.queue).toEqual(['a', 'b']);
+    });
+
+    it('is not empty when it holds only a lot', () => {
+      expect(parseBackup(JSON.stringify({ app: BACKUP_APP, format: 5, woodpecker: lot() })).ok).toBe(true);
+    });
+
+    it('reads a file from before the Woodpecker as having none', () => {
+      const parsed = parseBackup(JSON.stringify({ app: BACKUP_APP, format: 4, puzzles: [puzzleEntry('a')] }));
+      expect(parsed.ok && parsed.backup.woodpecker).toBeNull();
+      expect(parsed.ok && parsed.rejected.puzzles).toBe(0);
+    });
+
+    it('leaves out, and counts, a lot that is damaged', () => {
+      const parsed = parseBackup(
+        JSON.stringify({ app: BACKUP_APP, format: 5, puzzles: [puzzleEntry('a')], woodpecker: { seed: 1 } })
+      );
+      expect(parsed.ok && parsed.backup.woodpecker).toBeNull();
+      expect(parsed.ok && parsed.backup.puzzles).toHaveLength(1);
+      expect(parsed.ok && parsed.rejected.puzzles).toBe(1);
+    });
+
+    it('keeps the lot worked on last, not mixing two', async () => {
+      await saveWoodpecker(lot(500, ['here']));
+      const older = { ...(await createBackup(0, fakeStorage())), woodpecker: lot(100, ['other']) };
+      expect((await restoreBackup(older, fakeStorage())).woodpecker).toBe('kept');
+      expect((await loadWoodpecker())?.puzzles[0].id).toBe('here');
+      const newer = { ...older, woodpecker: lot(900, ['other']) };
+      expect((await restoreBackup(newer, fakeStorage())).woodpecker).toBe('replaced');
+      expect((await loadWoodpecker())?.puzzles[0].id).toBe('other');
+    });
+  });
+
   it('refuses a file with too many studies', () => {
     const studies = Array.from({ length: 20_001 }, () => 0);
     expect(parseBackup(JSON.stringify({ app: BACKUP_APP, format: 3, studies })).ok).toBe(false);
@@ -548,6 +615,7 @@ describe('backup of the studies', () => {
       studies: [studyOf('deleted', 'Du fichier'), studyOf('local', 'Ancienne', 1), studyOf('new', 'Nouvelle')],
       studyDeletions: [{ id: 'new', deletedAt: 999_999_999_999_999 }], // ignored when importing a file
       puzzles: [],
+      woodpecker: null,
       preferences: {},
     };
     const report = await restoreBackup(backup, fakeStorage());
@@ -571,6 +639,7 @@ describe('backup of the studies', () => {
       studies: [studyOf('deleted-here', 'Revenue', 1)],
       studyDeletions: [{ id: 'here', deletedAt: updatedAt }],
       puzzles: [],
+      woodpecker: null,
       preferences: {},
     };
     const report = await restoreBackup(backup, fakeStorage(), { mode: 'sync', silent: true });

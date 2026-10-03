@@ -12,6 +12,7 @@ import {
   type Pickable,
   type TrainingFilter,
 } from './spacedRepetition';
+import { FAULT_PUZZLE_THEMES, PHASE_PUZZLE_THEMES, themeLabel } from './puzzleThemes';
 import { MIN_BUCKET_MOVES, dominantFaultKind, weakestPhase, type Profile } from './weaknessProfile';
 
 /**
@@ -27,6 +28,8 @@ export type PlanAction =
   | { kind: 'openings'; line: string[] }
   /** Brings in more games. */
   | { kind: 'import' }
+  /** Opens the puzzles on themes (the ones of Lichess), at the player's level. */
+  | { kind: 'puzzles'; themes: string[] }
   /** A habit to take: nothing to open. */
   | { kind: 'habit' };
 
@@ -36,6 +39,8 @@ export interface PlanItem {
   /** What the games say, in a sentence. */
   why: string;
   action: PlanAction;
+  /** Puzzles on the same theme as an other way to work on it (beside the action, which is not about puzzles). */
+  puzzles?: string[];
   /** Progress over the last 7 days (positions replayed out of those to replay). */
   goal?: { done: number; target: number };
 }
@@ -69,12 +74,17 @@ const PHASE_LABELS: Record<GamePhase, string> = {
   endgame: 'la finale',
 };
 
-/** The training item for a theme, or null when there is nothing left to replay (or replayed this week) in it. */
+/**
+ * The item for a theme: the player's own errors to replay, with the puzzles of the theme beside them. When there is
+ * nothing left to replay (or replayed this week) in it, the puzzles are what is left to work on it.
+ */
 function trainingItem(
   id: string,
   title: string,
+  puzzleTitle: string,
   why: string,
   filter: TrainingFilter,
+  themes: readonly string[],
   { positions, cards, now }: Pick<PlanInput, 'positions' | 'cards' | 'now'>
 ): PlanItem | null {
   const { due, fresh } = summarize(positions, cards, now, filter);
@@ -82,8 +92,20 @@ function trainingItem(
     (p) => matchesFilter(p, filter) && (cards.get(p.id)?.lastSeen ?? 0) >= now - WEEK_MS
   ).length;
   const target = Math.min(SESSION_SIZE, replayed + due + fresh);
-  if (target === 0) return null;
-  return { id, title, why, action: { kind: 'train', filter }, goal: { done: Math.min(replayed, target), target } };
+  if (themes.length === 0) {
+    return target === 0
+      ? null
+      : { id, title, why, action: { kind: 'train', filter }, goal: { done: Math.min(replayed, target), target } };
+  }
+  if (target === 0) return { id, title: puzzleTitle, why, action: { kind: 'puzzles', themes: [...themes] } };
+  return {
+    id,
+    title,
+    why,
+    action: { kind: 'train', filter },
+    puzzles: [...themes],
+    goal: { done: Math.min(replayed, target), target },
+  };
 }
 
 /** The most costly way out of the theory the player has: the one met most often, costing most. */
@@ -168,8 +190,10 @@ export function buildPlan(input: PlanInput): Plan {
       trainingItem(
         `train-${dominant.kind}`,
         `Rejouez vos erreurs : ${label.toLowerCase()}`,
+        `Faites des puzzles : ${label.toLowerCase()}`,
         `${Math.round((dominant.count / profile.kinds.total) * 100)} % de vos erreurs (${dominant.count} sur ${profile.kinds.total}) sont de ce type.`,
         { kinds: new Set([dominant.kind]), phases: new Set() },
+        FAULT_PUZZLE_THEMES[dominant.kind] ?? [],
         input
       )
     );
@@ -185,8 +209,10 @@ export function buildPlan(input: PlanInput): Plan {
       trainingItem(
         `train-${phase}`,
         `Rejouez vos erreurs de ${PHASE_LABELS[phase]}`,
+        `Faites des puzzles : ${themeLabel(phase).toLowerCase()}`,
         `C'est votre phase la plus fragile : ${Math.round(accuracy)} % de précision, contre ${Math.round(profile.baseline.accuracy!)} % en moyenne.`,
         { kinds: new Set(), phases: new Set([phase]) },
+        PHASE_PUZZLE_THEMES[phase] ?? [],
         input
       )
     );

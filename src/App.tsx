@@ -40,6 +40,7 @@ import {
   WeaknessProfile,
   prefetchViews,
 } from './lazyViews';
+import type { PuzzleStart } from './components/Puzzles/Puzzles';
 import { LiveRegion, useAnnouncer } from './components/a11y/LiveRegion';
 import { Modal } from './components/a11y/Modal';
 import { GameHistory } from './components/GameHistory/GameHistory';
@@ -79,6 +80,8 @@ export default function App() {
   const [isPlanOpen, setIsPlanOpen] = useState(false);
   // Where the plan sends the player: the themes of the training, a position of the opening explorer
   const [trainingFilter, setTrainingFilter] = useState<TrainingFilter | undefined>();
+  // ... and the themes of the puzzles to start with
+  const [puzzleStart, setPuzzleStart] = useState<PuzzleStart | undefined>();
   const [openingsStart, setOpeningsStart] = useState<{ view: 'explorer'; sans: string[] } | undefined>();
   const { announcement, announce } = useAnnouncer();
 
@@ -552,7 +555,10 @@ export default function App() {
           setOpeningsStart(undefined);
           setIsOpeningsOpen(true);
         }}
-        onOpenPuzzles={() => setIsPuzzlesOpen(true)}
+        onOpenPuzzles={() => {
+          setPuzzleStart(undefined);
+          setIsPuzzlesOpen(true);
+        }}
         onOpenStudies={() => setIsStudiesOpen(true)}
         onOpenPlan={() => setIsPlanOpen(true)}
         onInstall={canInstall ? () => void install() : undefined}
@@ -685,6 +691,11 @@ export default function App() {
                 // Without a game on screen the start screen already shows the import form
                 if (analysis) setIsPgnModalOpen(true);
               }}
+              onPuzzles={(themes) => {
+                setIsPlanOpen(false);
+                setPuzzleStart({ themes });
+                setIsPuzzlesOpen(true);
+              }}
             />
           </Suspense>
         </Modal>
@@ -693,7 +704,7 @@ export default function App() {
       {isPuzzlesOpen && (
         <Modal title="Puzzles" onClose={() => setIsPuzzlesOpen(false)} className="w-full max-w-[min(96vw,84rem)]">
           <Suspense fallback={null}>
-            <Puzzles boardTheme={boardTheme} onClose={() => setIsPuzzlesOpen(false)} />
+            <Puzzles boardTheme={boardTheme} start={puzzleStart} onClose={() => setIsPuzzlesOpen(false)} />
           </Suspense>
         </Modal>
       )}

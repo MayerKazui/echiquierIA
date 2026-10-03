@@ -9,6 +9,8 @@ import { AuthError, type TokenProvider } from './googleAuth';
 import { DRIVE_FILE_NAME, DriveError, type FetchFn } from './googleDrive';
 import { deleteGame, gameId, listGames, saveGame, clearGames, onGamesChanged } from './gameStore';
 import { loadPuzzleEntries, savePuzzleEntry } from './puzzleStore';
+import { loadWoodpecker, saveWoodpecker } from './woodpeckerStore';
+import { createSet } from '../utils/woodpecker';
 import { loadCards, saveCard } from './trainingStore';
 import { deleteStudy, listStudies, saveStudy, STUDY_SCHEMA_VERSION } from './studyStore';
 import { createChapter } from '../utils/studyTree';
@@ -147,6 +149,35 @@ describe('syncWithDrive, missed puzzles', () => {
     expect(entries.get('same')?.card.level).toBe(3);
     const parsed = parseBackup(await unpackText(drive.files.get('file-1') as Uint8Array));
     expect(parsed.ok && parsed.backup.puzzles).toHaveLength(3);
+  });
+});
+
+describe('syncWithDrive, the Woodpecker lot', () => {
+  const lotOf = (id: string, updatedAt: number) => ({
+    ...createSet(
+      [{ id, fen: '8/8/8/8/8/8/8/8 w - - 0 1', moves: ['e2e4', 'e7e5'], rating: 1000, themes: [] }],
+      { from: 1000, to: 1200 },
+      1,
+      1
+    ),
+    updatedAt,
+  });
+
+  it('sends the lot, alone if that is all there is', async () => {
+    await saveWoodpecker(lotOf('a', 10));
+    const drive = fakeDrive();
+    const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
+    expect(report.sent).not.toBeNull();
+    const parsed = parseBackup(await unpackText(drive.files.get('file-2') as Uint8Array));
+    expect(parsed.ok && parsed.backup.woodpecker?.puzzles[0].id).toBe('a');
+  });
+
+  it('brings the lot of Drive when it was worked on later than the one here', async () => {
+    await saveWoodpecker(lotOf('here', 10));
+    const drive = fakeDrive(await bytesOf(remoteBackup({ woodpecker: lotOf('there', 20) })));
+    const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
+    expect(report.restore?.woodpecker).toBe('replaced');
+    expect((await loadWoodpecker())?.puzzles[0].id).toBe('there');
   });
 });
 
