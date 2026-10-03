@@ -2,6 +2,7 @@ import { Chess } from 'chess.js';
 import { chessFromFen } from './chessFromFen';
 import type { MoveAnalysis } from '../types/chess';
 import { phaseOfPosition, type GamePhase } from './gamePhase';
+import { positionalKind } from './positionalFaults';
 import { tacticThemesOfMove, type TacticTheme } from './tacticThemes';
 
 /**
@@ -14,9 +15,11 @@ import { tacticThemesOfMove, type TacticTheme } from './tacticThemes';
  * - `tactic`: the engine's move carried a tactical theme (fork, pin, discovered attack…) that was not played.
  * - `wasted`: a clearly better position thrown away without a concrete tactic found.
  * - `exchange`: a capture missed, or a capture made that should not have been (the exchange was misjudged).
- * - `king`: a king move, castling missed or played at the wrong moment.
+ * - `king`: a king move, castling missed or played at the wrong moment, or (in the middlegame) a pawn pushed in front of
+ *   the castled king.
  * - `principles`: in the opening, a move against the principles (development, centre, safety) with none of the above.
  * - `technique`: in the endgame, a move that loses the thread (activity of the king, pawns) with none of the above.
+ * - `passive`: in the middlegame, a piece pulled back or left with far fewer moves than the engine's move would give.
  * - `other`: what is left: a positional error or a miscalculation in the middlegame.
  */
 export type FaultKind = NonNullable<MoveAnalysis['faultKind']>;
@@ -30,6 +33,7 @@ export const FAULT_KINDS: readonly FaultKind[] = [
   'king',
   'principles',
   'technique',
+  'passive',
   'other',
 ];
 
@@ -37,7 +41,7 @@ export const FAULT_KINDS: readonly FaultKind[] = [
  * Version of the rules above. When it changes, the faults of the games already stored are classified again (they are
  * derived data, kept only so that the profile does not have to compute them each time).
  */
-export const FAULT_KINDS_VERSION = 2;
+export const FAULT_KINDS_VERSION = 3;
 
 /** The theme behind a fault: a tactic found, or the length of a mate (Lichess puzzle themes). */
 export type FaultTheme = TacticTheme | 'mateIn1' | 'mateIn2' | 'mateIn3' | 'mateIn4' | 'mateIn5';
@@ -69,6 +73,10 @@ export const FAULT_KIND_TEXT: Record<FaultKind, { label: string; hint: string }>
   technique: {
     label: 'Technique de finale',
     hint: 'En finale, un coup qui perd le fil : activité du roi, pions, plan.',
+  },
+  passive: {
+    label: 'Pièces passives',
+    hint: 'Une pièce ramenée en arrière, ou un coup qui laisse beaucoup moins de possibilités que celui du moteur.',
   },
   other: { label: 'Autres erreurs', hint: 'Erreurs de calcul ou de position au milieu de jeu, sans cause repérée.' },
 };
@@ -209,7 +217,7 @@ export function diagnoseFault(move: MoveAnalysis): FaultDiagnosis {
   const phase = phaseOf(move.fenBefore);
   if (phase === 'endgame') return { kind: 'technique' };
   if (phase === 'opening') return { kind: 'principles' };
-  return { kind: 'other' };
+  return { kind: positionalKind(move.fenBefore, move.uci, move.bestMoveUci) ?? 'other' };
 }
 
 export const classifyFault = (move: MoveAnalysis): FaultKind => diagnoseFault(move).kind;

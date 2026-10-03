@@ -35,7 +35,14 @@ const firstItem = async () => {
 };
 
 const renderPlan = (props: Partial<React.ComponentProps<typeof Plan>> = {}) => {
-  const handlers = { onClose: vi.fn(), onTrain: vi.fn(), onShowLine: vi.fn(), onImport: vi.fn(), onPuzzles: vi.fn() };
+  const handlers = {
+    onClose: vi.fn(),
+    onTrain: vi.fn(),
+    onShowLine: vi.fn(),
+    onDrill: vi.fn(),
+    onImport: vi.fn(),
+    onPuzzles: vi.fn(),
+  };
   render(<Plan {...handlers} {...props} />);
   return handlers;
 };
@@ -106,6 +113,48 @@ describe('Plan', () => {
       const filter = onTrain.mock.calls[0][0];
       expect([...filter.kinds]).toEqual(['hanging']);
       expect([...filter.phases]).toEqual([]);
+    });
+  });
+
+  describe('the opening', () => {
+    /** Six games that leave the theory with the same costly move, after six moves of the book. */
+    const storeCostlyExits = async () => {
+      const book = (ply: number) =>
+        mv(ply, { classification: 'book', openingName: 'Sicilian Defense: Najdorf Variation', eco: 'B90' });
+      for (let i = 0; i < 6; i++) {
+        await store({
+          ...Object.fromEntries([0, 1, 2, 3, 4, 5].map((ply) => [ply, book(ply)])),
+          6: faultMove({ faultKind: 'hanging', fenBefore: distinctFen(i) }),
+        });
+      }
+    };
+
+    const exitItem = async () => {
+      const list = await screen.findByRole('list', { name: 'Objectifs de la semaine' });
+      const item = within(list)
+        .getAllByRole('listitem')
+        .find((li) => within(li).queryByText(/Préparez votre sortie de théorie/));
+      expect(item).toBeDefined();
+      return within(item!);
+    };
+
+    it('shows the position of the exit, and offers the training on the repertoire beside it', async () => {
+      await storeCostlyExits();
+      const user = userEvent.setup();
+      const { onShowLine, onDrill } = renderPlan();
+      const item = await exitItem();
+      await user.click(item.getByRole('button', { name: 'Voir la position' }));
+      expect(onShowLine).toHaveBeenCalledTimes(1);
+      expect(onDrill).not.toHaveBeenCalled();
+      await user.click(item.getByRole('button', { name: "S'entraîner sur mes sorties de théorie" }));
+      expect(onDrill).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not offer it for the other objectives', async () => {
+      await storeCostlyExits();
+      renderPlan();
+      const list = await screen.findByRole('list', { name: 'Objectifs de la semaine' });
+      expect(within(list).getAllByRole('button', { name: "S'entraîner sur mes sorties de théorie" })).toHaveLength(1);
     });
   });
 

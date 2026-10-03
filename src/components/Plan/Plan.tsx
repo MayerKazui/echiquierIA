@@ -11,6 +11,8 @@ interface PlanProps {
   onTrain: (filter: TrainingFilter) => void;
   /** Shows a position (the moves played to reach it) in the opening explorer. */
   onShowLine: (line: string[]) => void;
+  /** Opens the training on the opening repertoire (the exits from the theory, replayed). */
+  onDrill: () => void;
   /** Opens the import of online games. */
   onImport: () => void;
   /** Opens the puzzles on themes of Lichess. */
@@ -71,7 +73,7 @@ function Goal({ done, target, text, label }: { done: number; target: number; tex
 }
 
 /** "Mon plan": the few objectives of the week, each with the button that starts it. */
-export const Plan: React.FC<PlanProps> = ({ onClose, onTrain, onShowLine, onImport, onPuzzles }) => {
+export const Plan: React.FC<PlanProps> = ({ onClose, onTrain, onShowLine, onDrill, onImport, onPuzzles }) => {
   const state = usePlan();
 
   const run = (action: PlanAction) => {
@@ -118,6 +120,12 @@ export const Plan: React.FC<PlanProps> = ({ onClose, onTrain, onShowLine, onImpo
             {LABELS[item.action.kind]}
             {item.action.kind === 'puzzles' && <span className="font-normal">: {themesText(item.action.themes)}</span>}
           </button>
+          {item.drill && (
+            <button type="button" onClick={onDrill} className={BUTTON_SECONDARY}>
+              <Dumbbell className="w-3.5 h-3.5" aria-hidden="true" />
+              S&apos;entraîner sur mes sorties de théorie
+            </button>
+          )}
           {item.puzzles && (
             <button type="button" onClick={() => onPuzzles(item.puzzles!)} className={BUTTON_SECONDARY}>
               {ICONS.puzzles}

@@ -32,7 +32,7 @@ function toggled<T>(set: ReadonlySet<T>, value: T): Set<T> {
   return next;
 }
 
-function Tile({ label, value, hint }: { label: string; value: number; hint?: string }) {
+export function Tile({ label, value, hint }: { label: string; value: number; hint?: string }) {
   return (
     <div className="rounded-xl bg-slate-950/60 border border-slate-800 px-3 py-2">
       <p className="text-[11px] text-slate-400">{label}</p>

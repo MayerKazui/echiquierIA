@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { BookOpen, X } from 'lucide-react';
 import type { BoardTheme } from '../../types/ui';
+import { OpeningDrill } from './OpeningDrill';
 import { OpeningExplorer } from './OpeningExplorer';
 import { OpeningRepertoire } from './OpeningRepertoire';
 
-export type View = 'explorer' | 'repertoire';
+export type View = 'explorer' | 'repertoire' | 'drill';
 
 interface OpeningsProps {
   onClose: () => void;
@@ -18,18 +19,23 @@ interface OpeningsProps {
 export const VIEWS: Array<{ value: View; label: string }> = [
   { value: 'explorer', label: 'Explorateur' },
   { value: 'repertoire', label: 'Mes ouvertures' },
+  { value: 'drill', label: "S'entraîner" },
 ];
 
-/** "Ouvertures": the tree of the openings to walk through, and the player's own repertoire. */
+/** "Ouvertures": the tree of the openings to walk through, the player's own repertoire, and training on it. */
 export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardTheme, start }) => {
   const [view, setView] = useState<View>(start?.view ?? 'explorer');
   // Kept here so that the repertoire can send the player to a position of the explorer
   const [sans, setSans] = useState<string[]>(start?.sans ?? []);
+  const showInExplorer = (line: string[]) => {
+    setSans(line);
+    setView('explorer');
+  };
 
   return (
     <div
       className={`bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl flex flex-col gap-4 w-full mx-auto max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] ${
-        view === 'explorer' ? 'max-w-[min(96vw,84rem)]' : 'max-w-4xl'
+        view === 'repertoire' ? 'max-w-4xl' : 'max-w-[min(96vw,84rem)]'
       }`}
     >
       <div className="flex items-start justify-between gap-3 border-b border-slate-800/80 pb-3">
@@ -40,7 +46,8 @@ export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardThem
           <div>
             <h2 className="text-base font-bold text-slate-100">Ouvertures</h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Parcourez l&apos;arbre des ouvertures coup par coup, et voyez celles que vous jouez vraiment.
+              Parcourez l&apos;arbre des ouvertures coup par coup, voyez celles que vous jouez vraiment et révisez vos
+              lignes et vos sorties de théorie.
             </p>
           </div>
         </div>
@@ -77,17 +84,11 @@ export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardThem
         tabIndex={0}
         className="overflow-y-auto min-h-0 pr-1 flex flex-col gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-lg"
       >
-        {view === 'explorer' ? (
+        {view === 'explorer' && (
           <OpeningExplorer sans={sans} onSansChange={setSans} onImport={onImport} boardTheme={boardTheme} />
-        ) : (
-          <OpeningRepertoire
-            onImport={onImport}
-            onShowLine={(line) => {
-              setSans(line);
-              setView('explorer');
-            }}
-          />
         )}
+        {view === 'repertoire' && <OpeningRepertoire onImport={onImport} onShowLine={showInExplorer} />}
+        {view === 'drill' && <OpeningDrill onImport={onImport} onShowLine={showInExplorer} boardTheme={boardTheme} />}
       </div>
     </div>
   );

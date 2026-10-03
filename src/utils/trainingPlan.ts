@@ -42,6 +42,8 @@ export interface PlanItem {
   action: PlanAction;
   /** Puzzles on the same theme as an other way to work on it (beside the action, which is not about puzzles). */
   puzzles?: string[];
+  /** The training on the opening repertoire as an other way to work on it (beside the action, which only shows the position). */
+  drill?: boolean;
   /** Progress over the last 7 days (positions replayed out of those to replay). */
   goal?: { done: number; target: number };
   /** Progress over the last 7 days of the puzzles on the theme (puzzles played out of the target). */
@@ -137,6 +139,7 @@ function costliestExit(repertoire: Repertoire): PlanItem | null {
             title: `Préparez votre sortie de théorie : ${move}`,
             why: `Dans ${name}, vous quittez le livre ${exit.count} fois avec ce coup, qui coûte en moyenne ${Math.round(exit.loss)} points de chances de gain.`,
             action: { kind: 'openings', line: exit.line },
+            drill: true,
           },
         };
       }

@@ -23,11 +23,11 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 
 ### Outils d'entraînement
 
-- **Mon profil** : faiblesses par phase, type d'erreur (neuf types, dont le thème tactique manqué : fourchette, clouage, attaque à la découverte…), zeitnot, couleur, force de l'adversaire, cadence, évolution ; points forts.
+- **Mon profil** : faiblesses par phase, type d'erreur (dix types, dont le thème tactique manqué parmi dix-neuf : fourchette, clouage, déviation, pièce piégée…), zeitnot, couleur, force de l'adversaire, cadence, évolution ; points forts.
 - **S'entraîner** : rejouer ses propres erreurs avec correction par le moteur, en répétition espacée (1, 3 puis 7 jours), filtres par type d'erreur et par phase ; une même position ratée dans plusieurs parties n'est proposée qu'une fois ; « Voir dans la partie » ouvre la partie au coup de l'erreur.
 - **Résumé de la partie** : trois lignes en tête du bilan (moment décisif avec son type de faute, précision comparée à sa moyenne sur les autres parties, fautes et phase la plus fragile).
 - **Mon plan** : trois objectifs au plus, avec progression sur 7 jours et le bouton qui lance chacun, plus les puzzles du thème correspondant.
-- **Ouvertures** : explorateur en arbre avec ses résultats par coup, et « Mes ouvertures » (répertoire réel, score, coup de sortie qui coûte cher).
+- **Ouvertures** : explorateur en arbre avec ses résultats par coup ; « Mes ouvertures » (répertoire réel, score, précision de ses 10 coups qui suivent la sortie du livre comparée à sa moyenne calculée de la même façon, ouverture la plus solide et la plus fragile, coup de sortie qui coûte cher) ; « S'entraîner » : les positions où l'on a quitté la théorie en perdant au moins 8 points de chances de gain, et les lignes qui marchent (la position la plus profonde que 2 parties au moins partagent dans la théorie), rejouées en répétition espacée (1, 3 puis 7 jours, comme dans « S'entraîner » sur ses erreurs) ; est juste tout coup que la base d'ouvertures connaît à cet endroit (ou qui mène à une de ses positions) ; filtres par type de position et par couleur, « Voir dans l'explorateur » après chaque réponse ; « Mon plan » renvoie vers cet entraînement depuis l'objectif sur la sortie de théorie.
 - **Puzzles** : 200 000 puzzles Lichess embarqués (73 thèmes en français, tranche d'Elo, chronomètre sans pénalité), puzzles ratés en répétition espacée, statistiques sur 7 jours, 30 jours ou tout.
 - **Woodpecker** : lot figé de 20 à 500 puzzles, cycles chronométrés avec pause, temps comparé au cycle précédent, reprise d'un ancien lot.
 - **Études** (privées, à la manière de Lichess) : chapitres, variantes, commentaires, glyphes, flèches et cercles, import et export PGN, chapitre verrouillable contre l'ordinateur, réordonnancement.
@@ -46,18 +46,6 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 
 ## 2. Ce qu'il reste à faire (déjà identifié dans le dépôt)
 
-### Import
-
-- [ ] Import : filtre par mois.
-- [ ] Import : afficher la précision publiée par chess.com (`accuracies`) à côté de la nôtre.
-
-### Études
-
-- [ ] Copier un chapitre.
-- [ ] Mode verrouillé : mémoriser les erreurs par ligne et les rejouer en répétition espacée.
-- [ ] Fusion fine des études. Aujourd'hui une étude est prise en entier (la version modifiée en dernier gagne) : deux appareils qui modifient des chapitres différents en même temps perdent l'une des modifications.
-- [ ] Dessiner des flèches sur téléphone (pas de clic droit).
-
 ### Puzzles
 
 - [ ] Historique : courbe de progression dans le temps.
@@ -70,9 +58,14 @@ Faites sur de vrais appareils (2026-10-03), sans défaut constaté : lecteur d'�
 
 ### Types d'erreur et thèmes tactiques
 
-- [ ] « Autres erreurs » représente encore 12 % des erreurs des parties de référence (`bun run faultstats`, 42 % auparavant). Ce sont des coups tranquilles du milieu de jeu : il faudrait détecter la mobilité, la structure de pions, le centre.
-- [ ] Thèmes tactiques pas encore détectés : rayons X, déviation, attraction, interférence, pièce piégée, surcharge, coup intermédiaire (douze thèmes le sont : fourchette, clouage, enfilade, attaque et échec à la découverte, double échec, capture du défenseur, mat du couloir, mat étouffé, pièce en prise, promotion, sacrifice).
-- [ ] « Matériel laissé en prise » compte aussi un pion perdu quand le coup du moteur ne le perdait pas : à surveiller si le profil montre trop de « pièce laissée en prise ».
+- [ ] « Autres erreurs » représente encore 9 % des erreurs des parties de référence (`bun run faultstats`, 42 % auparavant, 12 % avant le type « Pièces passives » et les pions poussés devant le roi). Ce sont des coups tranquilles du milieu de jeu (dame mal placée, coup de pion qui perd le fil) : il faudrait détecter le centre, ou comparer des évaluations de position. Une détection des pions doublés ou isolés créés par un coup a été essayée : elle ne trouve rien sur ces parties, elle n'a pas été gardée.
+- [ ] Les nouveaux thèmes (pièce piégée, coup intermédiaire, déviation, attraction, interférence, rayon X) sont rares : 1 à 4 fois sur les 994 erreurs de référence, et la surcharge jamais (Lichess n'a pas de puzzles à ce nom : le plan ne propose rien pour ce thème). À revérifier sur d'autres parties avant de s'y fier. Pas encore détectés : dégagement, coup calme, zugzwang, sous-promotion.
+
+### Ouvertures
+
+- [ ] La précision par ouverture compte les 10 coups du joueur qui suivent la sortie du livre (`ACCURACY_PLIES`, 20 demi-coups) : valeur choisie sans calage sur de vraies parties, à revoir si elle paraît trop courte ou trop longue.
+- [ ] Une ligne qui marche n'est rejouée qu'à son point le plus profond partagé par 2 parties : les coups d'avant ne sont pas interrogés. Une partie dont la sortie coûteuse est déjà rejouée ne donne pas de ligne (celle qui y mène est rejouée avec la sortie).
+- [ ] L'objectif « Préparez votre sortie de théorie » de « Mon plan » ouvre l'entraînement mais n'a pas de barre de progression de la semaine, comme les objectifs sur les erreurs : il faudrait charger la base d'ouvertures dans le plan.
 
 ### Question ouverte
 
@@ -80,25 +73,24 @@ Faites sur de vrais appareils (2026-10-03), sans défaut constaté : lecteur d'�
 
 ## 3. Idées d'évolution et d'amélioration
 
-Ce sont des suggestions, pas des décisions.
+Ce sont des suggestions, pas des décisions. « Précision par ouverture » et « Entraînement au répertoire d'ouvertures » ont été faites, avec leurs limites (précision limitée aux coups qui suivent la sortie du livre, lignes qui marchent, lien depuis « Mon plan ») : elles sont décrites dans « Ce qui est fait » (Ouvertures), et ce qui reste dans « Ouvertures » de la section 2.
 
-| #   | Idée                                    | Intérêt                                                                                                                                                  |
-| --- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Précision par ouverture                 | Non calculée dans « Mes ouvertures ».                                                                                                                    |
-| 2   | Préparer ses adversaires                | Analyser le répertoire d'un pseudo avec les briques de l'import et de l'explorateur.                                                                     |
-| 3   | Jouer contre Stockfish                  | Niveau réglable, depuis une position d'étude, d'ouverture ou d'une position critique de ses parties.                                                     |
-| 4   | Entraînement aux finales                | Positions théoriques (Lucena, Philidor…) avec correction par le moteur.                                                                                  |
-| 5   | Entraînement au répertoire d'ouvertures | Rejouer ses lignes en répétition espacée, sur le modèle de « S'entraîner ».                                                                              |
-| 6   | Puzzles : mode « tempête »              | Score à battre, et puzzles tirés de ses propres erreurs avec les statistiques des puzzles.                                                               |
-| 7   | Stockfish multi-thread                  | Analyse en lot plus rapide ; demande les en-têtes COOP/COEP.                                                                                             |
-| 8   | Version anglaise                        | Tout est en français (interface, ouvertures, thèmes) ; élargirait le public.                                                                             |
-| 9   | Tests de bout en bout                   | Playwright est disponible ; couvrir import, analyse, sauvegarde et synchronisation Drive. Il n'y a aujourd'hui que des tests unitaires et de composants. |
-| 10  | Ménage du dépôt                         | `server.ts` et `server.js` compilé, et `dist/`, sont présents : vérifier ce qui est versionné par erreur.                                                |
+| #   | Idée                       | Intérêt                                                                                                                                                  |
+| --- | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Préparer ses adversaires   | Analyser le répertoire d'un pseudo avec les briques de l'import et de l'explorateur.                                                                     |
+| 2   | Jouer contre Stockfish     | Niveau réglable, depuis une position d'étude, d'ouverture ou d'une position critique de ses parties.                                                     |
+| 3   | Entraînement aux finales   | Positions théoriques (Lucena, Philidor…) avec correction par le moteur.                                                                                  |
+| 4   | Puzzles : mode « tempête » | Score à battre, et puzzles tirés de ses propres erreurs avec les statistiques des puzzles.                                                               |
+| 5   | Stockfish multi-thread     | Analyse en lot plus rapide ; demande les en-têtes COOP/COEP.                                                                                             |
+| 6   | Version anglaise           | Tout est en français (interface, ouvertures, thèmes) ; élargirait le public.                                                                             |
+| 7   | Tests de bout en bout      | Playwright est disponible ; couvrir import, analyse, sauvegarde et synchronisation Drive. Il n'y a aujourd'hui que des tests unitaires et de composants. |
+| 8   | Ménage du dépôt            | `server.ts` et `server.js` compilé, et `dist/` sont présents : vérifier ce qui est versionné par erreur.                                                 |
 
 ## 4. Ordre conseillé
 
 1. ~~Terminer le point 5 : résumé de 3 lignes et comparaison avec sa moyenne.~~ Fait.
-2. ~~Élargir les thèmes tactiques et réduire « autre ».~~ Fait (voir « Types d'erreur et thèmes tactiques » pour le reste).
+2. ~~Élargir les thèmes tactiques et réduire « autre ».~~ Fait : sept thèmes de plus, « autre » de 42 % à 9 % (voir « Types d'erreur et thèmes tactiques » pour le reste).
 3. ~~Petits ajouts d'entraînement : ouvrir la partie depuis « S'entraîner », dédoublonnage, bouton « nouvelles parties ».~~ Fait.
 4. ~~Vérifications sur de vrais appareils et un vrai lecteur d'écran.~~ Fait, tout est bon.
-5. Ensuite seulement les grosses évolutions (adversaires, jeu contre Stockfish, finales, version anglaise).
+5. ~~Couvrir les ouvertures : précision par ouverture et entraînement au répertoire.~~ Fait.
+6. Ensuite seulement les grosses évolutions (adversaires, jeu contre Stockfish, finales, version anglaise).

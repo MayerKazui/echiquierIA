@@ -7,6 +7,7 @@ const percent = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFracti
 export const BUTTON =
   'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed';
 export const SECONDARY = `${BUTTON} bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-200`;
+export const PRIMARY = `${BUTTON} bg-indigo-600 hover:bg-indigo-500 border-indigo-500 text-white`;
 
 /** "1.e4", "1…e5": the move with its number, from the position it is played in. */
 export function numbered(fen: string, san: string): string {

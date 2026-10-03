@@ -1,13 +1,15 @@
 /**
  * How the faults of the reference games (see `scripts/calibration`) are sorted into kinds: the share of each kind,
- * and a few examples of `other` to read. Usage: `bun run faultstats [kind]` (examples of that kind, default `other`).
+ * and a few examples to read. Usage: `bun run faultstats [kind|theme:name]` (examples of that kind, default `other`,
+ * or of faults with that theme, such as `theme:deflection`).
  */
 import { ensureOpeningBookLoaded } from '../src/services/openingBook';
 import { loadOpeningsFromDisk } from '../src/test/openings';
 import { FAULT_CLASSIFICATIONS, FAULT_KINDS, diagnoseFault, type FaultKind } from '../src/utils/faultKinds';
 import { analyseRecorded, loadReference } from './calibration/reference';
 
-const wanted = (process.argv[2] ?? 'other') as FaultKind;
+const wanted = process.argv[2] ?? 'other';
+const wantedTheme = wanted.startsWith('theme:') ? wanted.slice('theme:'.length) : null;
 
 await ensureOpeningBookLoaded(loadOpeningsFromDisk);
 const counts = Object.fromEntries(FAULT_KINDS.map((k) => [k, 0])) as Record<FaultKind, number>;
@@ -22,7 +24,7 @@ for (const game of loadReference().games.filter((g) => g.evals)) {
     if (theme) themes[theme] = (themes[theme] ?? 0) + 1;
     counts[kind] += 1;
     total += 1;
-    if (kind === wanted && examples.length < 400)
+    if ((wantedTheme ? theme === wantedTheme : kind === wanted) && examples.length < 400)
       examples.push(
         `${move.moveNumber}${move.color === 'w' ? '.' : '...'} ${move.san} (best ${move.bestMoveSan}) ${move.fenBefore}  [${game.url}]`
       );

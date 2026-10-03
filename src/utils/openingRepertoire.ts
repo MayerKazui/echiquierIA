@@ -1,9 +1,9 @@
 import { Chess } from 'chess.js';
-import type { GameAnalysisResult } from '../types/chess';
+import type { GameAnalysisResult, MoveAnalysis } from '../types/chess';
 import { normalizeFen } from '../services/openingBook';
 import { addToTally, emptyTally, type Tally } from './openingExplorer';
 import { openingAtPly } from './openingAtPly';
-import { CLASS_LIMITS } from './moveAnalysis';
+import { CLASS_LIMITS, accuracyFromMoves } from './moveAnalysis';
 import { MIN_GAME_PLIES, parseOutcome, playerColorIn } from './weaknessProfile';
 
 /**
@@ -27,6 +27,13 @@ export const COSTLY_EXIT = CLASS_LIMITS.inaccuracy;
 export const MIN_RECURRENCE = 2;
 /** Recurrent exits kept for each opening. */
 const MAX_EXITS = 3;
+/** Games an opening needs before its accuracy is compared with the player's own average: fewer say nothing. */
+export const MIN_ACCURACY_GAMES = 3;
+/**
+ * Plies after the first move outside the book in which the moves count for the accuracy of an opening (10 moves
+ * of each side): the opening sets up the start of the middlegame, not a game that goes on for fifty moves.
+ */
+export const ACCURACY_PLIES = 20;
 
 /** The first move outside the book, in one game. */
 export interface Exit {
@@ -58,12 +65,16 @@ export interface Variation {
   name: string;
   eco: string;
   tally: Tally;
+  /** Accuracy (0-100) of the player's moves just after the theory in these games, null without such a move. */
+  accuracy: number | null;
 }
 
 export interface Family {
   name: string;
   eco: string;
   tally: Tally;
+  /** Accuracy (0-100) of the player's moves just after the theory in these games, null without such a move. */
+  accuracy: number | null;
   /** The most played first. */
   variations: Variation[];
   /** Games in which the player was the first to leave the theory, the opponent was, or nobody did. */
@@ -76,6 +87,8 @@ export interface Repertoire {
   /** Games that count (the player is named in them, long enough), and those left out. */
   counted: number;
   ignored: number;
+  /** The player's accuracy over all the games that count (same moves as for an opening), null without any move. */
+  accuracy: number | null;
   colors: Record<'w' | 'b', Family[]>;
 }
 
@@ -100,10 +113,26 @@ export function findExit(result: GameAnalysisResult, color: 'w' | 'b'): Exit | n
   return null;
 }
 
+/**
+ * The player's moves that count for the accuracy of a game: the ones in the `ACCURACY_PLIES` that follow the first
+ * move outside the book. The moves of the book are left out, as in the profile: they are always "best" and would
+ * flatter an opening that is mostly theory.
+ */
+function movesAfterTheory(moves: readonly MoveAnalysis[], color: 'w' | 'b'): MoveAnalysis[] {
+  const first = moves.findIndex((m) => m.classification !== 'book');
+  if (first < 0) return [];
+  return moves.slice(first, first + ACCURACY_PLIES).filter((m) => m.color === color && m.classification !== 'book');
+}
+
+const accuracyOf = (moves: readonly MoveAnalysis[]): number | null =>
+  moves.length === 0 ? null : accuracyFromMoves([...moves]);
+
 interface Bucket {
   name: string;
   tally: Tally;
-  variations: Map<string, Variation>;
+  /** The player's moves just after the theory, in all the games of the opening. */
+  moves: MoveAnalysis[];
+  variations: Map<string, { variation: Omit<Variation, 'accuracy'>; moves: MoveAnalysis[] }>;
   exits: Family['exits'];
   /** The ways out of the book met, by position and move. */
   ways: Map<string, { exit: Exit; losses: number; tally: Tally }>;
@@ -120,6 +149,7 @@ export async function buildRepertoire(
   { yieldToUi }: { yieldToUi?: () => Promise<void> } = {}
 ): Promise<Repertoire> {
   const buckets: Record<'w' | 'b', Map<string, Bucket>> = { w: new Map(), b: new Map() };
+  const allMoves: MoveAnalysis[] = [];
   let counted = 0;
   let sinceYield = 0;
 
@@ -137,6 +167,7 @@ export async function buildRepertoire(
       bucket = {
         name: family,
         tally: emptyTally(),
+        moves: [],
         variations: new Map(),
         exits: { player: 0, opponent: 0, none: 0 },
         ways: new Map(),
@@ -145,9 +176,18 @@ export async function buildRepertoire(
     }
     addToTally(bucket.tally, outcome);
 
-    const variation = bucket.variations.get(name) ?? { name, eco: opening?.eco ?? '', tally: emptyTally() };
+    const variation = bucket.variations.get(name) ?? {
+      variation: { name, eco: opening?.eco ?? '', tally: emptyTally() },
+      moves: [],
+    };
     bucket.variations.set(name, variation);
-    addToTally(variation.tally, outcome);
+    addToTally(variation.variation.tally, outcome);
+
+    for (const move of movesAfterTheory(result.moves, color)) {
+      bucket.moves.push(move);
+      variation.moves.push(move);
+      allMoves.push(move);
+    }
 
     const exit = findExit(result, color);
     if (!exit) bucket.exits.none++;
@@ -170,7 +210,12 @@ export async function buildRepertoire(
   const families = (color: 'w' | 'b'): Family[] =>
     sorted(
       [...buckets[color].values()].map((bucket): Family => {
-        const variations = sorted([...bucket.variations.values()]);
+        const variations = sorted(
+          [...bucket.variations.values()].map(({ variation, moves }): Variation => ({
+            ...variation,
+            accuracy: accuracyOf(moves),
+          }))
+        );
         const recurring = [...bucket.ways.values()]
           .filter(({ tally }) => tally.games >= MIN_RECURRENCE)
           .map(({ exit, losses, tally }): RecurringExit => {
@@ -191,6 +236,7 @@ export async function buildRepertoire(
           name: bucket.name,
           eco: variations[0]?.eco ?? '',
           tally: bucket.tally,
+          accuracy: accuracyOf(bucket.moves),
           variations,
           exits: bucket.exits,
           recurring,
@@ -198,7 +244,25 @@ export async function buildRepertoire(
       })
     );
 
-  return { counted, ignored: games.length - counted, colors: { w: families('w'), b: families('b') } };
+  return {
+    counted,
+    ignored: games.length - counted,
+    accuracy: accuracyOf(allMoves),
+    colors: { w: families('w'), b: families('b') },
+  };
+}
+
+/**
+ * The openings with the best and the worst accuracy among those met in enough games to be compared (at least
+ * `MIN_ACCURACY_GAMES`, and named). Null when fewer than two can be compared, or when they are all alike.
+ */
+export function accuracyExtremes(families: readonly Family[]): { best: Family; worst: Family } | null {
+  const rated = families.filter((f) => f.name !== '' && f.accuracy !== null && f.tally.games >= MIN_ACCURACY_GAMES);
+  if (rated.length < 2) return null;
+  const byAccuracy = [...rated].sort((a, b) => b.accuracy! - a.accuracy! || b.tally.games - a.tally.games);
+  const best = byAccuracy[0];
+  const worst = byAccuracy[byAccuracy.length - 1];
+  return best.accuracy === worst.accuracy ? null : { best, worst };
 }
 
 /** The position after playing `line` from the start. */
