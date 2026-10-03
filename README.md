@@ -4,13 +4,13 @@ Analyse de parties d'échecs dans le navigateur : Stockfish 19 évalue chaque co
 coups brillants, trace la courbe d'évaluation et un « entraîneur IA » (Gemini) explique les moments clés en français.
 
 - Import d'un PGN (collé, fichier ou exemples) avec reconnaissance de l'ouverture (base lichess, ~3 800 lignes)
-- Import direct des dernières parties d'un compte **chess.com** ou **Lichess** (pseudo, filtre de cadence, parties plus anciennes à la demande) : le navigateur appelle leurs API publiques, sans passer par le serveur
+- Import direct des dernières parties d'un compte **chess.com** ou **Lichess** (pseudo, filtre de cadence, parties plus anciennes à la demande, bouton « Analyser seulement les nouvelles » pour tenir son profil à jour) : le navigateur appelle leurs API publiques, sans passer par le serveur
 - Analyse Stockfish en parallèle dans des Web Workers, profondeur réglable (8 à 18) : les coups s'affichent dès qu'ils sont analysés et l'analyse peut être annulée
 - Les parties analysées (500 au plus, les 50 plus récentes complètes) sont conservées dans le navigateur (IndexedDB) : la dernière se rouvre après un rechargement, « Mes parties » (en-tête) permet d'en rouvrir une autre sans relancer Stockfish, et ré-analyser un même PGN est instantané. Rien n'est envoyé à un serveur
-- « S'entraîner » (en-tête) : rejouer les positions où l'on s'est trompé dans ses propres parties, avec correction par le moteur ; une position ratée revient le lendemain, une position réussie après 1, 3 puis 7 jours ; filtres par type d'erreur et par phase
+- « S'entraîner » (en-tête) : rejouer les positions où l'on s'est trompé dans ses propres parties, avec correction par le moteur ; une position ratée revient le lendemain, une position réussie après 1, 3 puis 7 jours ; filtres par type d'erreur et par phase ; une même position ratée dans plusieurs parties n'est proposée qu'une fois, et « Voir dans la partie » ouvre la partie au coup de l'erreur
 - « Puzzles » (en-tête) : 200 000 puzzles de Lichess (CC0) embarqués, au niveau (tranche d'Elo) et sur les thèmes de votre choix (73 thèmes, en français), avec un chronomètre au choix (3, 5, 10 ou 15 minutes) ; un puzzle raté ne coûte que le temps passé et revient en répétition espacée (demain, puis après 1, 3 et 7 jours). Chargés à la demande par tranche d'Elo, utilisables hors ligne une fois vus. Onglet **Woodpecker** : un lot figé de 20 à 500 puzzles que l'on refait cycle après cycle, chronométré (avec pause), les puzzles ratés revenant en fin de cycle ; le temps de chaque cycle est comparé au précédent. Onglet **Statistiques** : réussite par thème (7 jours, 30 jours ou tout) et séances, effaçables ; les puzzles déjà joués reviennent en dernier
 - « Mon profil » (en-tête) : ce qui revient dans vos parties (phase, type d'erreur, pendule, couleur, adversaire, évolution)
-- **Sauvegarde** : « Mes parties » exporte tout ce que l'application garde dans le navigateur (parties, progression d'entraînement, puzzles ratés, lot Woodpecker et lots précédents, historique des puzzles, études, réglages) en un fichier JSON, et le réimporte (fusion avec l'existant) ; le bouton « Synchroniser avec Google Drive » garde la même copie dans le dossier caché de votre Drive, pour retrouver vos données sur un autre appareil, à la demande ou automatiquement (à l'ouverture et après chaque partie ou étude ajoutée, modifiée ou supprimée, suppressions comprises) ; sans serveur : voir `IMPROVEMENTS.md`
+- **Sauvegarde** : « Mes parties » exporte tout ce que l'application garde dans le navigateur (parties, progression d'entraînement, puzzles ratés, lot Woodpecker et lots précédents, historique des puzzles, études, réglages) en un fichier JSON, et le réimporte (fusion avec l'existant) ; le bouton « Synchroniser avec Google Drive » garde la même copie dans le dossier caché de votre Drive, pour retrouver vos données sur un autre appareil, à la demande ou automatiquement (à l'ouverture et après chaque partie ou étude ajoutée, modifiée ou supprimée, suppressions comprises) ; sans serveur
 - **Application installable et utilisable hors ligne** (PWA) : le moteur, la base d'ouvertures et l'interface sont mis en cache ; une nouvelle version est proposée sans interrompre la partie en cours. Ne marchent pas hors ligne : l'import chess.com / Lichess et le coach IA
 - Noms d'ouverture en français (« Défense sicilienne : variante Dragon »)
 - Bilan par joueur : précision, phases de jeu, répartition des coups, gestion du temps si le PGN contient les pendules
@@ -48,6 +48,7 @@ Sans clé Gemini, l'application fonctionne : les explications de l'entraîneur I
 | `bun run build:openings` | Régénère `public/openings.json` depuis `src/data/openings/*.tsv`                      |
 | `bun run build:puzzles`  | Régénère `public/puzzles/` depuis la base de puzzles Lichess (307 Mo)                 |
 | `bun run calibrate`      | Écart de la précision avec chess.com sur les parties de référence (`fetch`, `record`) |
+| `bun run faultstats`     | Répartition des erreurs des parties de référence par type et par thème tactique       |
 
 La CI (GitHub Actions) exécute lint, typecheck, format, tests et build à chaque pull request.
 
@@ -119,4 +120,4 @@ La clé Gemini ne doit jamais figurer dans l'interface : elle reste une variable
 
 ## Suivi des améliorations
 
-Voir [`IMPROVEMENTS.md`](IMPROVEMENTS.md).
+Voir [`BILAN_ET_SUITES.md`](BILAN_ET_SUITES.md) : ce qui est fait, ce qui reste et les idées d'évolution.

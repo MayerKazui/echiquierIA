@@ -105,7 +105,49 @@ export const FAULT_PUZZLE_THEMES: Readonly<Record<string, readonly string[]>> = 
   hanging: ['hangingPiece'],
   tactic: ['fork', 'pin', 'skewer'],
   wasted: ['crushing', 'advantage'],
+  exchange: ['hangingPiece', 'capturingDefender'],
+  king: ['exposedKing', 'defensiveMove'],
+  principles: ['opening'],
+  technique: ['endgame', 'pawnEndgame', 'rookEndgame'],
 };
+
+/** The themes a `mate` fault can carry: the others belong to `tactic`. */
+const MATE_THEMES: ReadonlySet<string> = new Set([
+  'mateIn1',
+  'mateIn2',
+  'mateIn3',
+  'mateIn4',
+  'mateIn5',
+  'backRankMate',
+  'smotheredMate',
+]);
+
+/** Themes offered for a kind, at most. */
+const MAX_FAULT_THEMES = 3;
+
+/** The themes of the player's faults of a kind (`mate` or `tactic`), the most frequent first, with their counts. */
+export function faultThemeCounts(
+  kind: string,
+  found: Readonly<Partial<Record<string, number>>> = {}
+): Array<[theme: string, count: number]> {
+  if (kind !== 'tactic' && kind !== 'mate') return [];
+  return Object.entries(found)
+    .filter(
+      (entry): entry is [string, number] => (entry[1] ?? 0) > 0 && (kind === 'mate') === MATE_THEMES.has(entry[0])
+    )
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+}
+
+/**
+ * The puzzle themes against a kind of fault: the themes of the player's own faults of that kind, the most frequent
+ * first (a player who misses discovered attacks gets those puzzles, not forks), else the usual ones for the kind.
+ */
+export function faultPuzzleThemes(kind: string, found: Readonly<Partial<Record<string, number>>> = {}): string[] {
+  const own = faultThemeCounts(kind, found)
+    .slice(0, MAX_FAULT_THEMES)
+    .map(([theme]) => theme);
+  return own.length > 0 ? own : [...(FAULT_PUZZLE_THEMES[kind] ?? [])];
+}
 
 /** The themes of the phases of a game share the names `GamePhase` has. */
 export const PHASE_PUZZLE_THEMES: Readonly<Record<string, readonly string[]>> = {

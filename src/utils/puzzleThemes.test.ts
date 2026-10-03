@@ -1,7 +1,16 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { groupThemes, knownThemes, themeGroup, themeLabel } from './puzzleThemes';
+import { TACTIC_THEMES } from './tacticThemes';
+import {
+  FAULT_PUZZLE_THEMES,
+  faultPuzzleThemes,
+  faultThemeCounts,
+  groupThemes,
+  knownThemes,
+  themeGroup,
+  themeLabel,
+} from './puzzleThemes';
 
 describe('themeLabel and themeGroup', () => {
   it('give the French name and the group of a known theme', () => {
@@ -39,5 +48,49 @@ describe('groupThemes', () => {
 
   it('leaves out a group without themes', () => {
     expect(groupThemes(['fork']).map((group) => group.id)).toEqual(['motifs']);
+  });
+});
+
+describe('the themes of the faults', () => {
+  it('all have puzzles in the index shipped with the app, so that a theme found in a game leads somewhere', () => {
+    const directory = resolve(import.meta.dirname, '../../public/puzzles');
+    if (!readdirSync(directory).includes('index.json')) return;
+    const index = JSON.parse(readFileSync(resolve(directory, 'index.json'), 'utf-8')) as {
+      themes: Record<string, unknown>;
+    };
+    const wanted = [
+      ...TACTIC_THEMES,
+      'mateIn1',
+      'mateIn2',
+      'mateIn3',
+      'mateIn4',
+      'mateIn5',
+      ...Object.values(FAULT_PUZZLE_THEMES).flat(),
+    ];
+    expect(wanted.filter((theme) => !(theme in index.themes))).toEqual([]);
+  });
+
+  it('are counted by kind, the most frequent first, the mate themes apart from the tactics', () => {
+    const found = { fork: 2, pin: 5, backRankMate: 3, mateIn1: 1, skewer: 0 };
+    expect(faultThemeCounts('tactic', found)).toEqual([
+      ['pin', 5],
+      ['fork', 2],
+    ]);
+    expect(faultThemeCounts('mate', found)).toEqual([
+      ['backRankMate', 3],
+      ['mateIn1', 1],
+    ]);
+    expect(faultThemeCounts('hanging', found)).toEqual([]);
+  });
+
+  it("give the puzzle themes against a kind: the player's own, three at most, else the usual ones", () => {
+    expect(faultPuzzleThemes('tactic', { fork: 1, pin: 2, skewer: 3, discoveredAttack: 4 })).toEqual([
+      'discoveredAttack',
+      'skewer',
+      'pin',
+    ]);
+    expect(faultPuzzleThemes('tactic', {})).toEqual(['fork', 'pin', 'skewer']);
+    expect(faultPuzzleThemes('hanging', { fork: 9 })).toEqual(['hangingPiece']);
+    expect(faultPuzzleThemes('other')).toEqual([]);
   });
 });

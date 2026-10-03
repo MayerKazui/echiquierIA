@@ -2,7 +2,8 @@ import React from 'react';
 import { AlertTriangle, CheckCircle2, Lightbulb } from 'lucide-react';
 import { formatPlayedDate } from '../../services/gameImport';
 import { toFrenchSan } from '../../utils/chessNotation';
-import { FAULT_KINDS, FAULT_KIND_TEXT as KIND_TEXT } from '../../utils/faultKinds';
+import { FAULT_KINDS, FAULT_KIND_TEXT as KIND_TEXT, type FaultKind } from '../../utils/faultKinds';
+import { faultThemeCounts, themeLabel } from '../../utils/puzzleThemes';
 import type { GamePhase } from '../../utils/phaseStats';
 import {
   MIN_BUCKET_MOVES,
@@ -88,6 +89,13 @@ function BarRow({ label, value, valueText, detail, isThin = false, isWeak = fals
       {detail && <p className="text-[11px] text-slate-400">{detail}</p>}
     </li>
   );
+}
+
+/** What a kind of fault is, and for the tactical ones the themes met most (fork 5, pin 3…). */
+function kindDetail(kind: FaultKind, themes: Profile['kinds']['themes']): string {
+  const top = faultThemeCounts(kind, themes).slice(0, 3);
+  if (top.length === 0) return KIND_TEXT[kind].hint;
+  return `${KIND_TEXT[kind].hint} Surtout : ${top.map(([theme, count]) => `${themeLabel(theme).toLowerCase()} (${count})`).join(', ')}.`;
 }
 
 const movesDetail = (bucket: Bucket) =>
@@ -240,7 +248,7 @@ export const ProfileView: React.FC<{ profile: Profile }> = ({ profile }) => {
                 label={KIND_TEXT[kind].label}
                 value={(kinds.counts[kind] / kinds.total) * 100}
                 valueText={`${whole.format((kinds.counts[kind] / kinds.total) * 100)} % · ${kinds.counts[kind]}`}
-                detail={KIND_TEXT[kind].hint}
+                detail={kindDetail(kind, kinds.themes)}
                 isThin={kind === 'other'}
               />
             ))}

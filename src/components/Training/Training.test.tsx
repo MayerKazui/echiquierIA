@@ -280,6 +280,41 @@ describe('Training', () => {
       expect(screen.getByText('Séance terminée : 1 réussie sur 1')).toBeTruthy();
     });
 
+    it('offers to open the game at the error only once the answer is known', async () => {
+      const onOpenGame = vi.fn();
+      const user = userEvent.setup();
+      await store({ 6: faultMove() });
+      renderTraining({ onOpenGame });
+      await user.click(await screen.findByRole('button', { name: /Commencer/ }));
+      expect(screen.queryByRole('button', { name: 'Voir dans la partie' })).toBeNull();
+
+      await user.click(cell('h5'));
+      await user.click(cell('f7'));
+      await screen.findByText(/Réussi\./);
+      await user.click(screen.getByRole('button', { name: 'Voir dans la partie' }));
+      expect(onOpenGame).toHaveBeenCalledTimes(1);
+      const [id, ply] = onOpenGame.mock.calls[0] as [string, number];
+      expect(ply).toBe(6);
+      expect((await loadCards()).has(`${id}:6`)).toBe(true);
+    });
+
+    it('has no such button when it cannot open a game', async () => {
+      const { user } = await begin();
+      await user.click(screen.getByRole('button', { name: 'Voir la solution' }));
+      expect(screen.queryByRole('button', { name: 'Voir dans la partie' })).toBeNull();
+    });
+
+    it('says when the same position came back in other games', async () => {
+      const user = userEvent.setup();
+      await store({ 6: faultMove() });
+      await store({ 6: faultMove() });
+      await store({ 6: faultMove() });
+      renderTraining();
+      await user.click(await screen.findByRole('button', { name: /Commencer/ }));
+      expect(screen.getByText(/Position 1 sur 1/)).toBeTruthy();
+      expect(screen.getByText(/aussi présentée dans 2 autres parties/)).toBeTruthy();
+    });
+
     it('records the success, and brings the position back in a day', async () => {
       const { user } = await begin();
       await user.click(cell('h5'));

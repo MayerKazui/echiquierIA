@@ -8,7 +8,7 @@ import { analyseRecorded, gapOf, gapsByBand, loadReference, type PlayerResult } 
  * The accuracy against chess.com's, on the reference games (see `scripts/calibrate.ts`): a change to the win curve,
  * the accuracy formula, the classification or the opening book that moves the app away from chess.com fails here.
  * The limits sit a little above today's figures (3.9 on average, 4.6 in the worst band, bias -2.3 at depth 12), and
- * under the 5 points the app promises. To move them on purpose, run `bun run calibrate` and say why in IMPROVEMENTS.md.
+ * under the 5 points the app promises. To move them on purpose, run `bun run calibrate` and say why in the commit message.
  */
 const MAX_MEAN_GAP = 4.5;
 const MAX_BAND_GAP = 6;

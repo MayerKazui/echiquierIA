@@ -1,4 +1,5 @@
 import { Chess, Square } from 'chess.js';
+import { chessFromFen } from './chessFromFen';
 
 export type TacticalThreatType = 'attack' | 'check' | 'pin' | 'fork' | 'hanging' | 'skewer';
 
@@ -76,7 +77,7 @@ export function analyzeTacticalThreatsForMove(fenBefore: string, moveUci: string
     const to = moveUci.substring(2, 4);
     const promotion = moveUci.length > 4 ? moveUci[4] : undefined;
 
-    const chess = new Chess(fenBefore);
+    const chess = chessFromFen(fenBefore);
     const moveObj = chess.move({
       from,
       to,

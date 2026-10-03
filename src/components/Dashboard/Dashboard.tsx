@@ -3,6 +3,7 @@ import { BookOpen, Check, Share2 } from 'lucide-react';
 import { GameAnalysisResult } from '../../types/chess';
 import { computePhaseStats } from '../../utils/phaseStats';
 import { buildGameSummary } from '../../utils/gameSummary';
+import { GameHeadline } from './GameHeadline';
 import { PlayerRadarChart } from './PlayerRadarChart';
 import { PlayerAccuracyCard } from './PlayerAccuracyCard';
 import { PhaseBreakdown } from './PhaseBreakdown';
@@ -11,13 +12,15 @@ import { toFrenchOpeningName } from '../../utils/openingNames';
 
 interface DashboardProps {
   analysis: GameAnalysisResult;
+  /** PGN of the game, to leave it out of the average it is compared with. */
+  pgn?: string;
   userPseudo?: string;
   userColor?: 'w' | 'b';
   onUpdateUserColor?: (color: 'w' | 'b') => void;
   onUpdatePseudo?: (pseudo: string) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ analysis, userPseudo = '', userColor = 'w' }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ analysis, pgn, userPseudo = '', userColor = 'w' }) => {
   const { metadata, moves, statsWhite, statsBlack } = analysis;
 
   const [copiedSummary, setCopiedSummary] = useState(false);
@@ -60,6 +63,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ analysis, userPseudo = '',
           </button>
         </div>
       </div>
+
+      <GameHeadline analysis={analysis} pgn={pgn} userPseudo={userPseudo} phaseStats={phaseStats} />
 
       {/* Recognized Lichess Opening Banner */}
       {metadata.opening && (

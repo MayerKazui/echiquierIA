@@ -20,7 +20,8 @@
     "check": "bun run lint && bun run typecheck && bun run format:check && bun run test",
     "build:openings": "tsx scripts/build-openings.ts",
     "build:puzzles": "tsx scripts/build-puzzles.ts",
-    "calibrate": "tsx scripts/calibrate.ts"
+    "calibrate": "tsx scripts/calibrate.ts",
+    "faultstats": "tsx scripts/faultStats.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

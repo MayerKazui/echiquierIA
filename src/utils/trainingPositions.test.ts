@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { faultMove, SCHOLAR } from '../test/trainingFixtures';
+import { distinctFen, faultMove, SCHOLAR } from '../test/trainingFixtures';
 import { game, mv, PSEUDO } from '../test/profileFixtures';
-import { collectPositions } from './trainingPositions';
+import type { Card } from './spacedRepetition';
+import { collectPositions, dedupePositions, positionKey } from './trainingPositions';
 
 /** A game of 40 plies with the given moves in place (White is the player, Alice, unless said otherwise). */
 function gameWith(replaced: Record<number, ReturnType<typeof faultMove>>, over: Parameters<typeof game>[0] = {}) {
@@ -13,7 +14,10 @@ function gameWith(replaced: Record<number, ReturnType<typeof faultMove>>, over: 
 
 describe('collectPositions', () => {
   it('makes a position of each fault of the player', async () => {
-    const source = gameWith({ 6: faultMove(), 20: faultMove({ ply: 20, moveNumber: 11, classification: 'mistake' }) });
+    const source = gameWith({
+      6: faultMove(),
+      20: faultMove({ ply: 20, moveNumber: 11, classification: 'mistake', fenBefore: distinctFen(0) }),
+    });
     const positions = await collectPositions([source]);
     expect(positions.map((p) => [p.ply, p.classification])).toEqual([
       [6, 'blunder'],
@@ -89,8 +93,14 @@ describe('collectPositions', () => {
   });
 
   it('puts the most recent game first, and the faults of a game in order', async () => {
-    const older = gameWith({ 6: faultMove(), 20: faultMove({ ply: 20 }) }, { id: 'old', meta: { date: '2024.01.01' } });
-    const newer = gameWith({ 6: faultMove() }, { id: 'new', meta: { date: '2024.02.01' } });
+    const older = gameWith(
+      { 6: faultMove(), 20: faultMove({ ply: 20, fenBefore: distinctFen(0) }) },
+      { id: 'old', meta: { date: '2024.01.01' } }
+    );
+    const newer = gameWith(
+      { 6: faultMove({ fenBefore: distinctFen(1) }) },
+      { id: 'new', meta: { date: '2024.02.01' } }
+    );
     const positions = await collectPositions([older, newer]);
     expect(positions.map((p) => p.id)).toEqual(['new:6', 'old:6', 'old:20']);
   });
@@ -101,12 +111,69 @@ describe('collectPositions', () => {
   });
 
   it('lets the page breathe between games when it is long, and stops when told to', async () => {
-    const sources = [gameWith({ 6: faultMove() }, { id: 'a' }), gameWith({ 6: faultMove() }, { id: 'b' })];
+    const sources = [gameWith({ 6: faultMove() }, { id: 'a' }), gameWith({ 6: faultMove() }, { id: 'b' })]; // (the same position)
     const yieldToUi = vi.fn(() => Promise.resolve());
     await collectPositions(sources, { yieldToUi, sliceMs: -1 });
     expect(yieldToUi).toHaveBeenCalledTimes(2);
     await expect(
       collectPositions(sources, { yieldToUi: () => Promise.reject(new Error('cancelled')), sliceMs: -1 })
     ).rejects.toThrow('cancelled');
+  });
+});
+
+describe('one position per situation', () => {
+  const twoGames = () => [
+    gameWith({ 6: faultMove() }, { id: 'new', meta: { date: '2024.02.01' } }),
+    gameWith({ 6: faultMove({ san: 'Qg4', uci: 'h5g4' }) }, { id: 'old', meta: { date: '2024.01.01' } }),
+  ];
+  const card = (id: string, lastSeen: number): Card => ({
+    id,
+    level: 1,
+    dueAt: lastSeen + 1,
+    lastSeen,
+    attempts: 1,
+    failures: 0,
+  });
+
+  it('asks the same position once, from the oldest game, and says it came back', async () => {
+    const positions = await collectPositions(twoGames());
+    expect(positions.map((p) => [p.id, p.repeats])).toEqual([['old:6', 1]]);
+  });
+
+  it('keeps the one the player already worked on, even in a newer game', async () => {
+    const cards = new Map([['new:6', card('new:6', 5)]]);
+    const positions = await collectPositions(twoGames(), { cards });
+    expect(positions.map((p) => [p.id, p.repeats])).toEqual([['new:6', 1]]);
+  });
+
+  it('keeps the most recently worked on when several were', async () => {
+    const cards = new Map([
+      ['new:6', card('new:6', 5)],
+      ['old:6', card('old:6', 9)],
+    ]);
+    expect((await collectPositions(twoGames(), { cards })).map((p) => p.id)).toEqual(['old:6']);
+  });
+
+  it('does not touch positions that differ, and leaves no count on them', async () => {
+    const source = gameWith({ 6: faultMove(), 20: faultMove({ ply: 20, fenBefore: distinctFen(2) }) });
+    const positions = await collectPositions([source]);
+    expect(positions).toHaveLength(2);
+    expect(positions.every((p) => p.repeats === undefined)).toBe(true);
+  });
+
+  it('counts three games as two repeats', async () => {
+    const third = gameWith({ 6: faultMove() }, { id: 'mid', meta: { date: '2024.01.15' } });
+    const positions = await collectPositions([...twoGames(), third]);
+    expect(positions.map((p) => [p.id, p.repeats])).toEqual([['old:6', 2]]);
+  });
+
+  it('ignores the move counters of the position', () => {
+    expect(positionKey('8/8/8/8/8/8/8/K6k w - - 4 30')).toBe(positionKey('8/8/8/8/8/8/8/K6k w - - 0 1'));
+    expect(positionKey('8/8/8/8/8/8/8/K6k w - - 0 1')).not.toBe(positionKey('8/8/8/8/8/8/8/K6k b - - 0 1'));
+  });
+
+  it('keeps the input order', async () => {
+    const positions = await collectPositions(twoGames());
+    expect(dedupePositions(positions)).toEqual(positions);
   });
 });

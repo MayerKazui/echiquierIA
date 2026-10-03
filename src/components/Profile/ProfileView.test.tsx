@@ -169,18 +169,40 @@ describe('ProfileView', () => {
       const section_ = section('Vos erreurs, par type');
       expect(within(section_).getByText('6 erreurs (erreurs, gaffes et occasions manquées).')).toBeTruthy();
       const rows = within(within(section_).getAllByRole('list')[0]).getAllByRole('listitem');
-      expect(rows).toHaveLength(5);
+      expect(rows).toHaveLength(9);
       expect(rows[0].textContent).toContain('Mat manqué ou subi');
       expect(rows[0].textContent).toContain('33 % · 2');
       expect(rows[1].textContent).toContain('0 % · 0');
       expect(rows[3].textContent).toContain('Avantage gâché');
       expect(rows[3].textContent).toContain('50 % · 3');
-      expect(rows[4].textContent).toContain('17 % · 1');
+      expect(rows[8].textContent).toContain('Autres erreurs');
+      expect(rows[8].textContent).toContain('17 % · 1');
     });
 
     it('explains each kind', async () => {
       await show(kinded());
-      expect(screen.getByText(/Fourchette, clouage ou pièce adverse à prendre/)).toBeTruthy();
+      expect(screen.getByText(/attaque à la découverte… : le moteur voyait un coup tactique/)).toBeTruthy();
+      expect(screen.getByText(/Un coup de roi, un roque manqué/)).toBeTruthy();
+    });
+
+    it('names the tactical themes met most, with their count', async () => {
+      const themes = ['fork', 'fork', 'fork', 'pin', 'pin', 'discoveredAttack'];
+      await show(
+        themes.map((theme, i) =>
+          game({
+            id: `t${i}`,
+            savedAt: i,
+            moves: Array.from({ length: 40 }, (_, ply) =>
+              ply === 20 ? blunder(ply, { faultKind: 'tactic', faultTheme: theme }) : mv(ply)
+            ),
+          })
+        )
+      );
+      const row = within(section('Vos erreurs, par type'))
+        .getByText(/Surtout : /)
+        .closest('li')!;
+      expect(row.textContent).toContain('Tactique manquée');
+      expect(row.textContent).toContain('Surtout : fourchette (3), clouage (2), attaque à la découverte (1).');
     });
 
     it('says so when there is no fault', async () => {

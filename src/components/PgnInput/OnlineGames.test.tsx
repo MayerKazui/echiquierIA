@@ -399,6 +399,56 @@ describe('OnlineGames', () => {
       expect(await screen.findByText(/1 déjà analysée : elle est sautée/)).toBeTruthy();
     });
 
+    describe('the new games only', () => {
+      const newButton = () =>
+        screen.findByRole('button', { name: /^Analyser seulement les \d+ nouvelle|^Aucune nouvelle partie/ });
+
+      it('sends the games of the list that are not in the history, the newest first', async () => {
+        const onAnalyzeBatch = vi.fn();
+        await searchWithStored(known('1. d4 d5'), { onAnalyzeBatch });
+        await userEvent.click(await screen.findByRole('button', { name: 'Analyser seulement les 2 nouvelles' }));
+        const [games, username] = onAnalyzeBatch.mock.calls[0] as [ImportedGame[], string];
+        expect(games.map((g) => g.pgn)).toEqual(['1. e4 e5', '1. c4 c5']);
+        expect(username).toBe('alice');
+      });
+
+      it('says so when there is nothing new, and does not start anything', async () => {
+        const onAnalyzeBatch = vi.fn();
+        await searchWithStored(known('1. e4 e5', '1. d4 d5', '1. c4 c5'), { onAnalyzeBatch });
+        const button = (await screen.findByRole('button', { name: 'Aucune nouvelle partie' })) as HTMLButtonElement;
+        expect(button.disabled).toBe(true);
+      });
+
+      it('goes beyond the size chosen for the latest games', async () => {
+        const many = Array.from({ length: 12 }, (_, i) => game({ id: `n${i}`, pgn: `1. a3 a6 ; ${i}` }));
+        const onAnalyzeBatch = vi.fn();
+        renderGames({ loadAnalyzedIds: known('1. a3 a6 ; 0'), onAnalyzeBatch }, [{ games: many, cursor: null }]);
+        await search();
+        await userEvent.click(await screen.findByRole('button', { name: 'Analyser seulement les 11 nouvelles' }));
+        expect((onAnalyzeBatch.mock.calls[0][0] as ImportedGame[]).map((g) => g.id)).toEqual(
+          many.slice(1).map((g) => g.id)
+        );
+      });
+
+      it('waits for the history to be read before counting', async () => {
+        let release: (ids: ReadonlySet<string>) => void = () => {};
+        const pending = new Promise<ReadonlySet<string>>((resolve) => (release = resolve));
+        renderGames({ loadAnalyzedIds: () => pending, onAnalyzeBatch: vi.fn() }, [{ games: listed, cursor: null }]);
+        await search();
+        const waiting = (await screen.findByRole('button', {
+          name: 'Recherche des nouvelles parties…',
+        })) as HTMLButtonElement;
+        expect(waiting.disabled).toBe(true);
+        await act(async () => release(new Set([gameId('1. e4 e5')])));
+        expect(await screen.findByRole('button', { name: 'Analyser seulement les 2 nouvelles' })).toBeTruthy();
+      });
+
+      it('is disabled while a batch runs', async () => {
+        await searchWithStored(known(), { onAnalyzeBatch: vi.fn(), isBatchBusy: true });
+        expect(((await newButton()) as HTMLButtonElement).disabled).toBe(true);
+      });
+    });
+
     it('says nothing when none of them is analysed', async () => {
       await searchWithStored(known(), { onAnalyzeBatch: vi.fn() });
       await screen.findByRole('button', { name: 'Analyser 3 parties' });

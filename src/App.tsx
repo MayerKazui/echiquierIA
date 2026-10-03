@@ -26,6 +26,7 @@ import { useMediaQuery } from './hooks/useMediaQuery';
 import { useIdleWarmUp } from './hooks/useIdleWarmUp';
 import { stockfishService } from './services/stockfishEngine';
 import { ensureOpeningBookLoaded } from './services/openingBook';
+import { loadGameById, reclassifyStoredGames } from './services/gameStore';
 import {
   ChessBoard,
   Dashboard,
@@ -86,7 +87,12 @@ export default function App() {
   const { announcement, announce } = useAnnouncer();
 
   // While the user reads the start screen: download the engine, the openings database and the game views
-  useIdleWarmUp([() => stockfishService.warmUp(), () => void ensureOpeningBookLoaded(), prefetchViews]);
+  useIdleWarmUp([
+    () => stockfishService.warmUp(),
+    () => void ensureOpeningBookLoaded(),
+    prefetchViews,
+    () => void reclassifyStoredGames(),
+  ]);
 
   // Preferences (persisted in localStorage)
   const [userPseudo, setUserPseudo] = usePersistentState<string>('chess_coach_user_pseudo', '', (raw) => raw);
@@ -252,11 +258,11 @@ export default function App() {
       });
       if (outcome.status === 'cancelled') {
         announce('Analyse annulée');
-        return;
+        return false;
       }
       if (outcome.status === 'failed') {
         announce("L'analyse a échoué");
-        return;
+        return false;
       }
 
       const { result } = outcome;
@@ -265,8 +271,24 @@ export default function App() {
       announce(
         `Analyse terminée, ${result.moves.length} demi-coups. ${describeMove(result.moves[0] ?? null, result.moves.length)}`
       );
+      return true;
     },
     [analyze, announce, exitSandbox, handleUpdateUserColor, setCurrentPly, userColor]
+  );
+
+  /** Shows a stored game at the move of an error (from the training); an old game is analysed again to be shown. */
+  const openStoredGame = useCallback(
+    async (id: string, ply: number) => {
+      const stored = await loadGameById(id);
+      if (!stored) {
+        announce("Cette partie n'est plus dans l'historique");
+        return;
+      }
+      if (!(await runAnalysis(stored.pgn, stored.depth))) return;
+      setCurrentPly(ply);
+      announce(`Partie ouverte au coup ${Math.floor(ply / 2) + 1}`);
+    },
+    [announce, runAnalysis, setCurrentPly]
   );
 
   // The form (start screen or dialog) stays open with the progress until the first moves can be shown
@@ -604,6 +626,7 @@ export default function App() {
           ) : visibleTab === 'dashboard' && analysis ? (
             <Dashboard
               analysis={analysis}
+              pgn={pgn}
               userPseudo={userPseudo}
               userColor={userColor}
               onUpdateUserColor={handleUpdateUserColor}
@@ -665,6 +688,10 @@ export default function App() {
             <Training
               boardTheme={boardTheme}
               initialFilter={trainingFilter}
+              onOpenGame={(id, ply) => {
+                setIsTrainingOpen(false);
+                void openStoredGame(id, ply);
+              }}
               onClose={() => setIsTrainingOpen(false)}
               onImport={() => {
                 setIsTrainingOpen(false);
