@@ -139,16 +139,41 @@ describe('buildPlan', () => {
       expect(item.goal).toEqual({ done: SESSION_SIZE, target: SESSION_SIZE });
     });
 
-    it('is left out when there is nothing to replay in that kind', () => {
-      expect(plan({ profile: hangingProfile(), positions: positions(5, { kind: 'mate' }) }).items).toEqual([]);
+    it('goes to the puzzles of the theme when there is nothing to replay in that kind', () => {
+      const [item] = plan({ profile: hangingProfile(), positions: positions(5, { kind: 'mate' }) }).items;
+      expect(item).toEqual({
+        id: 'train-hanging',
+        title: 'Faites des puzzles : pièce laissée en prise',
+        why: '50 % de vos erreurs (10 sur 20) sont de ce type.',
+        action: { kind: 'puzzles', themes: ['hangingPiece'] },
+      });
     });
 
-    it('is left out when everything is mastered or waits for later and nothing was replayed this week', () => {
+    it('goes to the puzzles too when everything is mastered or waits for later and nothing was replayed this week', () => {
       const pos = positions(2, { kind: 'hanging' });
       const cards = new Map(
         pos.map((p) => [p.id, card(p.id, { level: 4, dueAt: Number.MAX_SAFE_INTEGER, lastSeen: NOW - 30 * DAY_MS })])
       );
-      expect(plan({ profile: hangingProfile(), positions: pos, cards }).items).toEqual([]);
+      const [item] = plan({ profile: hangingProfile(), positions: pos, cards }).items;
+      expect(item.action).toEqual({ kind: 'puzzles', themes: ['hangingPiece'] });
+      expect(item.goal).toBeUndefined();
+    });
+
+    it('offers the puzzles of the theme beside the errors to replay', () => {
+      const [item] = plan({ profile: hangingProfile(), positions: positions(6, { kind: 'hanging' }) }).items;
+      expect(item.action.kind).toBe('train');
+      expect(item.puzzles).toEqual(['hangingPiece']);
+    });
+
+    it.each([
+      ['mate', ['mateIn1', 'mateIn2']],
+      ['tactic', ['fork', 'pin', 'skewer']],
+      ['wasted', ['crushing', 'advantage']],
+    ] as const)('names the Lichess themes of %s', (kind, themes) => {
+      const p = calmProfile();
+      p.kinds = { counts: { mate: 0, hanging: 0, tactic: 0, wasted: 0, other: 5, [kind]: 15 }, total: 20 };
+      const [item] = plan({ profile: p, positions: positions(6, { kind }) }).items;
+      expect(item.puzzles).toEqual(themes);
     });
   });
 
@@ -166,6 +191,13 @@ describe('buildPlan', () => {
       expect(item.why).toBe("C'est votre phase la plus fragile : 70 % de précision, contre 80 % en moyenne.");
       expect(phasesOf(item.action)).toEqual(['endgame']);
       expect(kindsOf(item.action)).toEqual([]);
+      expect(item.puzzles).toEqual(['endgame']);
+    });
+
+    it('goes to the puzzles of that phase when there is nothing of it to replay', () => {
+      const [item] = plan({ profile: weakEndgame() }).items;
+      expect(item.title).toBe('Faites des puzzles : finale');
+      expect(item.action).toEqual({ kind: 'puzzles', themes: ['endgame'] });
     });
 
     it('comes after the kind, the exit and the habit, and only if there is room', () => {

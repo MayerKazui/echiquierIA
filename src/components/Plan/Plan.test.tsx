@@ -34,7 +34,7 @@ const firstItem = async () => {
 };
 
 const renderPlan = (props: Partial<React.ComponentProps<typeof Plan>> = {}) => {
-  const handlers = { onClose: vi.fn(), onTrain: vi.fn(), onShowLine: vi.fn(), onImport: vi.fn() };
+  const handlers = { onClose: vi.fn(), onTrain: vi.fn(), onShowLine: vi.fn(), onImport: vi.fn(), onPuzzles: vi.fn() };
   render(<Plan {...handlers} {...props} />);
   return handlers;
 };
@@ -103,6 +103,45 @@ describe('Plan', () => {
       const filter = onTrain.mock.calls[0][0];
       expect([...filter.kinds]).toEqual(['hanging']);
       expect([...filter.phases]).toEqual([]);
+    });
+  });
+
+  describe('the puzzles', () => {
+    it('offers the puzzles of the theme beside the errors to replay', async () => {
+      await storeHangingGames();
+      const user = userEvent.setup();
+      const { onPuzzles, onTrain } = renderPlan();
+      await user.click((await firstItem()).getByRole('button', { name: 'Puzzles : Pièce en prise' }));
+      expect(onPuzzles).toHaveBeenCalledWith(['hangingPiece']);
+      expect(onTrain).not.toHaveBeenCalled();
+    });
+
+    it('goes to the puzzles alone when every error of the theme was replayed and is mastered', async () => {
+      await storeHangingGames(5);
+      for (const g of await listGames()) {
+        await saveCard({
+          id: `${g.id}:6`,
+          level: 4,
+          dueAt: Number.MAX_SAFE_INTEGER,
+          lastSeen: Date.now() - 30 * DAY_MS,
+          attempts: 4,
+          failures: 0,
+        });
+      }
+      const user = userEvent.setup();
+      const { onPuzzles } = renderPlan();
+      const item = await firstItem();
+      expect(item.getByRole('heading', { name: 'Faites des puzzles : pièce laissée en prise' })).toBeTruthy();
+      expect(item.queryByRole('progressbar')).toBeNull();
+      await user.click(item.getByRole('button', { name: /Faire des puzzles/ }));
+      expect(onPuzzles).toHaveBeenCalledWith(['hangingPiece']);
+    });
+
+    it('has none beside a habit, nor when games are missing', async () => {
+      await storeHangingGames(3);
+      renderPlan();
+      await screen.findByRole('heading', { name: 'Analysez plus de parties' });
+      expect(screen.queryByRole('button', { name: /uzzles/ })).toBeNull();
     });
   });
 

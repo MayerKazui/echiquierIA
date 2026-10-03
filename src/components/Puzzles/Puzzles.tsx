@@ -8,7 +8,15 @@ import { loadPuzzleIndex, loadPuzzles } from '../../services/puzzleBook';
 import type { BoardTheme } from '../../types/ui';
 import type { Puzzle, PuzzleIndex } from '../../utils/puzzleData';
 import { pickReview, type PuzzleEntry } from '../../utils/puzzleReview';
-import { DEFAULT_RANGE, TIMER_OPTIONS, normalizeRange, shuffle, toFilter, type EloRange } from '../../utils/puzzleRun';
+import {
+  DEFAULT_RANGE,
+  TIMER_OPTIONS,
+  normalizeRange,
+  shuffle,
+  suggestRange,
+  toFilter,
+  type EloRange,
+} from '../../utils/puzzleRun';
 import { beginCycle, createSet, drawLot } from '../../utils/woodpecker';
 import { PuzzleRun, type RunReport } from './PuzzleRun';
 import { PuzzleSetup, type PuzzleChoice } from './PuzzleSetup';
@@ -17,9 +25,16 @@ import { WoodpeckerHome } from './WoodpeckerHome';
 import { WoodpeckerRun } from './WoodpeckerRun';
 import { WoodpeckerSummary } from './WoodpeckerSummary';
 
+/** Where the plan of the week sends the player: puzzles on these themes, at the level of their games. */
+export interface PuzzleStart {
+  themes: string[];
+}
+
 interface PuzzlesProps {
   onClose: () => void;
   boardTheme?: BoardTheme;
+  /** Opens on a free session with these themes, instead of the player's last choice (until they change it). */
+  start?: PuzzleStart;
 }
 
 type Screen =
@@ -48,8 +63,10 @@ const toNumber = (raw: string): number | undefined => {
 };
 
 /** "Puzzles": the puzzles of Lichess to solve against the clock, by rating and theme, and the missed ones to review. */
-export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme }) => {
-  const [mode, setMode] = usePersistentState<Mode>('puzzle_mode', 'free', (raw) =>
+export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme, start: initialStart }) => {
+  // Held in memory, not stored: the choices of the player are not overwritten until they make one
+  const [preset, setPreset] = useState<PuzzleStart | undefined>(initialStart);
+  const [storedMode, setStoredMode] = usePersistentState<Mode>('puzzle_mode', 'free', (raw) =>
     raw === 'free' || raw === 'woodpecker' ? raw : undefined
   );
   const [from, setFrom] = usePersistentState<number>('puzzle_from', DEFAULT_RANGE.from, toNumber);
@@ -63,13 +80,21 @@ export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme }) => {
     const value = Number(raw);
     return TIMER_OPTIONS.includes(value) ? value : undefined;
   });
+  const elo = usePlayerElo();
+  const mode: Mode = preset ? 'free' : storedMode;
+  const setMode = (next: Mode) => {
+    setPreset(undefined);
+    setStoredMode(next);
+  };
   const choice: PuzzleChoice = {
-    range: normalizeRange({ from, to }),
-    themes: themesRaw === '' ? [] : themesRaw.split(','),
-    match,
+    // The level of the games, as far as it is known: the plan is about what the games show
+    range: preset && elo !== null ? suggestRange(elo) : normalizeRange({ from, to }),
+    themes: preset ? preset.themes : themesRaw === '' ? [] : themesRaw.split(','),
+    match: preset ? 'any' : match,
     minutes,
   };
   const setChoice = (next: PuzzleChoice) => {
+    setPreset(undefined);
     setFrom(next.range.from);
     setTo(next.range.to);
     setThemesRaw(next.themes.join(','));
@@ -82,7 +107,6 @@ export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme }) => {
   const [screen, setScreen] = useState<Screen>({ kind: 'setup' });
   // Fixed while a screen is shown: the figures must not change under the player's eyes
   const [now, setNow] = useState(() => Date.now());
-  const elo = usePlayerElo();
   const { data, record } = usePuzzleReview();
   const woodpecker = useWoodpecker();
   const [isDrawing, setIsDrawing] = useState(false);

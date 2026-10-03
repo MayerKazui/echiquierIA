@@ -95,5 +95,6 @@ Cadré dans `COMPARATIF_PATCHCHESS.md` (section 4). Voir `IMPROVEMENTS.md` (« P
 - [x] Écran « Puzzles » : thèmes (noms français), tranche d'Elo, timer sans pénalité, bilan.
 - [x] Puzzles ratés en répétition espacée (puzzle complet stocké), dans la sauvegarde JSON et Drive.
 - [x] Woodpecker (onglet de la fenêtre « Puzzles ») : lot figé tiré une fois avec une graine, tranche d'Elo et 20 à 500 puzzles par cycle, chronomètre avec pause, puzzles ratés repris en fin de cycle (compris dans le temps), temps comparé au cycle précédent ; lot, cycles et cycle en cours dans la sauvegarde JSON (format 5) et Drive.
-- [ ] Plan et profil : objectifs de puzzles par thème d'après les erreurs de ses parties.
+- [x] Plan : les objectifs d'erreurs (type de faute dominant, phase fragile) proposent les puzzles du thème Lichess correspondant, au niveau de ses parties.
+- [ ] Profil : lien vers les puzzles depuis « Mon profil ».
 - [ ] Historique des puzzles (second temps) : scores, précision par thème, temps de cycle.

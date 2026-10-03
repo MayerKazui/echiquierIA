@@ -569,6 +569,18 @@ Onglet « Woodpecker » de la fenêtre « Puzzles » (`WoodpeckerHome`, `Woodpec
   - Pas de choix des thèmes pour le Woodpecker (lot mélangé, comme la méthode).
   - Pas encore d'historique détaillé (précision par thème, courbe des temps) ni de lien avec « Mon plan » : c'est le second temps annoncé.
 
+### Suite : le lien avec « Mon plan » — fait
+
+Les objectifs de « Mon plan » qui portent sur un type d'erreur ou sur une phase proposent maintenant les puzzles du thème correspondant (`utils/trainingPlan`, `FAULT_PUZZLE_THEMES` et `PHASE_PUZZLE_THEMES` dans `utils/puzzleThemes`).
+
+- [x] **Correspondance** : mat manqué ou subi → mat en 1 et mat en 2 ; pièce laissée en prise → pièce en prise ; tactique manquée → fourchette, clouage, enfilade ; avantage gâché → gain écrasant et prendre l'avantage ; phase fragile → ouverture, milieu de jeu ou finale. Rien pour « autres erreurs » (pas de thème pour un calcul raté), ni pour la sortie de théorie et les habitudes.
+- [x] **À côté des positions à rejouer** : l'objectif garde son bouton « Commencer » (les erreurs de ses propres parties) et gagne un bouton « Puzzles : Pièce en prise ».
+- [x] **Quand il n'y a plus rien à rejouer** (tout est maîtrisé, ou aucune position de ce type n'est stockée), l'objectif n'est plus écarté : il devient « Faites des puzzles : … » avec le bouton « Faire des puzzles », sans barre de progression (il n'y a pas encore d'historique des puzzles pour la remplir). Avant, le plan disparaissait ou passait à l'objectif suivant.
+- [x] **Ouverture pré-réglée** (`Puzzles`, propriété `start`) : la fenêtre s'ouvre sur une séance libre avec ces thèmes (« l'un des thèmes ») et, si les parties donnent un Elo, la tranche suggérée (trois bandes autour de l'Elo moins 200). Ces choix ne sont pas écrits dans le navigateur : les réglages habituels du joueur ne sont écrasés qu'au premier changement qu'il fait lui-même ; l'ouverture par le menu repart de ses réglages. Un clic sur l'onglet Woodpecker quitte aussi le préréglage.
+- Vérifié dans Chromium sur la version de production avec six parties factices (pièce en prise à chaque partie) : le plan propose « Commencer » et « Puzzles : Pièce en prise », la fenêtre s'ouvre sur ce thème avec la tranche 1200 à 1800 (Elo 1432), rien n'est écrit dans `puzzle_themes`, et les puzzles tirés portent bien le thème « Pièce en prise ».
+- Tests : 7 pour le calcul du plan, 3 pour l'écran du plan, 4 pour l'ouverture de la fenêtre Puzzles.
+- **Limites** : pas de progression chiffrée sur les puzzles (elle viendra avec l'historique des puzzles) ; un seul préréglage par ouverture (le lien depuis « Mon profil » reste à faire).
+
 ## Grands plateaux dans les fenêtres — fait
 
 Études, Puzzles, S'entraîner et Ouvertures (l'explorateur) s'affichaient dans une fenêtre de 56 à 64 rem avec un plateau de 24 à 26 rem (environ 400 px) : trop petit pour jouer.
