@@ -74,10 +74,6 @@ Faites sur de vrais appareils (2026-10-03), sans défaut constaté : lecteur d'�
 - [ ] Thèmes tactiques pas encore détectés : rayons X, déviation, attraction, interférence, pièce piégée, surcharge, coup intermédiaire (douze thèmes le sont : fourchette, clouage, enfilade, attaque et échec à la découverte, double échec, capture du défenseur, mat du couloir, mat étouffé, pièce en prise, promotion, sacrifice).
 - [ ] « Matériel laissé en prise » compte aussi un pion perdu quand le coup du moteur ne le perdait pas : à surveiller si le profil montre trop de « pièce laissée en prise ».
 
-### Coach IA
-
-- [ ] Passer à Gemini la variante du moteur et la menace détectée, pour qu'il nomme la pièce touchée au lieu de paraphraser l'évaluation.
-
 ### Question ouverte
 
 - [ ] Stats mondiales d'ouverture : l'API Explorer de Lichess exige-t-elle un jeton ? Si oui, on garde seulement ses propres stats.
