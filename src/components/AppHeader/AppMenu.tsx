@@ -11,7 +11,8 @@ interface AppMenuProps {
 
 /**
  * The burger menu, for the screens too small for the side panel: one button that opens the whole tree of the app
- * (the groups are headings, never something to open). It follows the menu button pattern: the first entry takes
+ * (the groups are headings, never something to open). On a phone it stops above the bottom bar (Échiquier / Bilan,
+ * which would otherwise hide its last entries) and scrolls. It follows the menu button pattern: the first entry takes
  * the focus when it opens, the arrows, Home and End move between the entries, Escape closes it and gives the focus
  * back to the button, and so does a click outside or Tab.
  */
@@ -117,7 +118,7 @@ export const AppMenu: React.FC<AppMenuProps> = ({ sections, label = 'Menu' }) =>
           role="menu"
           aria-label={label}
           onKeyDown={onMenuKeyDown}
-          className="absolute right-0 top-full mt-2 z-50 w-72 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-4.5rem)] overflow-y-auto overscroll-contain rounded-xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/40 p-1.5 flex flex-col"
+          className="absolute right-0 top-full mt-2 z-50 w-72 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-8.25rem-env(safe-area-inset-bottom))] sm:max-h-[calc(100dvh-4.5rem)] overflow-y-auto overscroll-contain rounded-xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/40 p-1.5 flex flex-col"
         >
           {sections.map((section, sectionIndex) => (
             <div
