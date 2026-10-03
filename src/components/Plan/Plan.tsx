@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, CheckCircle2, ClipboardList, Dumbbell, Lightbulb, Puzzle, Upload, X } from 'lucide-react';
+import { BookOpen, CheckCircle2, ClipboardList, Crown, Dumbbell, Lightbulb, Puzzle, Upload, X } from 'lucide-react';
 import { usePlan } from '../../hooks/usePlan';
 import type { PlanAction, PlanItem } from '../../utils/trainingPlan';
 import { themeLabel } from '../../utils/puzzleThemes';
@@ -13,6 +13,8 @@ interface PlanProps {
   onShowLine: (line: string[]) => void;
   /** Opens the training on the opening repertoire (the exits from the theory, replayed). */
   onDrill: () => void;
+  /** Opens the training on the theoretical endgames. */
+  onEndgames: () => void;
   /** Opens the import of online games. */
   onImport: () => void;
   /** Opens the puzzles on themes of Lichess. */
@@ -73,7 +75,15 @@ function Goal({ done, target, text, label }: { done: number; target: number; tex
 }
 
 /** "Mon plan": the few objectives of the week, each with the button that starts it. */
-export const Plan: React.FC<PlanProps> = ({ onClose, onTrain, onShowLine, onDrill, onImport, onPuzzles }) => {
+export const Plan: React.FC<PlanProps> = ({
+  onClose,
+  onTrain,
+  onShowLine,
+  onDrill,
+  onEndgames,
+  onImport,
+  onPuzzles,
+}) => {
   const state = usePlan();
 
   const run = (action: PlanAction) => {
@@ -124,6 +134,12 @@ export const Plan: React.FC<PlanProps> = ({ onClose, onTrain, onShowLine, onDril
             <button type="button" onClick={onDrill} className={BUTTON_SECONDARY}>
               <Dumbbell className="w-3.5 h-3.5" aria-hidden="true" />
               S&apos;entraîner sur mes sorties de théorie
+            </button>
+          )}
+          {item.endgames && (
+            <button type="button" onClick={onEndgames} className={BUTTON_SECONDARY}>
+              <Crown className="w-3.5 h-3.5" aria-hidden="true" />
+              Finales théoriques
             </button>
           )}
           {item.puzzles && (
