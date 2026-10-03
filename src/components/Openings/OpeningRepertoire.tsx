@@ -3,7 +3,13 @@ import { ChevronDown, ChevronRight, Eye } from 'lucide-react';
 import { useRepertoire } from '../../hooks/useRepertoire';
 import { toFrenchOpeningName } from '../../utils/openingNames';
 import type { Family, RecurringExit } from '../../utils/openingRepertoire';
-import { BOOK_PLIES, COSTLY_EXIT, MIN_RECURRENCE } from '../../utils/openingRepertoire';
+import {
+  BOOK_PLIES,
+  COSTLY_EXIT,
+  MIN_ACCURACY_GAMES,
+  MIN_RECURRENCE,
+  accuracyExtremes,
+} from '../../utils/openingRepertoire';
 import { SECONDARY, TallyBar, numberedAt } from './shared';
 
 interface OpeningRepertoireProps {
@@ -24,9 +30,40 @@ const decimal = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
 /** "0,5 point", "6 points": the French singular goes up to 2. */
 const points = (n: number) => `${decimal.format(n)} point${n >= 2 ? 's' : ''}`;
 const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
+const percent = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 0 });
+/** "78 %" for an accuracy given on 100. */
+const accuracyText = (accuracy: number) => percent.format(accuracy / 100);
 
 /** Said once the family is known: "Sans ouverture reconnue" for the games that never reached a named line. */
 const labelOf = (name: string) => (name ? toFrenchOpeningName(name) : 'Sans ouverture reconnue');
+
+/** How the accuracy of an opening compares with the player's own average (said once there are enough games). */
+function compareText(accuracy: number, baseline: number): { text: string; tone: string } {
+  const gap = Math.round(accuracy) - Math.round(baseline);
+  if (gap === 0) return { text: `comme votre moyenne (${accuracyText(baseline)})`, tone: 'text-slate-400' };
+  return {
+    text: `${points(Math.abs(gap))} de ${gap > 0 ? 'plus' : 'moins'} que votre moyenne (${accuracyText(baseline)})`,
+    tone: gap > 0 ? 'text-emerald-300' : 'text-rose-300',
+  };
+}
+
+function AccuracySummary({ family, baseline }: { family: Family; baseline: number | null }) {
+  if (family.accuracy === null) return null;
+  const compared =
+    baseline !== null && family.tally.games >= MIN_ACCURACY_GAMES ? compareText(family.accuracy, baseline) : null;
+  return (
+    <p className="text-[11px] text-slate-400">
+      Précision <span className="font-semibold text-slate-200">{accuracyText(family.accuracy)}</span>
+      {compared && (
+        <>
+          {' : '}
+          <span className={compared.tone}>{compared.text}</span>
+        </>
+      )}
+      .
+    </p>
+  );
+}
 
 function ExitSummary({ family }: { family: Family }) {
   const { player, opponent, none } = family.exits;
@@ -71,7 +108,17 @@ function Recurring({ exit, color, onShow }: { exit: RecurringExit; color: Color;
   );
 }
 
-function FamilyRow({ family, color, onShowLine }: { family: Family; color: Color; onShowLine: (l: string[]) => void }) {
+function FamilyRow({
+  family,
+  color,
+  baseline,
+  onShowLine,
+}: {
+  family: Family;
+  color: Color;
+  baseline: number | null;
+  onShowLine: (l: string[]) => void;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const label = labelOf(family.name);
   const hasVariations = family.variations.length > 1 || (family.variations[0]?.name ?? '') !== family.name;
@@ -86,6 +133,8 @@ function FamilyRow({ family, color, onShowLine }: { family: Family; color: Color
         </div>
         <TallyBar tally={family.tally} />
       </div>
+
+      <AccuracySummary family={family} baseline={baseline} />
 
       {family.tally.games > 0 && <ExitSummary family={family} />}
 
@@ -127,6 +176,9 @@ function FamilyRow({ family, color, onShowLine }: { family: Family; color: Color
                   <span className="text-slate-300 min-w-0">
                     {variation.eco && <span className="text-indigo-300 mr-1">[{variation.eco}]</span>}
                     {labelOf(variation.name)}
+                    {variation.accuracy !== null && (
+                      <span className="ml-1.5 text-slate-400">précision {accuracyText(variation.accuracy)}</span>
+                    )}
                   </span>
                   <TallyBar tally={variation.tally} />
                 </li>
@@ -178,6 +230,7 @@ export const OpeningRepertoire: React.FC<OpeningRepertoireProps> = ({ onShowLine
       ? 'w'
       : 'b');
   const families = repertoire.colors[color];
+  const extremes = accuracyExtremes(families);
 
   return (
     <div className="flex flex-col gap-3">
@@ -205,12 +258,27 @@ export const OpeningRepertoire: React.FC<OpeningRepertoireProps> = ({ onShowLine
         </p>
       </div>
 
+      {extremes && (
+        <p className="text-xs text-slate-300">
+          Ouverture la plus solide : <span className="font-semibold text-slate-100">{labelOf(extremes.best.name)}</span>{' '}
+          ({accuracyText(extremes.best.accuracy!)}) ; la plus fragile :{' '}
+          <span className="font-semibold text-slate-100">{labelOf(extremes.worst.name)}</span> (
+          {accuracyText(extremes.worst.accuracy!)}).
+        </p>
+      )}
+
       {families.length === 0 ? (
         <p className="text-xs text-slate-400">Aucune partie avec cette couleur.</p>
       ) : (
         <ul aria-label="Mes ouvertures" className="flex flex-col gap-2">
           {families.map((family) => (
-            <FamilyRow key={family.name} family={family} color={color} onShowLine={onShowLine} />
+            <FamilyRow
+              key={family.name}
+              family={family}
+              color={color}
+              baseline={repertoire.accuracy}
+              onShowLine={onShowLine}
+            />
           ))}
         </ul>
       )}
@@ -220,7 +288,9 @@ export const OpeningRepertoire: React.FC<OpeningRepertoireProps> = ({ onShowLine
         la théorie », c&apos;est jouer le premier coup que la base ne connaît pas (dans les {BOOK_PLIES} premiers
         demi-coups). Une sortie est dite récurrente quand elle revient dans au moins {MIN_RECURRENCE} parties de la même
         ouverture ; son coût est la moyenne des points de chances de gain que ce coup a fait perdre, selon
-        l&apos;analyse, et elle est mise en avant à partir de {COSTLY_EXIT} points.
+        l&apos;analyse, et elle est mise en avant à partir de {COSTLY_EXIT} points. La précision est celle de vos coups
+        hors théorie, comme dans « Mon profil » (les coups du livre, toujours parfaits, sont laissés de côté) ; elle
+        n&apos;est comparée à votre moyenne qu&apos;à partir de {MIN_ACCURACY_GAMES} parties de la même ouverture.
       </p>
     </div>
   );

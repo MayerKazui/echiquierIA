@@ -8,12 +8,18 @@ import type { Profile } from './weaknessProfile';
 
 const NOW = 100 * DAY_MS;
 
-const emptyRepertoire = (): Repertoire => ({ counted: 20, ignored: 0, colors: { w: [], b: [] } });
+const emptyRepertoire = (): Repertoire => ({
+  counted: 20,
+  ignored: 0,
+  accuracy: null,
+  colors: { w: [], b: [] },
+});
 
 const family = (recurring: Array<Partial<RecurringExit>>, name = 'Sicilian Defense'): Family => ({
   name,
   eco: 'B20',
   tally: { games: 10, wins: 5, draws: 0, losses: 5 },
+  accuracy: null,
   variations: [],
   exits: { player: 6, opponent: 2, none: 2 },
   recurring: recurring.map((r) => ({

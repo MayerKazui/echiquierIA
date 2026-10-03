@@ -24,6 +24,7 @@ async function store(
     result = '1-0',
     color = 'w',
     sans = RUY,
+    blunders = [],
   }: {
     bookPlies?: number;
     loss?: number;
@@ -32,6 +33,8 @@ async function store(
     result?: string;
     color?: 'w' | 'b';
     sans?: string[];
+    /** Plies of the player that lose a lot (outside the book). */
+    blunders?: number[];
   } = {}
 ) {
   const source = game({
@@ -42,7 +45,12 @@ async function store(
     moves: sans.map((san, ply) =>
       ply < bookPlies
         ? mv(ply, { san, classification: 'book', openingName: name, eco })
-        : mv(ply, { san, classification: 'best', winPercentLoss: ply === bookPlies ? loss : 0 })
+        : mv(ply, {
+            san,
+            classification: 'best',
+            winPercentLoss: ply === bookPlies ? loss : 0,
+            ...(blunders.includes(ply) && { evalAfter: ply % 2 === 0 ? -300 : 300 }),
+          })
     ),
   });
   await saveGame({ pgn: `1. e4 *\n; game ${id}`, depth: 12, result: source.result });
@@ -131,6 +139,59 @@ describe('Mes ouvertures', () => {
     ).toBeTruthy();
   });
 
+  describe('accuracy', () => {
+    const ITALIAN = { name: 'Italian Game', eco: 'C50', blunders: [6, 8] };
+
+    it('gives the accuracy of each opening and of its variations', async () => {
+      await store('a', { name: 'Ruy Lopez: Morphy Defense', eco: 'C78' });
+      await store('b', { name: 'Ruy Lopez: Berlin Defense', eco: 'C65', blunders: [6] });
+      const { user } = await renderRepertoire();
+      const list = await screen.findByRole('list', { name: 'Mes ouvertures' });
+      expect(within(list).getByText(/^Précision/).textContent).toMatch(/^Précision \d+\s%\.$/);
+
+      await user.click(screen.getByRole('button', { name: /Voir les variantes/ }));
+      const variations = within(screen.getByRole('list', { name: /^Variantes/ })).getAllByRole('listitem');
+      const accuracyOf = (name: RegExp) =>
+        Number(
+          /précision (\d+)\s%/.exec(variations.find((v) => name.test(v.textContent ?? ''))?.textContent ?? '')?.[1]
+        );
+      expect(accuracyOf(/Morphy/)).toBe(100);
+      expect(accuracyOf(/Berlin/)).toBeLessThan(100);
+    });
+
+    it('does not compare an opening met in fewer than three games with the average', async () => {
+      await store('a');
+      await store('b', { blunders: [6] });
+      await renderRepertoire();
+      const line = (await screen.findByText(/^Précision/)).textContent;
+      expect(line).not.toContain('moyenne');
+    });
+
+    it('compares an opening met often enough with the player’s average, and names the extremes', async () => {
+      for (const id of ['a', 'b', 'c']) await store(id);
+      for (const id of ['d', 'e', 'f']) await store(id, ITALIAN);
+      await renderRepertoire();
+      const list = await screen.findByRole('list', { name: 'Mes ouvertures' });
+      const rows = within(list)
+        .getAllByRole('listitem')
+        .filter((li) => li.parentElement === list);
+      const ruy = rows.find((li) => /Partie espagnole/.test(li.textContent ?? ''));
+      const italian = rows.find((li) => /Partie italienne/.test(li.textContent ?? ''));
+      expect(ruy?.textContent).toMatch(/Précision 100\s%\s: \d+ points? de plus que votre moyenne \(\d+\s%\)/);
+      expect(italian?.textContent).toMatch(/de moins que votre moyenne/);
+      expect(screen.getByText(/Ouverture la plus solide/).textContent).toMatch(
+        /Partie espagnole.*\(100\s%\).*la plus fragile.*Partie italienne/
+      );
+    });
+
+    it('says nothing of the best and the worst with a single opening', async () => {
+      for (const id of ['a', 'b', 'c']) await store(id);
+      await renderRepertoire();
+      await screen.findByRole('list', { name: 'Mes ouvertures' });
+      expect(screen.queryByText(/Ouverture la plus solide/)).toBeNull();
+    });
+  });
+
   describe('recurring ways out of the book', () => {
     it('shows a costly one, and what it costs on average', async () => {
       await store('a', { loss: 10 });
@@ -204,5 +265,44 @@ describe('Mes ouvertures', () => {
         '1 partie enregistrée ne compte pas : pseudo absent ou partie trop courte'
       );
     });
+  });
+});
+
+describe("Ouvertures, onglet « S'entraîner »", () => {
+  const RUY_A3 = ['e4', 'e5', 'Nf3', 'Nc6', 'Bb5', 'a6', 'a3', 'Nf6', 'O-O', 'Be7', 'Re1', 'b5'];
+
+  it('is one of the views, next to the explorer and the repertoire', async () => {
+    const user = userEvent.setup();
+    render(<Openings onClose={vi.fn()} onImport={vi.fn()} />);
+    const views = within(screen.getByRole('group', { name: 'Vue' })).getAllByRole('button');
+    expect(views.map((b) => b.textContent)).toEqual(['Explorateur', 'Mes ouvertures', "S'entraîner"]);
+
+    await user.click(screen.getByRole('button', { name: "S'entraîner" }));
+    expect(screen.getByRole('button', { name: "S'entraîner" }).getAttribute('aria-pressed')).toBe('true');
+    expect(await screen.findByText('Aucune partie enregistrée')).toBeTruthy();
+  });
+
+  it('starts on the training when asked to', async () => {
+    render(<Openings onClose={vi.fn()} onImport={vi.fn()} start={{ view: 'drill', sans: [] }} />);
+    expect(screen.getByRole('button', { name: "S'entraîner" }).getAttribute('aria-pressed')).toBe('true');
+    expect(await screen.findByText('Aucune partie enregistrée')).toBeTruthy();
+  });
+
+  it('sends the player to the position in the explorer', async () => {
+    const user = userEvent.setup();
+    await store('a', { sans: RUY_A3, loss: 12 });
+    render(<Openings onClose={vi.fn()} onImport={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: "S'entraîner" }));
+    await user.click(await screen.findByRole('button', { name: /Commencer/ }));
+    await user.click(screen.getByRole('button', { name: 'Voir la solution' }));
+    await user.click(screen.getByRole('button', { name: "Voir la position dans l'explorateur" }));
+
+    expect(screen.getByRole('button', { name: 'Explorateur' }).getAttribute('aria-pressed')).toBe('true');
+    const line = await screen.findByRole('list', { name: 'Coups joués' });
+    expect(
+      within(line)
+        .getAllByRole('button')
+        .map((b) => b.textContent)
+    ).toEqual(['1.e4', '1…e5', '2.Cf3', '2…Cc6', '3.Fb5', '3…a6']);
   });
 });

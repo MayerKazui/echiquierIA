@@ -3,10 +3,13 @@ import { game, mv, PSEUDO } from '../test/profileFixtures';
 import {
   BOOK_PLIES,
   COSTLY_EXIT,
+  MIN_ACCURACY_GAMES,
   MIN_RECURRENCE,
+  accuracyExtremes,
   buildRepertoire,
   familyOf,
   findExit,
+  type Family,
   type RepertoireSource,
 } from './openingRepertoire';
 
@@ -24,6 +27,8 @@ interface Options {
   sans?: string[];
   result?: string;
   color?: 'w' | 'b';
+  /** Plies of the player's moves that lose a lot (a drop of the evaluation of 300 cp), outside the book. */
+  blunders?: number[];
 }
 
 /** A game of the player: the first `bookPlies` moves are theory, the next one leaves it. */
@@ -36,11 +41,17 @@ function played({
   sans = RUY,
   result = '1-0',
   color = 'w',
+  blunders = [],
 }: Options = {}): RepertoireSource {
   const moves = sans.map((san, ply) =>
     ply < bookPlies
       ? mv(ply, { san, classification: 'book', openingName: name, eco })
-      : mv(ply, { san, classification: 'best', winPercentLoss: ply === bookPlies ? loss : 0 })
+      : mv(ply, {
+          san,
+          classification: 'best',
+          winPercentLoss: ply === bookPlies ? loss : 0,
+          ...(blunders.includes(ply) && { evalAfter: ply % 2 === 0 ? -300 : 300 }),
+        })
   );
   return game({
     id,
@@ -246,5 +257,106 @@ describe('buildRepertoire', () => {
       { yieldToUi: async () => void yields++ }
     );
     expect(yields).toBe(2);
+  });
+
+  describe('accuracy', () => {
+    it('is perfect when the moves outside the theory are', async () => {
+      const repertoire = await buildRepertoire([played({ id: 'a' })]);
+      expect(repertoire.colors.w[0].accuracy).toBe(100);
+      expect(repertoire.colors.w[0].variations[0].accuracy).toBe(100);
+      expect(repertoire.accuracy).toBe(100);
+    });
+
+    it('drops with the moves that lose ground', async () => {
+      const [ruy] = (await buildRepertoire([played({ id: 'a', blunders: [8] })])).colors.w;
+      expect(ruy.accuracy).toBeLessThan(90);
+    });
+
+    it('leaves out the moves of the theory, which are always perfect', async () => {
+      // Whatever the evaluations say of a book move, it is not counted: it would flatter (or hurt) the opening
+      const game = played({ id: 'a', bookPlies: 8, blunders: [8] });
+      const reference = (await buildRepertoire([game])).colors.w[0].accuracy!;
+      game.result.moves[2] = { ...game.result.moves[2], evalAfter: -300 };
+      expect((await buildRepertoire([game])).colors.w[0].accuracy).toBe(reference);
+    });
+
+    it('does not count the opponent’s moves', async () => {
+      // Ply 9 is Black's: a blunder there is not the player's (White)
+      const [ruy] = (await buildRepertoire([played({ id: 'a', blunders: [9] })])).colors.w;
+      expect(ruy.accuracy).toBe(100);
+    });
+
+    it('is null when every move is theory', async () => {
+      const repertoire = await buildRepertoire([played({ id: 'a', bookPlies: RUY.length })]);
+      expect(repertoire.colors.w[0].accuracy).toBeNull();
+      expect(repertoire.accuracy).toBeNull();
+    });
+
+    it('is worked out for each opening and each variation, the average being over all the games', async () => {
+      const repertoire = await buildRepertoire([
+        played({ id: 'a', name: 'Ruy Lopez: Morphy Defense' }),
+        played({ id: 'b', name: 'Ruy Lopez: Berlin Defense', blunders: [8] }),
+        played({ id: 'c', name: 'Italian Game', eco: 'C50', blunders: [8, 10] }),
+      ]);
+      const [ruy, italian] = repertoire.colors.w;
+      const [morphy, berlin] = ruy.variations;
+      expect(morphy.accuracy).toBe(100);
+      expect(berlin.accuracy!).toBeLessThan(morphy.accuracy!);
+      expect(ruy.accuracy!).toBeLessThan(100);
+      expect(ruy.accuracy!).toBeGreaterThan(berlin.accuracy!);
+      expect(italian.accuracy!).toBeLessThan(berlin.accuracy!);
+      // Between the best and the worst of the games
+      expect(repertoire.accuracy!).toBeGreaterThan(italian.accuracy!);
+      expect(repertoire.accuracy!).toBeLessThan(100);
+    });
+
+    it('keeps both colours in the average', async () => {
+      const repertoire = await buildRepertoire([
+        played({ id: 'a', color: 'w' }),
+        played({ id: 'b', color: 'b', blunders: [9] }),
+      ]);
+      expect(repertoire.colors.w[0].accuracy).toBe(100);
+      expect(repertoire.colors.b[0].accuracy!).toBeLessThan(100);
+      expect(repertoire.accuracy!).toBeLessThan(100);
+      expect(repertoire.accuracy!).toBeGreaterThan(repertoire.colors.b[0].accuracy!);
+    });
+  });
+});
+
+describe('accuracyExtremes', () => {
+  const family = (name: string, games: number, accuracy: number | null): Family => ({
+    name,
+    eco: 'A00',
+    tally: { games, wins: 0, draws: 0, losses: 0 },
+    accuracy,
+    variations: [],
+    exits: { player: 0, opponent: 0, none: games },
+    recurring: [],
+  });
+
+  it('is the best and the worst of the openings met often enough', () => {
+    const result = accuracyExtremes([
+      family('Italian Game', MIN_ACCURACY_GAMES, 70),
+      family('Ruy Lopez', 8, 84),
+      family('Scotch Game', MIN_ACCURACY_GAMES + 1, 78),
+    ]);
+    expect(result?.best.name).toBe('Ruy Lopez');
+    expect(result?.worst.name).toBe('Italian Game');
+  });
+
+  it('leaves out the openings met too rarely, and the games without a named opening', () => {
+    expect(
+      accuracyExtremes([
+        family('Ruy Lopez', 8, 84),
+        family('Italian Game', MIN_ACCURACY_GAMES - 1, 10),
+        family('', 20, 12),
+      ])
+    ).toBeNull();
+  });
+
+  it('is null when the openings are all alike, or without accuracy', () => {
+    expect(accuracyExtremes([family('A', 5, 80), family('B', 5, 80)])).toBeNull();
+    expect(accuracyExtremes([family('A', 5, null), family('B', 5, null)])).toBeNull();
+    expect(accuracyExtremes([])).toBeNull();
   });
 });
