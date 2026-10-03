@@ -10,6 +10,11 @@ import {
   formatDuration,
   formatStopwatch,
   isCycleDone,
+  MAX_ARCHIVE_PUZZLES,
+  archiveLot,
+  mergeArchives,
+  resumeLot,
+  isRetired,
   nextCycleNumber,
   saveProgress,
   seededRandom,
@@ -178,5 +183,58 @@ describe('formatStopwatch', () => {
     expect(formatStopwatch(0)).toBe('0:00');
     expect(formatStopwatch(65_900)).toBe('1:05');
     expect(formatStopwatch(3_729_000)).toBe('1:02:09');
+  });
+});
+
+describe('the lots left', () => {
+  const lotWith = (createdAt: number, retiredAt: number, ids = ['a', 'b']) => {
+    const set = {
+      ...createSet(
+        pool(ids.length).map((p, i) => ({ ...p, id: ids[i] })),
+        RANGE,
+        7,
+        createdAt
+      ),
+      cycles: [cycle(1, 5000), cycle(2, 4000)],
+    };
+    return archiveLot(set, retiredAt)!;
+  };
+
+  it('keeps the cycles of a lot, and its puzzles to take it up again', () => {
+    const lot = lotWith(10, 500);
+    expect(lot).toMatchObject({ createdAt: 10, retiredAt: 500, size: 2, seed: 7 });
+    expect(lot.cycles).toHaveLength(2);
+    expect(lot.puzzles).toHaveLength(2);
+    expect(archiveLot(createSet(pool(2), RANGE, 1, 1), 5)).toBeNull();
+  });
+
+  it('is taken up again as it was: the same puzzles in the same order, its cycles, worked on now', () => {
+    const lot = lotWith(10, 500, ['x', 'y', 'z']);
+    const set = resumeLot(lot, 900)!;
+    expect(set.puzzles.map((p) => p.id)).toEqual(['x', 'y', 'z']);
+    expect(set).toMatchObject({ seed: 7, createdAt: 10, updatedAt: 900, progress: null });
+    expect(set.cycles).toEqual(lot.cycles);
+    // Not left any more, as the date it was left on is before
+    expect(isRetired(set, [lot])).toBe(false);
+    expect(isRetired({ createdAt: 10, updatedAt: 400 }, [lot])).toBe(true);
+  });
+
+  it('cannot be taken up again without its puzzles, or with damaged ones', () => {
+    const { puzzles: _kept, ...times } = lotWith(10, 500);
+    expect(resumeLot(times, 1)).toBeNull();
+    expect(resumeLot({ ...times, puzzles: [] }, 1)).toBeNull();
+    expect(resumeLot({ ...times, puzzles: [['x', 'bad']] as never }, 1)).toBeNull();
+  });
+
+  it('keeps the puzzles of the latest lots only', () => {
+    const lots = Array.from({ length: MAX_ARCHIVE_PUZZLES + 2 }, (_, i) => lotWith(i + 1, (i + 1) * 100));
+    const merged = mergeArchives(lots, []);
+    expect(merged.map((lot) => Boolean(lot.puzzles))).toEqual([
+      false,
+      false,
+      ...Array.from({ length: MAX_ARCHIVE_PUZZLES }, () => true),
+    ]);
+    // The times of the older ones stay
+    expect(merged[0].cycles).toHaveLength(2);
   });
 });

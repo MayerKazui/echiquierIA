@@ -411,7 +411,17 @@ describe('syncNow', () => {
     t.manager.subscribeRestored(restored);
     const games = { added: 1, replaced: 0, kept: 0, trimmed: 0, deleted: 0 };
     t.run.mockResolvedValueOnce(
-      report({ restore: { games, cards: null, studies: null, puzzles: null, woodpecker: null, preferencesApplied: 0 } })
+      report({
+        restore: {
+          games,
+          cards: null,
+          studies: null,
+          puzzles: null,
+          woodpecker: null,
+          puzzleHistory: null,
+          preferencesApplied: 0,
+        },
+      })
     );
     await t.manager.syncNow();
     expect(restored).toHaveBeenCalledTimes(1);

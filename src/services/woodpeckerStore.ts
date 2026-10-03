@@ -1,5 +1,13 @@
 import { isPuzzle } from '../utils/puzzleData';
-import type { WoodpeckerCycle, WoodpeckerProgress, WoodpeckerSet } from '../utils/woodpecker';
+import {
+  archiveLot,
+  isRetired,
+  mergeArchives,
+  type ArchivedLot,
+  type WoodpeckerCycle,
+  type WoodpeckerProgress,
+  type WoodpeckerSet,
+} from '../utils/woodpecker';
 
 /**
  * The Woodpecker lot, its cycles and the cycle in progress (see `utils/woodpecker`), kept in the browser in their own
@@ -10,6 +18,7 @@ import type { WoodpeckerCycle, WoodpeckerProgress, WoodpeckerSet } from '../util
 const DB_NAME = 'echiquier-ia-woodpecker';
 const STORE = 'sets';
 const KEY = 'current';
+const ARCHIVE_KEY = 'archive';
 /** A lot larger than this is not one the app made. */
 export const MAX_LOT = 1000;
 
@@ -134,35 +143,98 @@ export async function saveWoodpecker(set: WoodpeckerSet): Promise<boolean> {
   }
 }
 
-/** Forgets the lot and its cycles. */
-export async function clearWoodpecker(): Promise<void> {
+/** Cheap structural check of an archived lot read from storage or from a backup. */
+export function isArchivedLot(value: unknown): value is ArchivedLot {
+  if (typeof value !== 'object' || value === null) return false;
+  const lot = value as Record<string, unknown>;
+  const range = lot.range as Record<string, unknown> | null;
+  return (
+    isFiniteNumber(lot.createdAt) &&
+    isFiniteNumber(lot.retiredAt) &&
+    typeof range === 'object' &&
+    range !== null &&
+    isFiniteNumber(range.from) &&
+    isFiniteNumber(range.to) &&
+    isFiniteNumber(lot.size) &&
+    Array.isArray(lot.cycles) &&
+    lot.cycles.every(isCycle) &&
+    (lot.seed === undefined || isFiniteNumber(lot.seed)) &&
+    // The puzzles are checked when the lot is taken up again: damaged, they only make that impossible
+    (lot.puzzles === undefined || (Array.isArray(lot.puzzles) && lot.puzzles.length <= MAX_LOT))
+  );
+}
+
+const readArchive = (value: unknown): ArchivedLot[] => (Array.isArray(value) ? value.filter(isArchivedLot) : []);
+
+/** The lots the player left, with their cycles, the lot left last at the end. */
+export async function loadWoodpeckerArchive(): Promise<ArchivedLot[]> {
   try {
-    await inTransaction<void>('readwrite', (store) => {
-      store.delete(KEY);
+    return await inTransaction<ArchivedLot[]>('readonly', (store, done) => {
+      const request = store.get(ARCHIVE_KEY);
+      request.onsuccess = () => done(readArchive(request.result));
     });
   } catch (err) {
-    console.warn('Could not clear the Woodpecker lot:', err);
+    console.warn('Could not read the Woodpecker lots left:', err);
+    return [];
+  }
+}
+
+/**
+ * The player leaves the lot for another: what is kept of it (its cycles) goes to the archive, and the lot goes. A lot
+ * without any cycle finished leaves nothing. Resolves with the archive, null when it could not be written.
+ */
+export async function retireWoodpecker(set: WoodpeckerSet, now: number): Promise<ArchivedLot[] | null> {
+  try {
+    return await inTransaction<ArchivedLot[]>('readwrite', (store, done) => {
+      const request = store.get(ARCHIVE_KEY);
+      request.onsuccess = () => {
+        const lot = archiveLot(set, now);
+        const archive = lot ? mergeArchives(readArchive(request.result), [lot]) : readArchive(request.result);
+        store.put(archive, ARCHIVE_KEY);
+        store.delete(KEY);
+        done(archive);
+      };
+    });
+  } catch (err) {
+    console.warn('Could not retire the Woodpecker lot:', err);
+    return null;
   }
 }
 
 export type WoodpeckerMergeReport = 'added' | 'replaced' | 'kept';
 
 /**
- * Brings a lot from a backup: there is only one lot, the one worked on last wins (two lots are not mixed: the
- * cycles of one are not comparable with the cycles of another). Resolves with null when it could not be written.
+ * Brings a lot, and the lots left, from a backup. The archives are united. There is only one lot, the one worked on
+ * last wins (two lots are not mixed: the cycles of one are not comparable with the cycles of another), and a lot that
+ * the archives say was left, here or there, is not kept nor taken back. Resolves with null when it could not be
+ * written.
  */
-export async function mergeWoodpecker(incoming: WoodpeckerSet | null): Promise<WoodpeckerMergeReport | null> {
-  if (!incoming || !isWoodpeckerSet(incoming)) return 'kept';
+export async function mergeWoodpecker(
+  incoming: WoodpeckerSet | null,
+  incomingArchive: readonly ArchivedLot[] = []
+): Promise<WoodpeckerMergeReport | null> {
+  const lot = incoming && isWoodpeckerSet(incoming) ? incoming : null;
+  const left = incomingArchive.filter(isArchivedLot);
+  if (!lot && left.length === 0) return 'kept';
   try {
     return await inTransaction<WoodpeckerMergeReport>('readwrite', (store, done) => {
-      const request = store.get(KEY);
-      request.onsuccess = () => {
-        const existing: unknown = request.result;
-        if (!isWoodpeckerSet(existing)) {
-          store.put(incoming, KEY);
+      const current = store.get(KEY);
+      const stored = store.get(ARCHIVE_KEY);
+      stored.onsuccess = () => {
+        const archive = mergeArchives(readArchive(stored.result), left);
+        store.put(archive, ARCHIVE_KEY);
+        const existing: unknown = current.result;
+        let here = isWoodpeckerSet(existing) ? existing : null;
+        if (here && isRetired(here, archive)) {
+          store.delete(KEY);
+          here = null;
+        }
+        if (!lot || isRetired(lot, archive)) done('kept');
+        else if (!here) {
+          store.put(lot, KEY);
           done('added');
-        } else if (incoming.updatedAt > existing.updatedAt) {
-          store.put(incoming, KEY);
+        } else if (lot.updatedAt > here.updatedAt) {
+          store.put(lot, KEY);
           done('replaced');
         } else {
           done('kept');

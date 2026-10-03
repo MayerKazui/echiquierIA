@@ -6,6 +6,7 @@ import {
   serializeBackup,
   type RestoreReport,
 } from './backup';
+import { isHistoryEmpty } from './puzzleHistoryStore';
 import { AuthError, type TokenProvider } from './googleAuth';
 import { DriveError, downloadFile, findBackupFile, uploadFile, type FetchFn } from './googleDrive';
 import { packText, unpackText } from '../utils/gzip';
@@ -98,6 +99,8 @@ export async function syncWithDrive({
     backup.studyDeletions.length === 0 &&
     backup.puzzles.length === 0 &&
     backup.woodpecker === null &&
+    backup.woodpeckerArchive.length === 0 &&
+    isHistoryEmpty(backup.puzzleHistory) &&
     Object.keys(backup.preferences).length === 0
   ) {
     return { restore, rejected, sent: null };

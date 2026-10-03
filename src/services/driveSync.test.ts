@@ -9,6 +9,7 @@ import { AuthError, type TokenProvider } from './googleAuth';
 import { DRIVE_FILE_NAME, DriveError, type FetchFn } from './googleDrive';
 import { deleteGame, gameId, listGames, saveGame, clearGames, onGamesChanged } from './gameStore';
 import { loadPuzzleEntries, savePuzzleEntry } from './puzzleStore';
+import { loadPuzzleHistory, savePuzzleAttempt } from './puzzleHistoryStore';
 import { loadWoodpecker, saveWoodpecker } from './woodpeckerStore';
 import { createSet } from '../utils/woodpecker';
 import { loadCards, saveCard } from './trainingStore';
@@ -149,6 +150,39 @@ describe('syncWithDrive, missed puzzles', () => {
     expect(entries.get('same')?.card.level).toBe(3);
     const parsed = parseBackup(await unpackText(drive.files.get('file-1') as Uint8Array));
     expect(parsed.ok && parsed.backup.puzzles).toHaveLength(3);
+  });
+});
+
+describe('syncWithDrive, the history of the puzzles', () => {
+  const attempt = (id: string, at: number) => ({ at, id, ok: true, rating: 1000, themes: ['fork'] });
+
+  it('sends the history, alone if that is all there is', async () => {
+    await savePuzzleAttempt({ id: 'a', plays: 1, wins: 1, lastAt: 5 }, attempt('a', 5));
+    const drive = fakeDrive();
+    const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
+    expect(report.sent).not.toBeNull();
+    const parsed = parseBackup(await unpackText(drive.files.get('file-2') as Uint8Array));
+    expect(parsed.ok && parsed.backup.puzzleHistory.log.map((a) => a.id)).toEqual(['a']);
+  });
+
+  it('unites what Drive holds with what is here', async () => {
+    await savePuzzleAttempt({ id: 'here', plays: 1, wins: 1, lastAt: 5 }, attempt('here', 5));
+    const drive = fakeDrive(
+      await bytesOf(
+        remoteBackup({
+          puzzleHistory: {
+            seen: [{ id: 'there', plays: 1, wins: 1, lastAt: 9 }],
+            log: [attempt('there', 9)],
+            sessions: [],
+          },
+        })
+      )
+    );
+    const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
+    expect(report.restore?.puzzleHistory).toEqual({ added: 2, cleared: false });
+    expect((await loadPuzzleHistory()).log.map((a) => a.id)).toEqual(['here', 'there']);
+    const parsed = parseBackup(await unpackText(drive.files.get('file-1') as Uint8Array));
+    expect(parsed.ok && parsed.backup.puzzleHistory.log).toHaveLength(2);
   });
 });
 

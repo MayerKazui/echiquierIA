@@ -5,7 +5,12 @@ import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as puzzleBook from '../../services/puzzleBook';
 import { loadPuzzleEntries } from '../../services/puzzleStore';
-import { loadWoodpecker, saveWoodpecker } from '../../services/woodpeckerStore';
+import {
+  loadWoodpecker,
+  loadWoodpeckerArchive,
+  retireWoodpecker,
+  saveWoodpecker,
+} from '../../services/woodpeckerStore';
 import type { Puzzle, PuzzleIndex } from '../../utils/puzzleData';
 import { createSet, type WoodpeckerSet } from '../../utils/woodpecker';
 import { Puzzles } from './Puzzles';
@@ -57,6 +62,16 @@ async function createLot(user: User) {
   await screen.findByText(/Votre lot : 3 puzzles/);
 }
 
+/** A lot left some time ago, as the store keeps it. */
+async function saveWoodpeckerArchive() {
+  const old = {
+    ...createSet([puzzle('o1')], { from: 800, to: 1000 }, 9, 5),
+    cycles: [{ number: 1, startedAt: 1, finishedAt: 2, totalMs: 60_000, size: 1, firstTry: 1 }],
+  };
+  await saveWoodpecker(old);
+  await retireWoodpecker(old, 100);
+}
+
 /** A lot already made, as the store keeps it. */
 async function storeLot(over: Partial<WoodpeckerSet> = {}, ids = ['p1', 'p2', 'p3']) {
   await saveWoodpecker({ ...createSet(ids.map(puzzle), { from: 1000, to: 1600 }, 1, 100), ...over });
@@ -82,7 +97,7 @@ describe('Woodpecker: the lot', () => {
     const user = userEvent.setup();
     await openWoodpecker(user);
     expect(screen.getByRole('button', { name: 'Woodpecker' }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByLabelText('Elo minimum')).toBeTruthy();
+    expect(await screen.findByLabelText('Elo minimum')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Créer mon lot' })).toBeTruthy();
     // A range of 5 puzzles has no size to choose: the lot takes them all
     expect(screen.queryByRole('button', { name: '20' })).toBeNull();
@@ -130,12 +145,153 @@ describe('Woodpecker: the lot', () => {
     expect(item.textContent).toMatch(/2 sur 3 du premier coup/);
   });
 
+  it('keeps the cycles of a lot that is left, and lists them with the lots left', async () => {
+    const user = userEvent.setup();
+    await storeLot({
+      cycles: [
+        { number: 1, startedAt: 0, finishedAt: 1, totalMs: 1_085_000, size: 3, firstTry: 2 },
+        { number: 2, startedAt: 2, finishedAt: 3, totalMs: 730_000, size: 3, firstTry: 3 },
+      ],
+    });
+    await openWoodpecker(user);
+    await user.click(await screen.findByRole('button', { name: 'Nouveau lot' }));
+    await user.click(screen.getByRole('button', { name: 'Effacer et changer de lot' }));
+    // Left, with its cycles, on the screen where a new lot is made
+    const lots = await screen.findByRole('list', { name: 'Lots précédents' });
+    expect(lots.textContent).toMatch(/3 puzzles, de 1000 à 1600 Elo/);
+    expect(lots.textContent).toMatch(/2 cycles : de 18 min 05 s au premier à 12 min 10 s au meilleur/);
+    await waitFor(async () => expect(await loadWoodpecker()).toBeNull());
+    expect((await loadWoodpeckerArchive())[0].cycles).toHaveLength(2);
+  });
+
+  it('keeps nothing of a lot with no cycle finished, and shows the lots left beside a new lot', async () => {
+    const user = userEvent.setup();
+    await storeLot();
+    await openWoodpecker(user);
+    await user.click(await screen.findByRole('button', { name: 'Nouveau lot' }));
+    await user.click(screen.getByRole('button', { name: 'Effacer et changer de lot' }));
+    await screen.findByRole('button', { name: 'Créer mon lot' });
+    expect(screen.queryByRole('list', { name: 'Lots précédents' })).toBeNull();
+    await createLot(user);
+    expect(screen.queryByRole('list', { name: 'Lots précédents' })).toBeNull();
+  });
+
+  describe('taking up a lot that was left', () => {
+    const leftLot = async () => {
+      const old = {
+        ...createSet([puzzle('o1'), puzzle('o2')], { from: 800, to: 1000 }, 9, 5),
+        cycles: [
+          { number: 1, startedAt: 1, finishedAt: 2, totalMs: 120_000, size: 2, firstTry: 2 },
+          { number: 2, startedAt: 3, finishedAt: 4, totalMs: 90_000, size: 2, firstTry: 2 },
+        ],
+      };
+      await saveWoodpecker(old);
+      await retireWoodpecker(old, 100);
+      return old;
+    };
+
+    it('plays it again with its puzzles and its cycles, when there is no lot in hand', async () => {
+      const user = userEvent.setup();
+      await leftLot();
+      await openWoodpecker(user);
+      await user.click(await screen.findByRole('button', { name: 'Reprendre ce lot' }));
+      expect(await screen.findByText(/Votre lot : 2 puzzles, de 800 à 1000 Elo/)).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Commencer le cycle 3' })).toBeTruthy();
+      expect(screen.getByText(/À battre : 1 min 30 s \(cycle 2\)/)).toBeTruthy();
+      // It is the lot in hand: it is no longer listed as left
+      expect(screen.queryByRole('list', { name: 'Lots précédents' })).toBeNull();
+      await waitFor(async () => {
+        const stored = await loadWoodpecker();
+        expect(stored?.puzzles.map((p) => p.id)).toEqual(['o1', 'o2']);
+        expect(stored?.cycles).toHaveLength(2);
+      });
+    });
+
+    it('puts the lot in hand away first, after a confirmation that says what is lost', async () => {
+      const user = userEvent.setup();
+      await leftLot();
+      await saveWoodpecker({
+        ...createSet([puzzle('c1')], { from: 1000, to: 1200 }, 1, 50),
+        cycles: [{ number: 1, startedAt: 1, finishedAt: 2, totalMs: 30_000, size: 1, firstTry: 1 }],
+      });
+      await openWoodpecker(user);
+      await user.click(await screen.findByRole('button', { name: 'Reprendre ce lot' }));
+      expect(screen.getByRole('alert').textContent).toMatch(/passe dans les lots précédents.*cycle en cours est perdu/);
+      await user.click(screen.getByRole('button', { name: 'Annuler' }));
+      expect((await loadWoodpecker())?.puzzles[0].id).toBe('c1');
+
+      await user.click(screen.getByRole('button', { name: 'Reprendre ce lot' }));
+      await user.click(screen.getByRole('button', { name: 'Reprendre ce lot' }));
+      await screen.findByText(/Votre lot : 2 puzzles, de 800 à 1000 Elo/);
+      // The lot that was in hand is now among the lots left, with its puzzles
+      const lots = await screen.findByRole('list', { name: 'Lots précédents' });
+      expect(lots.textContent).toMatch(/1 puzzle, de 1000 à 1200 Elo/);
+      expect(within(lots).getByRole('button', { name: 'Reprendre ce lot' })).toBeTruthy();
+      await waitFor(async () => {
+        expect((await loadWoodpecker())?.puzzles[0].id).toBe('o1');
+        expect((await loadWoodpeckerArchive()).map((lot) => lot.createdAt).sort()).toContain(50);
+      });
+    });
+
+    it('says the lot in hand is lost when it has no cycle to keep', async () => {
+      const user = userEvent.setup();
+      await leftLot();
+      await saveWoodpecker(createSet([puzzle('c1')], { from: 1000, to: 1200 }, 1, 50));
+      await openWoodpecker(user);
+      await user.click(await screen.findByRole('button', { name: 'Reprendre ce lot' }));
+      expect(screen.getByRole('alert').textContent).toMatch(
+        /aucun cycle terminé : il est remplacé et ses puzzles sont perdus/
+      );
+      await user.click(screen.getByRole('button', { name: 'Reprendre ce lot' }));
+      await screen.findByText(/Votre lot : 2 puzzles, de 800 à 1000 Elo/);
+      expect(screen.queryByRole('list', { name: 'Lots précédents' })).toBeNull();
+    });
+
+    it('does not offer it for a lot that kept only its times', async () => {
+      await saveWoodpecker({
+        ...createSet([puzzle('o1')], { from: 800, to: 1000 }, 9, 5),
+        cycles: [{ number: 1, startedAt: 1, finishedAt: 2, totalMs: 60_000, size: 1, firstTry: 1 }],
+      });
+      const stored = (await loadWoodpecker())!;
+      await retireWoodpecker(stored, 100);
+      // An archive of the previous kind: no puzzles in it
+      const lots = await loadWoodpeckerArchive();
+      const { puzzles: _gone, ...times } = lots[0];
+      await retireWoodpecker(createSet([puzzle('x')], { from: 1000, to: 1200 }, 1, 1), 1);
+      const db = await new Promise<IDBDatabase>((resolve) => {
+        const open = indexedDB.open('echiquier-ia-woodpecker');
+        open.onsuccess = () => resolve(open.result);
+      });
+      await new Promise<void>((resolve) => {
+        const tx = db.transaction('sets', 'readwrite');
+        tx.objectStore('sets').put([times], 'archive');
+        tx.oncomplete = () => resolve();
+      });
+      db.close();
+      const user = userEvent.setup();
+      await openWoodpecker(user);
+      expect((await screen.findByRole('list', { name: 'Lots précédents' })).textContent).toMatch(/1 cycle/);
+      expect(screen.queryByRole('button', { name: 'Reprendre ce lot' })).toBeNull();
+    });
+  });
+
+  it('lists the lots left under the current lot', async () => {
+    await storeLot();
+    await saveWoodpeckerArchive();
+    render(<Puzzles onClose={vi.fn()} />);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Woodpecker' }));
+    expect(await screen.findByRole('list', { name: 'Lots précédents' })).toBeTruthy();
+  });
+
   it('changes the lot only after a confirmation that says what is lost', async () => {
     const user = userEvent.setup();
     await storeLot();
     await openWoodpecker(user);
     await user.click(await screen.findByRole('button', { name: 'Nouveau lot' }));
-    expect(screen.getByRole('alert').textContent).toMatch(/efface celui-ci, ses cycles/);
+    expect(screen.getByRole('alert').textContent).toMatch(
+      /remplace celui-ci.*cycles terminés restent dans les lots précédents/
+    );
     await user.click(screen.getByRole('button', { name: 'Garder ce lot' }));
     expect(screen.getByRole('button', { name: 'Commencer le cycle 1' })).toBeTruthy();
     expect((await loadWoodpecker())?.puzzles).toHaveLength(3);

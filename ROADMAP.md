@@ -96,5 +96,8 @@ Cadré dans `COMPARATIF_PATCHCHESS.md` (section 4). Voir `IMPROVEMENTS.md` (« P
 - [x] Puzzles ratés en répétition espacée (puzzle complet stocké), dans la sauvegarde JSON et Drive.
 - [x] Woodpecker (onglet de la fenêtre « Puzzles ») : lot figé tiré une fois avec une graine, tranche d'Elo et 20 à 500 puzzles par cycle, chronomètre avec pause, puzzles ratés repris en fin de cycle (compris dans le temps), temps comparé au cycle précédent ; lot, cycles et cycle en cours dans la sauvegarde JSON (format 5) et Drive.
 - [x] Plan : les objectifs d'erreurs (type de faute dominant, phase fragile) proposent les puzzles du thème Lichess correspondant, au niveau de ses parties.
-- [ ] Profil : lien vers les puzzles depuis « Mon profil ».
-- [ ] Historique des puzzles (second temps) : scores, précision par thème, temps de cycle.
+- [x] Historique des puzzles (onglet « Statistiques ») : réussite par thème sur 30 jours, séances, puzzles déjà joués tirés en dernier ; dans la sauvegarde JSON (format 6) et Drive.
+- [x] Plan et profil branchés sur l'historique : progression de la semaine en puzzles sur le thème d'un objectif, section « Vos puzzles » dans « Mon profil » avec le thème le plus fragile.
+- [x] Historique : statistiques sur 7 jours, 30 jours ou tout (20 000 tentatives gardées), effacement de l'historique qui se synchronise (date d'effacement), cycles des lots Woodpecker précédents gardés (format 7).
+- [x] Reprendre un ancien lot Woodpecker (les 5 derniers gardent leurs puzzles).
+- [ ] Historique : courbe de progression dans le temps.

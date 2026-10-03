@@ -1,4 +1,4 @@
-import type { Puzzle } from './puzzleData';
+import { decodePuzzle, encodePuzzle, type Puzzle, type PuzzleRecord } from './puzzleData';
 import type { EloRange } from './puzzleRun';
 
 /**
@@ -182,3 +182,84 @@ export function formatStopwatch(ms: number): string {
   const seconds = String(total % 60).padStart(2, '0');
   return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`;
 }
+
+/**
+ * A lot the player left, with the cycles done on it: what is kept of it when they take a new lot. The latest lots
+ * also keep their puzzles (in the compact form of the data), so that one can be taken up again. It also says the lot
+ * was retired, so that a copy elsewhere that still has it as current cannot bring it back.
+ */
+export interface ArchivedLot {
+  /** When the lot was drawn: it identifies the lot. */
+  createdAt: number;
+  /** When the player left it. */
+  retiredAt: number;
+  range: EloRange;
+  /** Puzzles in the lot. */
+  size: number;
+  cycles: WoodpeckerCycle[];
+  /** The seed the lot was drawn with (kept with the puzzles). */
+  seed?: number;
+  /** The puzzles of the lot, kept only for the latest lots left. */
+  puzzles?: PuzzleRecord[];
+}
+
+/** Lots remembered: the ones left longest ago are forgotten first. */
+export const MAX_ARCHIVE = 20;
+/** Lots left that still hold their puzzles (the older ones keep their times only: a lot of 500 puzzles is 60 KB). */
+export const MAX_ARCHIVE_PUZZLES = 5;
+
+/** The lot as it is archived, null when no cycle was finished on it (there is nothing to remember). */
+export function archiveLot(set: WoodpeckerSet, now: number): ArchivedLot | null {
+  if (set.cycles.length === 0) return null;
+  return {
+    createdAt: set.createdAt,
+    retiredAt: now,
+    range: set.range,
+    size: set.puzzles.length,
+    cycles: set.cycles,
+    seed: set.seed,
+    puzzles: set.puzzles.map(encodePuzzle),
+  };
+}
+
+/** The archives of two copies united (a lot in both counts once, the later retirement winning), oldest retirement first. */
+export function mergeArchives(a: readonly ArchivedLot[], b: readonly ArchivedLot[]): ArchivedLot[] {
+  const byLot = new Map<number, ArchivedLot>();
+  for (const lot of [...a, ...b]) {
+    const known = byLot.get(lot.createdAt);
+    if (!known || lot.retiredAt > known.retiredAt) byLot.set(lot.createdAt, lot);
+  }
+  const lots = [...byLot.values()].sort((x, y) => x.retiredAt - y.retiredAt).slice(-MAX_ARCHIVE);
+  // Only the latest lots keep their puzzles
+  return lots.map((lot, i) => {
+    if (i >= lots.length - MAX_ARCHIVE_PUZZLES || !lot.puzzles) return lot;
+    const { puzzles: _dropped, ...times } = lot;
+    return times;
+  });
+}
+
+/**
+ * The lot taken up again from the archive, with its cycles, ready to be played as it was (the same puzzles in the same
+ * order). Null when the archive no longer holds its puzzles, or they are damaged. It counts as worked on now, so that
+ * the date it was left on does not make it look left.
+ */
+export function resumeLot(lot: ArchivedLot, now: number): WoodpeckerSet | null {
+  if (!lot.puzzles || lot.puzzles.length === 0) return null;
+  const puzzles = lot.puzzles.map(decodePuzzle);
+  if (puzzles.some((puzzle) => puzzle === null)) return null;
+  return {
+    seed: lot.seed ?? 0,
+    createdAt: lot.createdAt,
+    updatedAt: now,
+    range: lot.range,
+    puzzles: puzzles as Puzzle[],
+    cycles: lot.cycles,
+    progress: null,
+  };
+}
+
+/** Whether a lot was left (and so is not to be taken back): its archive says so, and it was not worked on since. */
+export const isRetired = (
+  set: Pick<WoodpeckerSet, 'createdAt' | 'updatedAt'>,
+  archive: readonly ArchivedLot[]
+): boolean => archive.some((lot) => lot.createdAt === set.createdAt && set.updatedAt <= lot.retiredAt);

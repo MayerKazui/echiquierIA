@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { listGames, saveGame } from '../../services/gameStore';
+import { savePuzzleAttempt } from '../../services/puzzleHistoryStore';
 import { saveCard } from '../../services/trainingStore';
 import { game, mv } from '../../test/profileFixtures';
 import { faultMove } from '../../test/trainingFixtures';
@@ -89,7 +90,9 @@ describe('Plan', () => {
       }
       renderPlan();
       const item = await firstItem();
-      expect(item.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('5');
+      expect(item.getByRole('progressbar', { name: 'Progression de la semaine' }).getAttribute('aria-valuenow')).toBe(
+        '5'
+      );
       expect(item.getByText('Cette semaine : 5 positions rejouées sur 5')).toBeTruthy();
       expect(item.getByText('Objectif atteint')).toBeTruthy();
     });
@@ -132,9 +135,30 @@ describe('Plan', () => {
       const { onPuzzles } = renderPlan();
       const item = await firstItem();
       expect(item.getByRole('heading', { name: 'Faites des puzzles : pièce laissée en prise' })).toBeTruthy();
-      expect(item.queryByRole('progressbar')).toBeNull();
+      expect(item.queryByRole('progressbar', { name: 'Progression de la semaine' })).toBeNull();
       await user.click(item.getByRole('button', { name: /Faire des puzzles/ }));
       expect(onPuzzles).toHaveBeenCalledWith(['hangingPiece']);
+    });
+
+    it('shows the progress of the week in puzzles on the theme', async () => {
+      await storeHangingGames();
+      const now = Date.now();
+      for (let i = 0; i < 4; i++) {
+        await savePuzzleAttempt(
+          { id: `h${i}`, plays: 1, wins: 1, lastAt: now - i },
+          { at: now - i, id: `h${i}`, ok: true, rating: 1100, themes: ['hangingPiece'] }
+        );
+      }
+      await savePuzzleAttempt(
+        { id: 'f', plays: 1, wins: 1, lastAt: now },
+        { at: now, id: 'f', ok: true, rating: 1100, themes: ['fork'] }
+      );
+      renderPlan();
+      const item = await firstItem();
+      const bar = item.getByRole('progressbar', { name: 'Progression des puzzles de la semaine' });
+      expect(bar.getAttribute('aria-valuenow')).toBe('4');
+      expect(bar.getAttribute('aria-valuemax')).toBe('10');
+      expect(item.getByText('Cette semaine : 4 puzzles joués sur 10')).toBeTruthy();
     });
 
     it('has none beside a habit, nor when games are missing', async () => {

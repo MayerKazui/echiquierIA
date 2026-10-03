@@ -3,6 +3,7 @@ import { BarChart3, Dumbbell, X } from 'lucide-react';
 import { oneOf, usePersistentState } from '../../hooks/usePersistentState';
 import { useWeaknessProfile } from '../../hooks/useWeaknessProfile';
 import { ProfileView } from './ProfileView';
+import { PuzzleSection } from './PuzzleSection';
 
 interface WeaknessProfileProps {
   onClose: () => void;
@@ -10,6 +11,8 @@ interface WeaknessProfileProps {
   onImport: () => void;
   /** Opens the training on the player's own mistakes (offered once the profile is shown). */
   onTrain?: () => void;
+  /** Opens the puzzles on themes (offered for the theme the player fails most). */
+  onPuzzles?: (themes: string[]) => void;
 }
 
 /** How many of the latest games the profile uses; 0 is all of them. */
@@ -23,7 +26,7 @@ const BUTTON =
   'px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400';
 
 /** "Mon profil": what the analysed games say about where the player loses accuracy. */
-export const WeaknessProfile: React.FC<WeaknessProfileProps> = ({ onClose, onImport, onTrain }) => {
+export const WeaknessProfile: React.FC<WeaknessProfileProps> = ({ onClose, onImport, onTrain, onPuzzles }) => {
   const [latest, setLatest] = usePersistentState<number>('chess_profile_window', 0, oneOf(WINDOWS.map((w) => w.value)));
   const state = useWeaknessProfile(latest || undefined);
 
@@ -111,6 +114,7 @@ export const WeaknessProfile: React.FC<WeaknessProfileProps> = ({ onClose, onImp
         {state.status === 'ready' && state.profile.counted > 0 && (
           <>
             <ProfileView profile={state.profile} />
+            <PuzzleSection onPuzzles={onPuzzles} />
             <p className="text-[11px] text-slate-400 border-t border-slate-800/80 pt-3">
               {state.profile.counted} partie{state.profile.counted > 1 ? 's' : ''} comptée
               {state.profile.counted > 1 ? 's' : ''} sur {state.stored} enregistrée{state.stored > 1 ? 's' : ''} dans ce

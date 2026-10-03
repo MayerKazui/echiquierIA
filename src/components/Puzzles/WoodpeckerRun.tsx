@@ -21,6 +21,8 @@ interface WoodpeckerRunProps {
   boardTheme?: BoardTheme;
   /** The lot changed: a puzzle was played, the cycle was paused or left, or it ended. */
   onChange: (set: WoodpeckerSet) => void;
+  /** A puzzle played for the first time in this cycle, with its outcome (for the history of the puzzles). */
+  onAttempt?: (puzzle: Puzzle, isSuccess: boolean) => void;
   /** The cycle is over: its number, to show its result. */
   onFinish: (cycleNumber: number) => void;
   /** The player leaves the cycle, to come back to it later. */
@@ -35,7 +37,14 @@ const BUTTON =
  * (the pause and the time away excluded). The cycle is kept after each puzzle, so closing the window or the browser
  * loses at most the puzzle on the board.
  */
-export const WoodpeckerRun: React.FC<WoodpeckerRunProps> = ({ set, boardTheme, onChange, onFinish, onLeave }) => {
+export const WoodpeckerRun: React.FC<WoodpeckerRunProps> = ({
+  set,
+  boardTheme,
+  onChange,
+  onAttempt,
+  onFinish,
+  onLeave,
+}) => {
   const { progress } = set;
   const { elapsedMs, isRunning, read, pause, resume } = useStopwatch(progress.elapsedMs);
   const byId = useMemo(() => new Map(set.puzzles.map((puzzle) => [puzzle.id, puzzle])), [set.puzzles]);
@@ -77,8 +86,10 @@ export const WoodpeckerRun: React.FC<WoodpeckerRunProps> = ({ set, boardTheme, o
     setTurn((t) => t + 1);
   });
 
-  const onResult = useStableCallback((_puzzle: Puzzle, isSuccess: boolean) => {
+  const onResult = useStableCallback((played: Puzzle, isSuccess: boolean) => {
     outcome.current = isSuccess;
+    // A puzzle that comes back after a miss is not a new attempt
+    if (!set.progress.missed.includes(played.id)) onAttempt?.(played, isSuccess);
   });
 
   const puzzle = byId.get(progress.queue[0]);
