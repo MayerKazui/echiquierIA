@@ -1,6 +1,6 @@
 import { Chess } from 'chess.js';
 import type { GameAnalysisResult, MoveAnalysis } from '../types/chess';
-import { withFaultKinds } from '../utils/faultKinds';
+import { FAULT_KINDS_VERSION, withFaultKinds, withFaultKindsSliced } from '../utils/faultKinds';
 import { computePlayerStats } from '../utils/moveAnalysis';
 
 /**
@@ -290,12 +290,22 @@ function pruneDeletions(deletions: IDBObjectStore): void {
   };
 }
 
-/** The result with the kind of each of the user's faults filled in (the profile counts them), if the side is known. */
+/**
+ * The result with the kind of each of the user's faults filled in (the profile counts them), if the side is known.
+ * A result stamped with older rules (`faultKindsVersion`) is classified again and stamped with the current ones. A
+ * result that carries kinds but no stamp comes from an older version of the app: its kinds are kept as they are, and
+ * left unstamped so that `reclassifyStoredGames` redoes them.
+ */
 function withKinds(result: GameAnalysisResult): GameAnalysisResult {
   const color = result.userColor;
   if (color !== 'w' && color !== 'b') return result;
-  const moves = withFaultKinds(result.moves, color);
-  return moves === result.moves ? result : { ...result, moves };
+  const stamp = result.faultKindsVersion;
+  const hasKinds = result.moves.some((m) => m.color === color && m.faultKind);
+  const isStale = stamp !== undefined && stamp !== FAULT_KINDS_VERSION;
+  const moves = withFaultKinds(result.moves, color, isStale);
+  const isCurrent = stamp === FAULT_KINDS_VERSION || isStale || !hasKinds;
+  if (moves === result.moves && (stamp === FAULT_KINDS_VERSION || !isCurrent)) return result;
+  return { ...result, moves, ...(isCurrent && { faultKindsVersion: FAULT_KINDS_VERSION }) };
 }
 
 /** How many games are kept complete, and how many in all (the defaults are the app's; tests use smaller ones). */
@@ -645,4 +655,64 @@ export async function deleteGame(id: string): Promise<void> {
   } catch (err) {
     console.warn('Could not delete the analysed game:', err);
   }
+}
+
+/** Ids of the games whose faults were classified under older rules, the most recently saved first. */
+async function gamesToReclassify(): Promise<string[]> {
+  return inTransaction<string[]>('readonly', (store, done) => {
+    const ids: string[] = [];
+    done(ids);
+    const cursor = store.index(SAVED_AT_INDEX).openCursor(null, 'prev');
+    cursor.onsuccess = () => {
+      const current = cursor.result;
+      if (!current) return;
+      const value: unknown = current.value;
+      if (isStoredGame(value) && isOutdatedKinds(value)) ids.push(value.id);
+      current.continue();
+    };
+  });
+}
+
+const isOutdatedKinds = (game: StoredGame) =>
+  (game.result.userColor === 'w' || game.result.userColor === 'b') &&
+  game.result.faultKindsVersion !== FAULT_KINDS_VERSION;
+
+let reclassifying: Promise<number> | null = null;
+
+/**
+ * Classifies again the faults of the stored games whose kinds come from older rules (see `FAULT_KINDS_VERSION`), the
+ * most recent games first. It is slow (a few tens of ms per fault), so it is cut into short slices, and each game
+ * is written back as soon as it is done, with its date unchanged: it is derived data, not a new save, and it does
+ * not make the other devices of a synced history see a newer game. A game saved meanwhile is left as it is.
+ * Resolves with the number of games upgraded; only one run goes on at a time.
+ */
+export function reclassifyStoredGames(options: { yieldToUi?: () => Promise<void> } = {}): Promise<number> {
+  reclassifying ??= (async () => {
+    let upgraded = 0;
+    try {
+      for (const id of await gamesToReclassify()) {
+        const record = await inTransaction<unknown>('readonly', (store, done) => {
+          const request = store.get(id);
+          request.onsuccess = () => done(request.result);
+        });
+        if (!isStoredGame(record) || !isOutdatedKinds(record)) continue;
+        const moves = await withFaultKindsSliced(record.result.moves, record.result.userColor as 'w' | 'b', options);
+        await inTransaction<void>('readwrite', (store) => {
+          const request = store.get(id);
+          request.onsuccess = () => {
+            const current: unknown = request.result;
+            if (!isStoredGame(current) || current.savedAt !== record.savedAt) return;
+            store.put({ ...current, result: { ...current.result, moves, faultKindsVersion: FAULT_KINDS_VERSION } });
+            upgraded += 1;
+          };
+        });
+      }
+    } catch (err) {
+      console.warn('Could not classify the faults of the stored games again:', err);
+    } finally {
+      reclassifying = null;
+    }
+    return upgraded;
+  })();
+  return reclassifying;
 }

@@ -12,7 +12,7 @@ import {
   type Pickable,
   type TrainingFilter,
 } from './spacedRepetition';
-import { FAULT_PUZZLE_THEMES, PHASE_PUZZLE_THEMES, themeLabel } from './puzzleThemes';
+import { PHASE_PUZZLE_THEMES, faultPuzzleThemes, themeLabel } from './puzzleThemes';
 import { PLAN_PUZZLE_TARGET, weeklyAttempts, type PuzzleAttempt } from './puzzleHistory';
 import { MIN_BUCKET_MOVES, dominantFaultKind, weakestPhase, type Profile } from './weaknessProfile';
 
@@ -204,7 +204,7 @@ export function buildPlan(input: PlanInput): Plan {
         `Faites des puzzles : ${label.toLowerCase()}`,
         `${Math.round((dominant.count / profile.kinds.total) * 100)} % de vos erreurs (${dominant.count} sur ${profile.kinds.total}) sont de ce type.`,
         { kinds: new Set([dominant.kind]), phases: new Set() },
-        FAULT_PUZZLE_THEMES[dominant.kind] ?? [],
+        faultPuzzleThemes(dominant.kind, profile.kinds.themes),
         input
       )
     );

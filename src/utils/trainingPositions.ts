@@ -1,7 +1,7 @@
 import type { MoveAnalysis } from '../types/chess';
-import { FAULT_CLASSIFICATIONS, type FaultKind } from './faultKinds';
+import { FAULT_CLASSIFICATIONS, type FaultKind, type FaultTheme } from './faultKinds';
 import { phaseOf, type GamePhase } from './gamePhase';
-import { MIN_GAME_PLIES, faultKindOf, parsePgnDate, playerColorIn, type ProfileSource } from './weaknessProfile';
+import { MIN_GAME_PLIES, faultDiagnosisOf, parsePgnDate, playerColorIn, type ProfileSource } from './weaknessProfile';
 
 /**
  * The positions to replay: the position before each mistake, blunder or miss of the player, with what is needed to
@@ -29,6 +29,8 @@ export interface TrainingPosition {
   pv: string[];
   classification: 'mistake' | 'blunder' | 'missedWin';
   kind: FaultKind;
+  /** The tactical theme behind the fault (a fork, a discovered attack…), when there is one. */
+  theme?: FaultTheme;
   phase: GamePhase;
   /** Win % given away by the fault. */
   loss: number;
@@ -56,6 +58,7 @@ function toPosition(
 ): TrainingPosition | null {
   // A position that cannot be asked again: no position kept, or nothing better to find
   if (!move.fenBefore || !move.bestMoveUci || move.bestMoveUci === move.uci) return null;
+  const { kind, theme } = faultDiagnosisOf(`${source.id}:${source.savedAt}`, move);
   return {
     id: `${source.id}:${move.ply}`,
     gameId: source.id,
@@ -69,7 +72,8 @@ function toPosition(
     bestSan: move.bestMoveSan,
     pv: move.pv,
     classification: move.classification as TrainingPosition['classification'],
-    kind: faultKindOf(`${source.id}:${source.savedAt}`, move),
+    kind,
+    ...(theme && { theme }),
     phase: phaseOf(move),
     loss: move.winPercentLoss,
     winBefore: color === 'w' ? move.winPercentBefore : 100 - move.winPercentBefore,

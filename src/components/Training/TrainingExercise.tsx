@@ -5,6 +5,7 @@ import { stockfishService } from '../../services/stockfishEngine';
 import { formatPlayedDate } from '../../services/gameImport';
 import { formatPvToFrench, toFrenchSan } from '../../utils/chessNotation';
 import { FAULT_KIND_TEXT } from '../../utils/faultKinds';
+import { themeLabel } from '../../utils/puzzleThemes';
 import { isSuccess, judgeAnswer, type Verdict } from '../../utils/judgeAnswer';
 import type { TrainingPosition } from '../../utils/trainingPositions';
 import { ChessBoard } from '../ChessBoard/ChessBoard';
@@ -197,6 +198,7 @@ export const TrainingExercise: React.FC<TrainingExerciseProps> = ({
             <p>
               <span className="inline-block px-2 py-0.5 rounded-md bg-slate-800 text-[11px] font-semibold text-slate-200 mr-1.5">
                 {FAULT_KIND_TEXT[position.kind].label}
+                {position.theme ? ` · ${themeLabel(position.theme).toLowerCase()}` : ''}
               </span>
               {explanation?.whyPlayedIsBad || FAULT_KIND_TEXT[position.kind].hint}
             </p>

@@ -1,5 +1,6 @@
 import type { GameAnalysisResult, MoveAnalysis } from '../types/chess';
-import { FAULT_CLASSIFICATIONS, classifyFault, type FaultKind } from './faultKinds';
+import { FAULT_CLASSIFICATIONS, diagnoseFault, type FaultKind } from './faultKinds';
+import { TACTIC_THEME_TEXT, type TacticTheme } from './tacticThemes';
 import type { PhaseStats } from './phaseStats';
 import type { GamePhase } from './gamePhase';
 
@@ -24,6 +25,10 @@ const FAULT_PHRASE: Record<FaultKind, string> = {
   hanging: 'pièce laissée en prise',
   tactic: 'tactique manquée',
   wasted: 'avantage gâché',
+  exchange: 'échange mal jugé',
+  king: 'roi mal placé',
+  principles: "coup contraire aux principes d'ouverture",
+  technique: 'faute de technique en finale',
   other: 'erreur de calcul ou de position',
 };
 
@@ -61,9 +66,11 @@ function decisiveLine(move: MoveAnalysis | null, side: Side, isPlayerKnown: bool
   const owner = isPlayerKnown ? (move.color === side ? 'votre coup' : "coup de l'adversaire") : `coup des ${who}`;
   const from = formatEval(move.evalBefore, move.mateBefore, side);
   const to = formatEval(move.evalAfter, move.mateAfter, side);
-  const kind = FAULT_PHRASE[move.faultKind ?? classifyFault(move)];
+  const { kind, theme } = move.faultKind ? { kind: move.faultKind, theme: move.faultTheme } : diagnoseFault(move);
+  const tactic = kind === 'tactic' && theme ? TACTIC_THEME_TEXT[theme as TacticTheme]?.label : undefined;
+  const cause = tactic ? `tactique manquée (${tactic.toLowerCase()})` : FAULT_PHRASE[kind];
   const perspective = isPlayerKnown ? '' : ' (côté Blancs)';
-  return `Moment décisif : ${number}, ${owner} : ${from} puis ${to}${perspective}, ${kind}.`;
+  return `Moment décisif : ${number}, ${owner} : ${from} puis ${to}${perspective}, ${cause}.`;
 }
 
 function comparisonLine(accuracy: number, average: { accuracy: number; games: number } | null): string {

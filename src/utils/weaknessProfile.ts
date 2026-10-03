@@ -1,5 +1,12 @@
 import type { GameAnalysisResult, MoveAnalysis } from '../types/chess';
-import { FAULT_CLASSIFICATIONS, FAULT_KINDS, classifyFault, type FaultKind } from './faultKinds';
+import {
+  FAULT_CLASSIFICATIONS,
+  FAULT_KINDS,
+  diagnoseFault,
+  type FaultDiagnosis,
+  type FaultKind,
+  type FaultTheme,
+} from './faultKinds';
 import { parseDurationToSeconds, parseTimeControl } from './clockUtils';
 import { accuracyFromMoves } from './moveAnalysis';
 import { phaseOf, type GamePhase } from './gamePhase';
@@ -95,7 +102,12 @@ export interface Profile {
   /** All the moves together: what the buckets are compared with. */
   baseline: Bucket;
   phases: Record<GamePhase, Bucket>;
-  kinds: { counts: Record<FaultKind, number>; total: number };
+  kinds: {
+    counts: Record<FaultKind, number>;
+    total: number;
+    /** The tactical themes behind the `tactic` and `mate` faults (puzzle theme → faults). */
+    themes: Partial<Record<FaultTheme, number>>;
+  };
   worst: WorstFault[];
   colors: Record<'w' | 'b', GameBucket>;
   time: {
@@ -240,19 +252,22 @@ function gameBucket(games: CountedGame[]): GameBucket {
   };
 }
 
-/** Kinds of fault worked out here for games stored before they were recorded with the game. */
-const lateKinds = new Map<string, FaultKind>();
+/** Diagnoses worked out here for games stored before the kinds were recorded with the game (or before the rules changed). */
+const lateDiagnoses = new Map<string, FaultDiagnosis>();
 
-export function faultKindOf(gameKey: string, move: MoveAnalysis): FaultKind {
-  if (move.faultKind) return move.faultKind;
+/** The kind (and theme) of a fault: the one stored with the move, else worked out (once). */
+export function faultDiagnosisOf(gameKey: string, move: MoveAnalysis): FaultDiagnosis {
+  if (move.faultKind) return { kind: move.faultKind, ...(move.faultTheme && { theme: move.faultTheme as FaultTheme }) };
   const key = `${gameKey}:${move.ply}`;
-  let kind = lateKinds.get(key);
-  if (!kind) {
-    kind = classifyFault(move);
-    lateKinds.set(key, kind);
+  let diagnosis = lateDiagnoses.get(key);
+  if (!diagnosis) {
+    diagnosis = diagnoseFault(move);
+    lateDiagnoses.set(key, diagnosis);
   }
-  return kind;
+  return diagnosis;
 }
+
+export const faultKindOf = (gameKey: string, move: MoveAnalysis): FaultKind => faultDiagnosisOf(gameKey, move).kind;
 
 const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
 
@@ -301,6 +316,7 @@ export async function buildProfile(
   const comfortableMoves: MoveAnalysis[] = [];
   let gamesWithClocks = 0;
   const counts = Object.fromEntries(FAULT_KINDS.map((k) => [k, 0])) as Record<FaultKind, number>;
+  const themes: Profile['kinds']['themes'] = {};
   const faults: WorstFault[] = [];
   const trend: ProfileGame[] = [];
 
@@ -309,8 +325,9 @@ export async function buildProfile(
     const key = game.source.id;
     const faultMoves = game.moves.filter((m) => FAULT_CLASSIFICATIONS.has(m.classification));
     for (const move of faultMoves) {
-      const kind = faultKindOf(`${key}:${game.source.savedAt}`, move);
+      const { kind, theme } = faultDiagnosisOf(`${key}:${game.source.savedAt}`, move);
       counts[kind] += 1;
+      if (theme) themes[theme] = (themes[theme] ?? 0) + 1;
       faults.push({
         gameId: key,
         opponent: game.opponent,
@@ -400,7 +417,7 @@ export async function buildProfile(
     },
     baseline,
     phases,
-    kinds: { counts, total: faults.length },
+    kinds: { counts, total: faults.length, themes },
     worst: faults.sort((a, b) => b.loss - a.loss).slice(0, MAX_WORST),
     colors: {
       w: gameBucket(games.filter((g) => g.color === 'w')),
@@ -448,8 +465,12 @@ const PHASE_LABELS: Record<GamePhase, string> = {
 const FAULT_SENTENCES: Record<Exclude<FaultKind, 'other'>, string> = {
   mate: 'sont un mat manqué ou subi',
   hanging: 'laissent une pièce en prise',
-  tactic: "passent à côté d'une fourchette, d'un clouage ou d'une pièce adverse à prendre",
+  tactic: "passent à côté d'un coup tactique (fourchette, clouage, attaque à la découverte…)",
   wasted: 'laissent filer une position gagnée',
+  exchange: "viennent d'un échange mal jugé (prise manquée, ou faite à tort)",
+  king: "viennent d'un coup de roi ou d'un roque mal placé",
+  principles: "viennent d'un coup d'ouverture contraire aux principes",
+  technique: 'viennent de la technique de finale',
 };
 
 /** Share of the faults, and the least number of them, from which a kind is worth pointing out. */
@@ -559,11 +580,14 @@ const HELD_MARGIN = 2;
 /** Games against stronger opponents, and the least score, from which it is worth saying. */
 const MIN_STRONGER_GAMES = 3;
 
-const KIND_STRENGTHS: Record<Exclude<FaultKind, 'other'>, string> = {
+/** Only the kinds that do not depend on the phase reached: a rare `technique` fault may just be no endgame played. */
+const KIND_STRENGTHS: Partial<Record<FaultKind, string>> = {
   mate: 'Vous voyez bien les mats',
   hanging: 'Vous laissez rarement une pièce en prise',
-  tactic: 'Vous repérez bien les fourchettes, les clouages et les pièces à prendre',
+  tactic: 'Vous repérez bien les coups tactiques',
   wasted: 'Vous transformez bien vos positions gagnées',
+  exchange: 'Vous jugez bien les échanges',
+  king: 'Vous placez bien votre roi',
 };
 
 /**
@@ -620,7 +644,7 @@ export function buildStrengths(profile: Profile): Strength[] {
     });
   }
 
-  const rarest = (Object.keys(KIND_STRENGTHS) as Array<keyof typeof KIND_STRENGTHS>)
+  const rarest = (Object.keys(KIND_STRENGTHS) as Array<keyof typeof KIND_STRENGTHS & FaultKind>)
     .map((kind) => ({ kind, count: kinds.counts[kind] }))
     .sort((a, b) => a.count - b.count)[0];
   if (
@@ -631,7 +655,7 @@ export function buildStrengths(profile: Profile): Strength[] {
   ) {
     strengths.push({
       id: 'kind',
-      text: `${KIND_STRENGTHS[rarest.kind]} : ${rarest.count} de vos ${kinds.total} erreurs seulement en relèvent.`,
+      text: `${KIND_STRENGTHS[rarest.kind]!} : ${rarest.count} de vos ${kinds.total} erreurs seulement en relèvent.`,
     });
   }
   return strengths;

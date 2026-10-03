@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { MoveAnalysis } from '../types/chess';
-import { PSEUDO, blunder, bucket, calmProfile as calm, game, gameBucket, mv } from '../test/profileFixtures';
+import { PSEUDO, blunder, bucket, calmProfile as calm, game, gameBucket, kindsOf, mv } from '../test/profileFixtures';
 import type { FaultKind } from './faultKinds';
 import {
   ELO_MARGIN,
@@ -165,7 +165,7 @@ describe('kinds of fault', () => {
 
   it('counts the faults by kind, from the kind stored with the game', async () => {
     const { kinds: result } = await buildProfile([kinds('hanging', 'hanging', 'mate', 'other')]);
-    expect(result.counts).toEqual({ mate: 1, hanging: 2, tactic: 0, wasted: 0, other: 1 });
+    expect(result.counts).toEqual(kindsOf({ mate: 1, hanging: 2, other: 1 }).counts);
     expect(result.total).toBe(4);
   });
 
@@ -427,7 +427,7 @@ describe('insights', () => {
   describe('the kind of fault that comes back', () => {
     const withKind = (kind: FaultKind, count: number, total = 20): Profile => {
       const p = calm();
-      p.kinds = { counts: { ...p.kinds.counts, other: total - count, [kind]: count }, total };
+      p.kinds = { counts: { ...p.kinds.counts, other: total - count, [kind]: count }, total, themes: {} };
       return p;
     };
 
@@ -439,7 +439,11 @@ describe('insights', () => {
 
     it('has a sentence for each kind', () => {
       expect(buildInsights(withKind('mate', 8))[0].text).toContain('sont un mat manqué ou subi');
-      expect(buildInsights(withKind('tactic', 8))[0].text).toContain('fourchette');
+      expect(buildInsights(withKind('tactic', 8))[0].text).toContain('coup tactique');
+      expect(buildInsights(withKind('exchange', 8))[0].text).toContain('échange mal jugé');
+      expect(buildInsights(withKind('king', 8))[0].text).toContain('coup de roi');
+      expect(buildInsights(withKind('principles', 8))[0].text).toContain('principes');
+      expect(buildInsights(withKind('technique', 8))[0].text).toContain('technique de finale');
       expect(buildInsights(withKind('wasted', 8))[0].text).toContain('position gagnée');
     });
 
@@ -455,13 +459,13 @@ describe('insights', () => {
 
     it('never points out "other", which says nothing', () => {
       const p = calm();
-      p.kinds = { counts: { mate: 0, hanging: 0, tactic: 0, wasted: 0, other: 30 }, total: 30 };
+      p.kinds = kindsOf({ other: 30 });
       expect(buildInsights(p)).toEqual([]);
     });
 
     it('takes the most frequent kind', () => {
       const p = calm();
-      p.kinds = { counts: { mate: 6, hanging: 9, tactic: 7, wasted: 0, other: 0 }, total: 22 };
+      p.kinds = kindsOf({ mate: 6, hanging: 9, tactic: 7 });
       expect(buildInsights(p)[0].text).toContain('pièce en prise');
     });
   });
@@ -582,7 +586,7 @@ describe('insights', () => {
 
   it('lists the insights in a fixed order: faults, phase, time, colour, trend', () => {
     const p = calm();
-    p.kinds = { counts: { mate: 0, hanging: 10, tactic: 0, wasted: 0, other: 10 }, total: 20 };
+    p.kinds = kindsOf({ hanging: 10, other: 10 });
     p.phases.endgame = bucket(120, 70);
     p.time.pressure = bucket(100, 60);
     p.colors.b = gameBucket(300, 70);
@@ -717,8 +721,7 @@ describe('strengths', () => {
   describe('a kind of fault that is rare', () => {
     const withKinds = (counts: Partial<Record<FaultKind, number>>): Profile => {
       const p = plain();
-      const all = { mate: 0, hanging: 0, tactic: 0, wasted: 0, other: 0, ...counts };
-      p.kinds = { counts: all, total: Object.values(all).reduce((a, b) => a + b, 0) };
+      p.kinds = kindsOf(counts);
       return p;
     };
 
@@ -730,17 +733,23 @@ describe('strengths', () => {
 
     it('has a sentence for each kind', () => {
       const rare = (kind: FaultKind) => {
-        const counts = { mate: 8, hanging: 8, tactic: 8, wasted: 8, [kind]: 0 };
+        const counts = { mate: 8, hanging: 8, tactic: 8, wasted: 8, exchange: 8, king: 8, [kind]: 0 };
         return buildStrengths(withKinds(counts))[0].text;
       };
       expect(rare('hanging')).toContain('rarement une pièce en prise');
-      expect(rare('tactic')).toContain('fourchettes');
+      expect(rare('tactic')).toContain('coups tactiques');
       expect(rare('wasted')).toContain('positions gagnées');
+      expect(rare('exchange')).toContain('échanges');
+      expect(rare('king')).toContain('roi');
     });
 
     it('wants it at 5 % of the faults at most', () => {
-      expect(buildStrengths(withKinds({ mate: 1, hanging: 5, tactic: 7, wasted: 7 }))).toHaveLength(1); // 1/20 = 5 %
-      expect(buildStrengths(withKinds({ mate: 2, hanging: 5, tactic: 6, wasted: 7 }))).toEqual([]); // 2/20 = 10 %
+      expect(
+        buildStrengths(withKinds({ mate: 1, hanging: 4, tactic: 4, wasted: 4, exchange: 4, king: 3 }))
+      ).toHaveLength(1); // 1/20 = 5 %
+      expect(buildStrengths(withKinds({ mate: 2, hanging: 4, tactic: 4, wasted: 4, exchange: 3, king: 3 }))).toEqual(
+        []
+      ); // 2/20 = 10 %
     });
 
     it('wants 20 faults to speak of', () => {
@@ -759,7 +768,7 @@ describe('strengths', () => {
     p.time.thoughtful = bucket(300, 80);
     p.time.pressure = bucket(100, 80);
     p.opponents.stronger = { ...gameBucket(100, 78), games: 5, score: 0.7 };
-    p.kinds = { counts: { mate: 0, hanging: 8, tactic: 8, wasted: 8, other: 0 }, total: 24 };
+    p.kinds = kindsOf({ mate: 0, hanging: 8, tactic: 8, wasted: 8, exchange: 8, king: 8 });
     expect(buildStrengths(p).map((s) => s.id)).toEqual(['phase', 'time', 'speed', 'opponent', 'kind']);
   });
 

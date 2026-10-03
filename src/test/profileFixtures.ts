@@ -1,4 +1,5 @@
 import type { GameMetadata, MoveAnalysis } from '../types/chess';
+import { FAULT_KINDS, type FaultKind } from '../utils/faultKinds';
 import type { Profile, ProfileSource } from '../utils/weaknessProfile';
 
 export const PSEUDO = 'Alice';
@@ -86,6 +87,12 @@ export const gameBucket = (moves: number, accuracy: number | null) => ({
   score: 0.5,
 });
 
+/** The kinds of fault of a profile, from the counts of the kinds that have some (the others are 0). */
+export const kindsOf = (counts: Partial<Record<FaultKind, number>>): Profile['kinds'] => {
+  const all = Object.fromEntries(FAULT_KINDS.map((kind) => [kind, counts[kind] ?? 0])) as Record<FaultKind, number>;
+  return { counts: all, total: Object.values(all).reduce((a, b) => a + b, 0), themes: {} };
+};
+
 /** A profile with nothing to point out. */
 export const calmProfile = (): Profile => ({
   counted: 20,
@@ -93,7 +100,7 @@ export const calmProfile = (): Profile => ({
   overview: { accuracy: 80, wins: 10, draws: 0, losses: 10, score: 0.5, faultsPerGame: 3 },
   baseline: bucket(600, 80),
   phases: { opening: bucket(240, 80), middlegame: bucket(240, 80), endgame: bucket(120, 80) },
-  kinds: { counts: { mate: 0, hanging: 0, tactic: 0, wasted: 0, other: 20 }, total: 20 },
+  kinds: kindsOf({ other: 20 }),
   worst: [],
   colors: { w: gameBucket(300, 80), b: gameBucket(300, 80) },
   time: {

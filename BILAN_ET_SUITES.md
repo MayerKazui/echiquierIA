@@ -23,7 +23,7 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 
 ### Outils d'entraînement
 
-- **Mon profil** : faiblesses par phase, type d'erreur, zeitnot, couleur, force de l'adversaire, cadence, évolution ; points forts.
+- **Mon profil** : faiblesses par phase, type d'erreur (neuf types, dont le thème tactique manqué : fourchette, clouage, attaque à la découverte…), zeitnot, couleur, force de l'adversaire, cadence, évolution ; points forts.
 - **S'entraîner** : rejouer ses propres erreurs avec correction par le moteur, en répétition espacée (1, 3 puis 7 jours), filtres par type d'erreur et par phase.
 - **Résumé de la partie** : trois lignes en tête du bilan (moment décisif avec son type de faute, précision comparée à sa moyenne sur les autres parties, fautes et phase la plus fragile).
 - **Mon plan** : trois objectifs au plus, avec progression sur 7 jours et le bouton qui lance chacun, plus les puzzles du thème correspondant.
@@ -71,6 +71,12 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 - [ ] Vrai téléphone, surtout iOS Safari (zone de sécurité, balayage) : le mobile n'a été vérifié que sur Chrome émulé.
 - [ ] Ouvrir « S'entraîner » dans le navigateur après le passage aux grands plateaux (il faut des parties analysées).
 
+### Types d'erreur et thèmes tactiques
+
+- [ ] « Autres erreurs » représente encore 12 % des erreurs des parties de référence (`bun run faultstats`, 42 % auparavant). Ce sont des coups tranquilles du milieu de jeu : il faudrait détecter la mobilité, la structure de pions, le centre.
+- [ ] Thèmes tactiques pas encore détectés : rayons X, déviation, attraction, interférence, pièce piégée, surcharge, coup intermédiaire (douze thèmes le sont : fourchette, clouage, enfilade, attaque et échec à la découverte, double échec, capture du défenseur, mat du couloir, mat étouffé, pièce en prise, promotion, sacrifice).
+- [ ] « Matériel laissé en prise » compte aussi un pion perdu quand le coup du moteur ne le perdait pas : à surveiller si le profil montre trop de « pièce laissée en prise ».
+
 ### Coach IA
 
 - [ ] Passer à Gemini la variante du moteur et la menace détectée, pour qu'il nomme la pièce touchée au lieu de paraphraser l'évaluation.
@@ -83,25 +89,23 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 
 Ce sont des suggestions, pas des décisions.
 
-| #   | Idée                                      | Intérêt                                                                                                                                                                                                             |
-| --- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Élargir la détection des thèmes tactiques | Il n'y en a que quatre (fourchette, clouage, enfilade, pièce en prise) contre une soixantaine chez Lichess. Rend les liens avec les puzzles et le plan plus précis (rayons X, attaque à la découverte, déviation…). |
-| 2   | Affiner le type d'erreur                  | « Autre » reste le plus gros groupe du profil, ce qui limite le diagnostic.                                                                                                                                         |
-| 3   | Précision par ouverture                   | Non calculée dans « Mes ouvertures ».                                                                                                                                                                               |
-| 4   | Préparer ses adversaires                  | Analyser le répertoire d'un pseudo avec les briques de l'import et de l'explorateur.                                                                                                                                |
-| 5   | Jouer contre Stockfish                    | Niveau réglable, depuis une position d'étude, d'ouverture ou d'une position critique de ses parties.                                                                                                                |
-| 6   | Entraînement aux finales                  | Positions théoriques (Lucena, Philidor…) avec correction par le moteur.                                                                                                                                             |
-| 7   | Entraînement au répertoire d'ouvertures   | Rejouer ses lignes en répétition espacée, sur le modèle de « S'entraîner ».                                                                                                                                         |
-| 8   | Puzzles : mode « tempête »                | Score à battre, et puzzles tirés de ses propres erreurs avec les statistiques des puzzles.                                                                                                                          |
-| 9   | Stockfish multi-thread                    | Analyse en lot plus rapide ; demande les en-têtes COOP/COEP.                                                                                                                                                        |
-| 10  | Version anglaise                          | Tout est en français (interface, ouvertures, thèmes) ; élargirait le public.                                                                                                                                        |
-| 11  | Tests de bout en bout                     | Playwright est disponible ; couvrir import, analyse, sauvegarde et synchronisation Drive. Il n'y a aujourd'hui que des tests unitaires et de composants.                                                            |
-| 12  | Ménage du dépôt                           | `server.ts` et `server.js` compilé, et `dist/`, sont présents : vérifier ce qui est versionné par erreur.                                                                                                           |
+| #   | Idée                                    | Intérêt                                                                                                                                                  |
+| --- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Précision par ouverture                 | Non calculée dans « Mes ouvertures ».                                                                                                                    |
+| 2   | Préparer ses adversaires                | Analyser le répertoire d'un pseudo avec les briques de l'import et de l'explorateur.                                                                     |
+| 3   | Jouer contre Stockfish                  | Niveau réglable, depuis une position d'étude, d'ouverture ou d'une position critique de ses parties.                                                     |
+| 4   | Entraînement aux finales                | Positions théoriques (Lucena, Philidor…) avec correction par le moteur.                                                                                  |
+| 5   | Entraînement au répertoire d'ouvertures | Rejouer ses lignes en répétition espacée, sur le modèle de « S'entraîner ».                                                                              |
+| 6   | Puzzles : mode « tempête »              | Score à battre, et puzzles tirés de ses propres erreurs avec les statistiques des puzzles.                                                               |
+| 7   | Stockfish multi-thread                  | Analyse en lot plus rapide ; demande les en-têtes COOP/COEP.                                                                                             |
+| 8   | Version anglaise                        | Tout est en français (interface, ouvertures, thèmes) ; élargirait le public.                                                                             |
+| 9   | Tests de bout en bout                   | Playwright est disponible ; couvrir import, analyse, sauvegarde et synchronisation Drive. Il n'y a aujourd'hui que des tests unitaires et de composants. |
+| 10  | Ménage du dépôt                         | `server.ts` et `server.js` compilé, et `dist/`, sont présents : vérifier ce qui est versionné par erreur.                                                |
 
 ## 4. Ordre conseillé
 
 1. ~~Terminer le point 5 : résumé de 3 lignes et comparaison avec sa moyenne.~~ Fait.
-2. Élargir les thèmes tactiques et réduire « autre » : améliore la qualité de tout le profil et du plan.
+2. ~~Élargir les thèmes tactiques et réduire « autre ».~~ Fait (voir « Types d'erreur et thèmes tactiques » pour le reste).
 3. Petits ajouts d'entraînement : ouvrir la partie depuis « S'entraîner », dédoublonnage, bouton « nouvelles parties ».
 4. Vérifications sur de vrais appareils et un vrai lecteur d'écran.
 5. Ensuite seulement les grosses évolutions (adversaires, jeu contre Stockfish, finales, version anglaise).

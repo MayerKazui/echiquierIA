@@ -48,6 +48,7 @@ Sans clé Gemini, l'application fonctionne : les explications de l'entraîneur I
 | `bun run build:openings` | Régénère `public/openings.json` depuis `src/data/openings/*.tsv`                      |
 | `bun run build:puzzles`  | Régénère `public/puzzles/` depuis la base de puzzles Lichess (307 Mo)                 |
 | `bun run calibrate`      | Écart de la précision avec chess.com sur les parties de référence (`fetch`, `record`) |
+| `bun run faultstats`     | Répartition des erreurs des parties de référence par type et par thème tactique       |
 
 La CI (GitHub Actions) exécute lint, typecheck, format, tests et build à chaque pull request.
 

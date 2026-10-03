@@ -1,6 +1,7 @@
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameAnalysisResult, MoveAnalysis } from '../types/chess';
+import { FAULT_KINDS_VERSION } from '../utils/faultKinds';
 import { computePlayerStats } from '../utils/moveAnalysis';
 import {
   MAX_FULL_GAMES,
@@ -17,6 +18,7 @@ import {
   loadGame,
   loadLatestGame,
   normalizePgn,
+  reclassifyStoredGames,
   saveGame,
   type StoredGame,
 } from './gameStore';
@@ -102,7 +104,8 @@ describe('saveGame / loadGame', () => {
     await saveGame({ pgn: PGN, depth: 14, result });
     const found = await loadGame(PGN);
     expect(found?.depth).toBe(14);
-    expect(found?.result).toEqual(result);
+    // Stamped with the version of the rules that classified its faults
+    expect(found?.result).toEqual({ ...result, faultKindsVersion: FAULT_KINDS_VERSION });
   });
 
   it('finds the game again when the pasted text only differs by spacing', async () => {
@@ -185,6 +188,83 @@ describe('saveGame / loadGame', () => {
       const old = (await loadGame(PGN))!;
       expect(old.detail).toBe('summary');
       expect(old.result.moves[0].faultKind).toBe('wasted');
+    });
+  });
+
+  describe('classifying the faults again', () => {
+    const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const fault = (over: Partial<MoveAnalysis> = {}): MoveAnalysis =>
+      ({
+        ...makeResult().moves[0],
+        fenBefore: START,
+        uci: 'e2e4',
+        bestMoveUci: 'd2d4',
+        classification: 'blunder',
+        winPercentBefore: 50,
+        winPercentAfter: 30,
+        mateBefore: null,
+        mateAfter: null,
+        faultKind: 'other',
+        ...over,
+      }) as MoveAnalysis;
+    const oldGame = (id: string, savedAt: number, over: Partial<GameAnalysisResult> = {}): StoredGame =>
+      stored({
+        id,
+        savedAt,
+        result: { ...makeResult(), moves: [fault()], ...over },
+      });
+    const noYield = () => Promise.resolve();
+
+    it('upgrades a game whose kinds come from older rules, keeping its date', async () => {
+      await rawPut(oldGame(gameId(PGN), 1234));
+      expect(await reclassifyStoredGames({ yieldToUi: noYield })).toBe(1);
+      const [game] = await exportGames();
+      expect(game.savedAt).toBe(1234);
+      expect(game.result.faultKindsVersion).toBe(FAULT_KINDS_VERSION);
+      // A move in the opening that is not a tactic: the old "other" became a more precise kind
+      expect(game.result.moves[0].faultKind).toBe('principles');
+    });
+
+    it('leaves alone a game already up to date, and one whose side is not known', async () => {
+      await rawPut(oldGame('a', 1, { faultKindsVersion: FAULT_KINDS_VERSION }));
+      expect(await reclassifyStoredGames({ yieldToUi: noYield })).toBe(0);
+      await rawPut(oldGame('b', 2, { userColor: null }));
+      expect(await reclassifyStoredGames({ yieldToUi: noYield })).toBe(0);
+      expect((await exportGames())[0].result.moves[0].faultKind).toBe('other');
+    });
+
+    it('works on a summary too, which keeps the position before each fault', async () => {
+      await rawPut({ ...oldGame(gameId(PGN), 5), detail: 'summary' });
+      expect(await reclassifyStoredGames({ yieldToUi: noYield })).toBe(1);
+      const [game] = await exportGames();
+      expect(game.detail).toBe('summary');
+      expect(game.result.moves[0].faultKind).toBe('principles');
+    });
+
+    it('is recorded with the version when a game is saved', async () => {
+      await saveGame({ pgn: PGN, depth: 12, result: { ...makeResult(), moves: [fault({ faultKind: undefined })] } });
+      expect((await loadGame(PGN))!.result.faultKindsVersion).toBe(FAULT_KINDS_VERSION);
+    });
+
+    it('keeps the kinds of a result that has some but no stamp (an older version), unstamped for the upgrade', async () => {
+      await saveGame({ pgn: PGN, depth: 12, result: { ...makeResult(), moves: [fault()] } });
+      const [game] = (await loadGame(PGN))!.result.moves;
+      expect(game.faultKind).toBe('other');
+      expect((await loadGame(PGN))!.result.faultKindsVersion).toBeUndefined();
+    });
+
+    it('classifies again a result stamped with older rules, and stamps it', async () => {
+      const result = { ...makeResult(), moves: [fault()], faultKindsVersion: FAULT_KINDS_VERSION - 1 };
+      await saveGame({ pgn: PGN, depth: 12, result });
+      const loaded = (await loadGame(PGN))!.result;
+      expect(loaded.moves[0].faultKind).toBe('principles');
+      expect(loaded.faultKindsVersion).toBe(FAULT_KINDS_VERSION);
+    });
+
+    it('does nothing without a database', async () => {
+      Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true, writable: true });
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      expect(await reclassifyStoredGames({ yieldToUi: noYield })).toBe(0);
     });
   });
 

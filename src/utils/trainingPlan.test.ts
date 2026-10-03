@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bucket, calmProfile } from '../test/profileFixtures';
+import { bucket, calmProfile, kindsOf as profileKinds } from '../test/profileFixtures';
 import type { Family, RecurringExit, Repertoire } from './openingRepertoire';
 import { DAY_MS, SESSION_SIZE, type Card, type Pickable } from './spacedRepetition';
 import { MAX_ITEMS, MIN_PLAN_GAMES, buildPlan, type PlanAction } from './trainingPlan';
@@ -51,7 +51,7 @@ const card = (id: string, over: Partial<Card> = {}): Card => ({
 /** A profile where a quarter of the faults or more are pieces left hanging. */
 const hangingProfile = (): Profile => {
   const p = calmProfile();
-  p.kinds = { counts: { mate: 0, hanging: 10, tactic: 2, wasted: 1, other: 7 }, total: 20 };
+  p.kinds = profileKinds({ hanging: 10, tactic: 2, wasted: 1, other: 7 });
   return p;
 };
 
@@ -195,11 +195,34 @@ describe('buildPlan', () => {
       ['mate', ['mateIn1', 'mateIn2']],
       ['tactic', ['fork', 'pin', 'skewer']],
       ['wasted', ['crushing', 'advantage']],
+      ['exchange', ['hangingPiece', 'capturingDefender']],
+      ['king', ['exposedKing', 'defensiveMove']],
+      ['principles', ['opening']],
+      ['technique', ['endgame', 'pawnEndgame', 'rookEndgame']],
     ] as const)('names the Lichess themes of %s', (kind, themes) => {
       const p = calmProfile();
-      p.kinds = { counts: { mate: 0, hanging: 0, tactic: 0, wasted: 0, other: 5, [kind]: 15 }, total: 20 };
+      p.kinds = profileKinds({ other: 5, [kind]: 15 });
       const [item] = plan({ profile: p, positions: positions(6, { kind }) }).items;
       expect(item.puzzles).toEqual(themes);
+    });
+  });
+
+  describe("the themes of the player's own tactical errors", () => {
+    it('sends the player to the puzzles of the themes they miss most, not the usual ones', () => {
+      const p = calmProfile();
+      p.kinds = {
+        ...profileKinds({ other: 5, tactic: 15 }),
+        themes: { discoveredAttack: 6, fork: 5, pin: 3, skewer: 1 },
+      };
+      const [item] = plan({ profile: p, positions: positions(6, { kind: 'tactic' }) }).items;
+      expect(item.puzzles).toEqual(['discoveredAttack', 'fork', 'pin']);
+    });
+
+    it('keeps the mate themes for the mates', () => {
+      const p = calmProfile();
+      p.kinds = { ...profileKinds({ other: 5, mate: 15 }), themes: { backRankMate: 4, mateIn2: 2, fork: 9 } };
+      const [item] = plan({ profile: p, positions: positions(6, { kind: 'mate' }) }).items;
+      expect(item.puzzles).toEqual(['backRankMate', 'mateIn2']);
     });
   });
 

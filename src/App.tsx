@@ -26,6 +26,7 @@ import { useMediaQuery } from './hooks/useMediaQuery';
 import { useIdleWarmUp } from './hooks/useIdleWarmUp';
 import { stockfishService } from './services/stockfishEngine';
 import { ensureOpeningBookLoaded } from './services/openingBook';
+import { reclassifyStoredGames } from './services/gameStore';
 import {
   ChessBoard,
   Dashboard,
@@ -86,7 +87,12 @@ export default function App() {
   const { announcement, announce } = useAnnouncer();
 
   // While the user reads the start screen: download the engine, the openings database and the game views
-  useIdleWarmUp([() => stockfishService.warmUp(), () => void ensureOpeningBookLoaded(), prefetchViews]);
+  useIdleWarmUp([
+    () => stockfishService.warmUp(),
+    () => void ensureOpeningBookLoaded(),
+    prefetchViews,
+    () => void reclassifyStoredGames(),
+  ]);
 
   // Preferences (persisted in localStorage)
   const [userPseudo, setUserPseudo] = usePersistentState<string>('chess_coach_user_pseudo', '', (raw) => raw);
