@@ -55,10 +55,12 @@ describe('addAttempt', () => {
   });
 
   it('keeps the latest attempts only', () => {
-    let history = EMPTY_HISTORY;
-    for (let i = 0; i < MAX_LOG + 3; i++) history = addAttempt(history, puzzle('a'), true, i);
+    const full = Array.from({ length: MAX_LOG }, (_, i) => attempt(i, ['fork']));
+    let history = addAttempt({ ...EMPTY_HISTORY, log: full }, puzzle('a'), true, MAX_LOG);
+    history = addAttempt(history, puzzle('a'), true, MAX_LOG + 1);
     expect(history.log).toHaveLength(MAX_LOG);
-    expect(history.log[0].at).toBe(3);
+    expect(history.log[0].at).toBe(2);
+    expect(history.log.at(-1)?.at).toBe(MAX_LOG + 1);
   });
 
   it('forgets the puzzles played longest ago past the limit', () => {

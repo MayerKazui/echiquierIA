@@ -75,7 +75,7 @@ describe('DataBackup', () => {
       const [name, text] = download.mock.calls[0] as [string, string];
       expect(name).toMatch(/^echiquier-ia-sauvegarde-\d{4}-\d{2}-\d{2}\.json$/);
       const data = JSON.parse(text);
-      expect(data).toMatchObject({ app: BACKUP_APP, format: 6, preferences: { chess_board_theme: 'wood' } });
+      expect(data).toMatchObject({ app: BACKUP_APP, format: 7, preferences: { chess_board_theme: 'wood' } });
       expect(data.games).toHaveLength(1);
       expect(data.cards).toHaveLength(1);
     });
@@ -262,7 +262,7 @@ describe('describeRestore', () => {
     studies: studies(),
     puzzles: puzzles(),
     woodpecker: 'kept' as const,
-    puzzleHistory: { added: 0 },
+    puzzleHistory: { added: 0, cleared: false },
     preferencesApplied: 0,
     ...over,
   });
@@ -342,10 +342,13 @@ describe('describeRestore', () => {
   });
 
   it('tells when the history of the puzzles came back, and when it could not be written', () => {
-    expect(describeRestore(report({ puzzleHistory: { added: 5 } }), none)).toContain(
+    expect(describeRestore(report({ puzzleHistory: { added: 5, cleared: false } }), none)).toContain(
       'Historique des puzzles : 5 éléments restaurés.'
     );
-    expect(describeRestore(report({ puzzleHistory: { added: 0 } }), none)).not.toContain('Historique');
+    expect(describeRestore(report({ puzzleHistory: { added: 0, cleared: false } }), none)).not.toContain('Historique');
+    expect(describeRestore(report({ puzzleHistory: { added: 0, cleared: true } }), none)).toContain(
+      'Historique des puzzles effacé (effacé sur un autre appareil).'
+    );
     expect(describeRestore(report({ puzzleHistory: null }), none)).toContain(
       "L'historique des puzzles n'a pas pu être écrit dans ce navigateur."
     );

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Puzzle as PuzzleIcon } from 'lucide-react';
 import {
   MAX_LOG,
@@ -18,12 +18,21 @@ interface PuzzleStatsProps {
   now: number;
   /** Starts puzzles on a theme. */
   onPractice: (theme: string) => void;
+  /** Forgets everything played. */
+  onClear: () => void;
 }
 
 /** Rows shown in the table by theme. */
 const MAX_THEMES = 12;
 /** Sessions listed. */
 const MAX_SESSIONS_SHOWN = 10;
+
+/** The periods the success rates can be told over (`undefined`: every attempt kept). */
+const PERIODS: ReadonlyArray<{ id: string; label: string; ms: number | undefined }> = [
+  { id: 'week', label: '7 jours', ms: WEEK_MS },
+  { id: 'month', label: '30 jours', ms: MONTH_MS },
+  { id: 'all', label: 'Tout', ms: undefined },
+];
 
 const SESSION_LABELS = { free: 'Séance libre', review: 'Puzzles ratés' } as const;
 
@@ -80,7 +89,9 @@ function ThemeRow({ tally, onPractice }: { tally: ThemeTally; onPractice: (theme
 }
 
 /** What the player did with the puzzles: the totals, how they do by theme, and their latest sessions. */
-export const PuzzleStats: React.FC<PuzzleStatsProps> = ({ history, now, onPractice }) => {
+export const PuzzleStats: React.FC<PuzzleStatsProps> = ({ history, now, onPractice, onClear }) => {
+  const [periodId, setPeriodId] = useState('month');
+  const [isConfirming, setIsConfirming] = useState(false);
   const { log, sessions } = history;
   if (log.length === 0 && sessions.length === 0) {
     return (
@@ -94,9 +105,11 @@ export const PuzzleStats: React.FC<PuzzleStatsProps> = ({ history, now, onPracti
     );
   }
 
-  const month = overallTally(log, now, MONTH_MS);
+  const period = PERIODS.find((p) => p.id === periodId) ?? PERIODS[1];
+  const periodLabel = period.id === 'all' ? 'depuis le début' : period.label;
+  const overall = overallTally(log, now, period.ms);
   const week = overallTally(log, now, WEEK_MS);
-  const tallies = themeTallies(log, now, MONTH_MS);
+  const tallies = themeTallies(log, now, period.ms);
   const enough = tallies
     .filter((t) => t.attempts >= MIN_THEME_ATTEMPTS)
     .sort((a, b) => (a.rate ?? 0) - (b.rate ?? 0) || b.attempts - a.attempts)
@@ -110,14 +123,41 @@ export const PuzzleStats: React.FC<PuzzleStatsProps> = ({ history, now, onPracti
         <Tile
           label="Puzzles joués"
           value={String(log.length)}
-          hint={log.length >= MAX_LOG ? `les ${MAX_LOG} derniers` : `${history.seen.size} différents`}
+          hint={
+            log.length >= MAX_LOG
+              ? `les ${MAX_LOG.toLocaleString('fr-FR')} derniers`
+              : `${history.seen.size} différents`
+          }
         />
-        <Tile label="Réussite, 30 jours" value={percent(month.rate)} hint={`${month.attempts} puzzles`} />
+        <Tile
+          label={period.id === 'all' ? 'Réussite' : `Réussite, ${period.label}`}
+          value={percent(overall.rate)}
+          hint={`${overall.attempts} puzzles`}
+        />
         <Tile label="Cette semaine" value={String(week.attempts)} hint={`${percent(week.rate)} réussis`} />
       </div>
 
       <div className="flex flex-col gap-2">
-        <p className="text-xs font-semibold text-slate-300">Réussite par thème, sur 30 jours</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-semibold text-slate-300">Réussite par thème, {periodLabel}</p>
+          <div role="group" aria-label="Période" className="flex gap-1.5">
+            {PERIODS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={periodId === id}
+                onClick={() => setPeriodId(id)}
+                className={`px-2.5 py-1 rounded-md border text-[11px] font-semibold cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+                  periodId === id
+                    ? 'bg-indigo-600/30 border-indigo-500 text-white'
+                    : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:bg-slate-800/80'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         {enough.length > 0 ? (
           <ul aria-label="Réussite par thème" className="flex flex-col gap-1.5">
             {enough.map((tally) => (
@@ -173,6 +213,45 @@ export const PuzzleStats: React.FC<PuzzleStatsProps> = ({ history, now, onPracti
           </ol>
         </div>
       )}
+
+      <div className="flex flex-col items-start gap-2 border-t border-slate-800/80 pt-3">
+        {isConfirming ? (
+          <>
+            <p role="alert" className="text-xs text-amber-200">
+              Cela efface les statistiques, les séances et la liste des puzzles déjà joués (ils pourront revenir). Avec
+              la synchronisation Google Drive, l’effacement gagne aussi vos autres appareils. Vos puzzles ratés à revoir
+              et votre lot Woodpecker ne changent pas.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsConfirming(false);
+                  onClear();
+                }}
+                className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
+              >
+                Effacer l’historique
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsConfirming(false)}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+              >
+                Garder
+              </button>
+            </div>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsConfirming(true)}
+            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+          >
+            Effacer l’historique
+          </button>
+        )}
+      </div>
     </div>
   );
 };

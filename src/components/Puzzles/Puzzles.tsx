@@ -18,7 +18,7 @@ import {
   toFilter,
   type EloRange,
 } from '../../utils/puzzleRun';
-import { beginCycle, createSet, drawLot } from '../../utils/woodpecker';
+import { beginCycle, createSet, drawLot, type ArchivedLot } from '../../utils/woodpecker';
 import { PuzzleRun, type RunReport } from './PuzzleRun';
 import { PuzzleSetup, type PuzzleChoice } from './PuzzleSetup';
 import { PuzzleStats } from './PuzzleStats';
@@ -55,6 +55,7 @@ const MODES: ReadonlyArray<{ id: Mode; label: string }> = [
   { id: 'stats', label: 'Statistiques' },
 ];
 
+const NO_ARCHIVE: ArchivedLot[] = [];
 const NO_ENTRIES: ReadonlyMap<string, PuzzleEntry> = new Map();
 
 const PRIMARY =
@@ -116,6 +117,7 @@ export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme, start: in
   const woodpecker = useWoodpecker();
   const [isDrawing, setIsDrawing] = useState(false);
   const woodpeckerSet = woodpecker.data.status === 'ready' ? woodpecker.data.set : null;
+  const woodpeckerArchive = woodpecker.data.status === 'ready' ? woodpecker.data.archive : NO_ARCHIVE;
 
   useEffect(() => {
     let isCurrent = true;
@@ -280,12 +282,18 @@ export const Puzzles: React.FC<PuzzlesProps> = ({ onClose, boardTheme, start: in
             isCreating={isDrawing}
             onCreate={createLot}
             onStart={startCycle}
-            onReset={woodpecker.reset}
+            archive={woodpeckerArchive}
+            onReset={() => woodpecker.reset(woodpeckerSet)}
           />
         )}
 
         {screen.kind === 'setup' && index && mode === 'stats' && (
-          <PuzzleStats history={played} now={now} onPractice={(theme) => setPreset({ themes: [theme] })} />
+          <PuzzleStats
+            history={played}
+            now={now}
+            onPractice={(theme) => setPreset({ themes: [theme] })}
+            onClear={history.clear}
+          />
         )}
 
         {screen.kind === 'setup' && index && mode === 'free' && (

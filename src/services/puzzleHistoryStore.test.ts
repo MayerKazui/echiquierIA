@@ -9,6 +9,7 @@ import {
   type SeenPuzzle,
 } from '../utils/puzzleHistory';
 import {
+  clearPuzzleHistory,
   exportPuzzleHistory,
   isHistoryEmpty,
   isPuzzleAttempt,
@@ -103,7 +104,7 @@ describe('the store', () => {
     await savePuzzleAttempt(seen('a'), attempt(1));
     // The attempts are many: put them in one go, then one write trims them
     const db = await new Promise<IDBDatabase>((resolve) => {
-      const open = indexedDB.open('echiquier-ia-puzzle-history', 1);
+      const open = indexedDB.open('echiquier-ia-puzzle-history');
       open.onsuccess = () => resolve(open.result);
     });
     await new Promise<void>((resolve) => {
@@ -145,7 +146,7 @@ describe('the store', () => {
     expect((await loadPuzzleHistory()).log).toEqual([]);
     expect(await savePuzzleAttempt(seen('a'), attempt(1))).toBe(false);
     expect(await savePuzzleSession(session(1))).toBe(false);
-    expect(await mergePuzzleHistory({ seen: [seen('a')], log: [], sessions: [] })).toBeNull();
+    expect(await mergePuzzleHistory({ seen: [seen('a')], log: [], sessions: [], clearedAt: 0 })).toBeNull();
   });
 });
 
@@ -165,8 +166,9 @@ describe('export and merge', () => {
       seen: [seen('a'), seen('b')],
       log: [attempt(1, 'a'), attempt(2, 'b')],
       sessions: [session(5), session(5)],
+      clearedAt: 0,
     });
-    expect(report).toEqual({ added: 3 });
+    expect(report).toEqual({ added: 3, cleared: false });
     const history = await loadPuzzleHistory();
     expect(history.log).toHaveLength(2);
     expect(history.sessions).toHaveLength(1);
@@ -175,19 +177,128 @@ describe('export and merge', () => {
 
   it('keeps, for a puzzle played in both places, the record of the one played last', async () => {
     await savePuzzleAttempt(seen('a', { plays: 5, lastAt: 50 }), attempt(50, 'a'));
-    await mergePuzzleHistory({ seen: [seen('a', { plays: 2, lastAt: 20 })], log: [], sessions: [] });
+    await mergePuzzleHistory({ seen: [seen('a', { plays: 2, lastAt: 20 })], log: [], sessions: [], clearedAt: 0 });
     expect((await loadPuzzleHistory()).seen.get('a')?.plays).toBe(5);
-    await mergePuzzleHistory({ seen: [seen('a', { plays: 9, lastAt: 90 })], log: [], sessions: [] });
+    await mergePuzzleHistory({ seen: [seen('a', { plays: 9, lastAt: 90 })], log: [], sessions: [], clearedAt: 0 });
     expect((await loadPuzzleHistory()).seen.get('a')?.plays).toBe(9);
   });
 
   it('skips the records that are not valid, and has nothing to do with nothing', async () => {
-    expect(await mergePuzzleHistory({ seen: [], log: [], sessions: [] })).toEqual({ added: 0 });
+    expect(await mergePuzzleHistory({ seen: [], log: [], sessions: [], clearedAt: 0 })).toEqual({
+      added: 0,
+      cleared: false,
+    });
     const report = await mergePuzzleHistory({
       seen: [{ id: 3 } as never],
       log: [attempt(1), { at: 'x' } as never],
       sessions: [],
+      clearedAt: 0,
     });
-    expect(report).toEqual({ added: 1 });
+    expect(report).toEqual({ added: 1, cleared: false });
+  });
+});
+
+describe('clearing the history', () => {
+  const played = async (id: string, at: number) => {
+    await savePuzzleAttempt(seen(id, { lastAt: at }), attempt(at, id));
+    await savePuzzleSession(session(at));
+  };
+  const data = (over: Partial<Parameters<typeof mergePuzzleHistory>[0]> = {}) => ({
+    seen: [],
+    log: [],
+    sessions: [],
+    clearedAt: 0,
+    ...over,
+  });
+
+  it('forgets everything played, and notes when', async () => {
+    await played('a', 10);
+    expect(await clearPuzzleHistory(50)).toBe(true);
+    const history = await loadPuzzleHistory();
+    expect(history.seen.size).toBe(0);
+    expect(history.log).toEqual([]);
+    expect(history.sessions).toEqual([]);
+    expect(history.clearedAt).toBe(50);
+    // What is played after counts
+    await played('b', 60);
+    expect((await loadPuzzleHistory()).log.map((a) => a.id)).toEqual(['b']);
+    expect((await loadPuzzleHistory()).clearedAt).toBe(50);
+  });
+
+  it('is exported, and is not an empty history even with nothing left in it', async () => {
+    await clearPuzzleHistory(50);
+    const exported = await exportPuzzleHistory();
+    expect(exported.clearedAt).toBe(50);
+    expect(isHistoryEmpty(exported)).toBe(false);
+  });
+
+  it('is applied by a sync that carries a later clear: what was played before is dropped here', async () => {
+    await played('old', 10);
+    await played('kept', 80);
+    const report = await mergePuzzleHistory(data({ clearedAt: 50 }), { mode: 'sync' });
+    expect(report).toEqual({ added: 0, cleared: true });
+    const history = await loadPuzzleHistory();
+    expect(history.log.map((a) => a.id)).toEqual(['kept']);
+    expect([...history.seen.keys()]).toEqual(['kept']);
+    expect(history.sessions.map((s) => s.at)).toEqual([80]);
+    expect(history.clearedAt).toBe(50);
+  });
+
+  it('keeps a copy that still has the old records from bringing them back after a clear here', async () => {
+    await clearPuzzleHistory(50);
+    const report = await mergePuzzleHistory(
+      data({
+        seen: [seen('old', { lastAt: 10 }), seen('new', { lastAt: 70 })],
+        log: [attempt(10, 'old'), attempt(70, 'new')],
+        sessions: [session(10), session(70)],
+      }),
+      { mode: 'sync' }
+    );
+    expect(report).toEqual({ added: 3, cleared: false });
+    const history = await loadPuzzleHistory();
+    expect(history.log.map((a) => a.id)).toEqual(['new']);
+    expect(history.sessions.map((s) => s.at)).toEqual([70]);
+  });
+
+  it('ignores an earlier clear, and takes the later of the two', async () => {
+    await clearPuzzleHistory(100);
+    await mergePuzzleHistory(data({ clearedAt: 40 }), { mode: 'sync' });
+    expect((await loadPuzzleHistory()).clearedAt).toBe(100);
+    await mergePuzzleHistory(data({ clearedAt: 300 }), { mode: 'sync' });
+    expect((await loadPuzzleHistory()).clearedAt).toBe(300);
+  });
+
+  it('is not applied when importing a file: the file only adds', async () => {
+    await played('here', 10);
+    await clearPuzzleHistory(50);
+    await played('here2', 60);
+    const report = await mergePuzzleHistory(
+      data({ log: [attempt(10, 'old')], seen: [seen('old', { lastAt: 10 })], clearedAt: 500 }),
+      { mode: 'import' }
+    );
+    expect(report).toEqual({ added: 2, cleared: false });
+    const history = await loadPuzzleHistory();
+    expect(history.clearedAt).toBe(50);
+    expect(history.log.map((a) => a.id).sort()).toEqual(['here2', 'old']);
+  });
+
+  it('survives a database made before the date of the clear existed', async () => {
+    const db = await new Promise<IDBDatabase>((resolve) => {
+      const open = indexedDB.open('echiquier-ia-puzzle-history', 1);
+      open.onupgradeneeded = () => {
+        for (const name of ['seen', 'log', 'sessions']) open.result.createObjectStore(name);
+      };
+      open.onsuccess = () => resolve(open.result);
+    });
+    await new Promise<void>((resolve) => {
+      const tx = db.transaction('seen', 'readwrite');
+      tx.objectStore('seen').put(seen('before'), 'before');
+      tx.oncomplete = () => resolve();
+    });
+    db.close();
+    const history = await loadPuzzleHistory();
+    expect([...history.seen.keys()]).toEqual(['before']);
+    expect(history.clearedAt).toBe(0);
+    expect(await clearPuzzleHistory(5)).toBe(true);
   });
 });

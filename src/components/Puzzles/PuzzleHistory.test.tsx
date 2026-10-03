@@ -178,6 +178,46 @@ describe('Puzzles: the statistics', () => {
     expect(await screen.findByText(/Aucun thème n’a encore 5 puzzles joués/)).toBeTruthy();
   });
 
+  it('tells the figures over a week, a month or everything that was kept', async () => {
+    const user = userEvent.setup();
+    await store(6, ['fork'], 6, Date.now() - 1000); // this week: all solved
+    await store(6, ['pin'], 0, Date.now() - 20 * 24 * 3600_000); // this month: none solved
+    await store(6, ['skewer'], 3, Date.now() - 60 * 24 * 3600_000); // long ago
+    await openStats(user);
+    const themes = async () =>
+      within(await screen.findByRole('list', { name: 'Réussite par thème' }))
+        .getAllByRole('listitem')
+        .map((row) => row.textContent?.split(/\d/)[0]);
+    expect(await themes()).toEqual(['Clouage', 'Fourchette']); // a month, the weakest first
+    await user.click(screen.getByRole('button', { name: '7 jours' }));
+    expect(await themes()).toEqual(['Fourchette']);
+    expect(screen.getByText('Réussite, 7 jours')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Tout' }));
+    expect(await themes()).toEqual(['Clouage', 'Enfilade', 'Fourchette']);
+    expect(screen.getByText(/Réussite par thème, depuis le début/)).toBeTruthy();
+  });
+
+  it('clears the history only after a confirmation that says what goes', async () => {
+    const user = userEvent.setup();
+    await store(6, ['fork'], 3);
+    await savePuzzleSession({ at: Date.now(), mode: 'free', solved: 1, total: 2, elapsedMs: 1000, minutes: null });
+    await openStats(user);
+    await user.click(await screen.findByRole('button', { name: 'Effacer l’historique' }));
+    expect(screen.getByRole('alert').textContent).toMatch(/statistiques.*séances.*Drive.*puzzles ratés.*Woodpecker/);
+    await user.click(screen.getByRole('button', { name: 'Garder' }));
+    expect((await loadPuzzleHistory()).log).toHaveLength(6);
+
+    await user.click(screen.getByRole('button', { name: 'Effacer l’historique' }));
+    await user.click(screen.getByRole('button', { name: 'Effacer l’historique' }));
+    expect(await screen.findByText('Pas encore de puzzle joué')).toBeTruthy();
+    await waitFor(async () => {
+      const history = await loadPuzzleHistory();
+      expect(history.log).toEqual([]);
+      expect(history.sessions).toEqual([]);
+      expect(history.clearedAt).toBeGreaterThan(0);
+    });
+  });
+
   it('starts puzzles on a theme from its row', async () => {
     const user = userEvent.setup();
     await store(6, ['fork'], 1);

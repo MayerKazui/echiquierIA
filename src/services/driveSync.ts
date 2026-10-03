@@ -99,6 +99,7 @@ export async function syncWithDrive({
     backup.studyDeletions.length === 0 &&
     backup.puzzles.length === 0 &&
     backup.woodpecker === null &&
+    backup.woodpeckerArchive.length === 0 &&
     isHistoryEmpty(backup.puzzleHistory) &&
     Object.keys(backup.preferences).length === 0
   ) {

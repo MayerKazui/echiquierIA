@@ -86,6 +86,9 @@ export function describeRestore(
   } else if (report.woodpecker === null) {
     parts.push("Le lot Woodpecker n'a pas pu être écrit dans ce navigateur.");
   }
+  if (report.puzzleHistory?.cleared) {
+    parts.push('Historique des puzzles effacé (effacé sur un autre appareil).');
+  }
   if (report.puzzleHistory && report.puzzleHistory.added > 0) {
     parts.push(
       `Historique des puzzles : ${plural(report.puzzleHistory.added, 'élément restauré', 'éléments restaurés')}.`

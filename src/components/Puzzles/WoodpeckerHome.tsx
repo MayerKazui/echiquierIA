@@ -18,6 +18,7 @@ import {
   compareCycle,
   formatDuration,
   nextCycleNumber,
+  type ArchivedLot,
   type WoodpeckerSet,
 } from '../../utils/woodpecker';
 import { EloRangeSelect } from './EloRangeSelect';
@@ -32,7 +33,9 @@ interface WoodpeckerHomeProps {
   isCreating: boolean;
   onCreate: (range: EloRange, size: number) => void;
   onStart: () => void;
-  /** Forgets the lot, its cycles and the cycle in progress. */
+  /** The lots the player left, with the cycles done on them. */
+  archive: readonly ArchivedLot[];
+  /** Leaves the lot for a new one: its cycles are kept in the lots left, the cycle in progress is lost. */
   onReset: () => void;
 }
 
@@ -70,12 +73,58 @@ export function formatDelta(deltaMs: number): string {
   return `${deltaMs < 0 ? '−' : '+'}${formatDuration(Math.abs(deltaMs))}`;
 }
 
+/** Lots shown in the list of the lots left. */
+const MAX_LOTS_SHOWN = 5;
+
+/** The lots the player left: when, how big, and how the times went from the first cycle to the best one. */
+function LeftLots({ archive }: { archive: readonly ArchivedLot[] }) {
+  if (archive.length === 0) return null;
+  const lots = [...archive].reverse();
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-xs font-semibold text-slate-300">Lots précédents</p>
+      <ul aria-label="Lots précédents" className="flex flex-col gap-1.5">
+        {lots.slice(0, MAX_LOTS_SHOWN).map((lot) => {
+          const first = lot.cycles[0];
+          const best = bestCycle(lot.cycles);
+          return (
+            <li
+              key={lot.createdAt}
+              className="flex flex-col gap-0.5 rounded-lg bg-slate-950/60 border border-slate-800 px-3 py-2 text-xs"
+            >
+              <span className="font-semibold text-slate-100">
+                {lot.size} puzzle{lot.size > 1 ? 's' : ''}, {rangeLabel(lot.range)} Elo
+                <span className="font-normal text-slate-400">
+                  {' '}
+                  · tiré le {new Date(lot.createdAt).toLocaleDateString('fr-FR')}
+                </span>
+              </span>
+              <span className="text-slate-300">
+                {lot.cycles.length} cycle{lot.cycles.length > 1 ? 's' : ''}
+                {first && best && lot.cycles.length > 1
+                  ? ` : de ${formatDuration(first.totalMs)} au premier à ${formatDuration(best.totalMs)} au meilleur`
+                  : first
+                    ? ` : ${formatDuration(first.totalMs)}`
+                    : ''}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {lots.length > MAX_LOTS_SHOWN && (
+        <p className="text-[11px] text-slate-400">et {lots.length - MAX_LOTS_SHOWN} de plus anciens.</p>
+      )}
+    </div>
+  );
+}
+
 /** The Woodpecker lot: set one up, then play the cycles one after the other, each against the clock of the last. */
 export const WoodpeckerHome: React.FC<WoodpeckerHomeProps> = ({
   index,
   set,
   elo,
   isCreating,
+  archive,
   onCreate,
   onStart,
   onReset,
@@ -104,7 +153,7 @@ export const WoodpeckerHome: React.FC<WoodpeckerHomeProps> = ({
       <div className="flex flex-col gap-5">
         <div>
           <p className="text-sm font-semibold text-slate-100">
-            Votre lot : {total} puzzles, {rangeLabel(set.range)} Elo
+            Votre lot : {total} puzzle{total > 1 ? 's' : ''}, {rangeLabel(set.range)} Elo
           </p>
           <p className="text-xs text-slate-400 mt-1">
             Tiré le {new Date(set.createdAt).toLocaleDateString('fr-FR')}. C’est toujours le même : chaque cycle le
@@ -171,11 +220,14 @@ export const WoodpeckerHome: React.FC<WoodpeckerHomeProps> = ({
           </div>
         )}
 
+        <LeftLots archive={archive} />
+
         <div className="flex flex-col items-start gap-2 border-t border-slate-800/80 pt-3">
           {isConfirmingReset ? (
             <>
               <p role="alert" className="text-xs text-amber-200">
-                Un nouveau lot efface celui-ci, ses cycles et son historique de temps. Continuer ?
+                Un nouveau lot remplace celui-ci : ses puzzles et le cycle en cours sont perdus, ses cycles terminés
+                restent dans les lots précédents. Continuer ?
               </p>
               <div className="flex gap-2">
                 <button
@@ -276,6 +328,8 @@ export const WoodpeckerHome: React.FC<WoodpeckerHomeProps> = ({
           Le lot est tiré une fois et gardé dans ce navigateur (et dans la sauvegarde) : il ne change plus ensuite.
         </p>
       </div>
+
+      <LeftLots archive={archive} />
     </div>
   );
 };

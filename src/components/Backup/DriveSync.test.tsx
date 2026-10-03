@@ -14,7 +14,7 @@ const restoreOf = (over: Partial<NonNullable<DriveSyncReport['restore']>> = {}) 
   studies: { added: 0, replaced: 0, kept: 0, deleted: 0 },
   puzzles: { added: 0, replaced: 0, kept: 0 },
   woodpecker: 'kept' as const,
-  puzzleHistory: { added: 0 },
+  puzzleHistory: { added: 0, cleared: false },
   preferencesApplied: 0,
   ...over,
 });

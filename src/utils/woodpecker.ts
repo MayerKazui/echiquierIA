@@ -182,3 +182,49 @@ export function formatStopwatch(ms: number): string {
   const seconds = String(total % 60).padStart(2, '0');
   return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}` : `${minutes}:${seconds}`;
 }
+
+/**
+ * A lot the player left, with the cycles done on it: what is kept of it when they take a new lot (the puzzles are
+ * not). It also says the lot was retired, so that a copy elsewhere that still has it as current cannot bring it back.
+ */
+export interface ArchivedLot {
+  /** When the lot was drawn: it identifies the lot. */
+  createdAt: number;
+  /** When the player left it. */
+  retiredAt: number;
+  range: EloRange;
+  /** Puzzles in the lot. */
+  size: number;
+  cycles: WoodpeckerCycle[];
+}
+
+/** Lots remembered: the ones left longest ago are forgotten first. */
+export const MAX_ARCHIVE = 20;
+
+/** The lot as it is archived, null when no cycle was finished on it (there is nothing to remember). */
+export function archiveLot(set: WoodpeckerSet, now: number): ArchivedLot | null {
+  if (set.cycles.length === 0) return null;
+  return {
+    createdAt: set.createdAt,
+    retiredAt: now,
+    range: set.range,
+    size: set.puzzles.length,
+    cycles: set.cycles,
+  };
+}
+
+/** The archives of two copies united (a lot in both counts once, the later retirement winning), oldest retirement first. */
+export function mergeArchives(a: readonly ArchivedLot[], b: readonly ArchivedLot[]): ArchivedLot[] {
+  const byLot = new Map<number, ArchivedLot>();
+  for (const lot of [...a, ...b]) {
+    const known = byLot.get(lot.createdAt);
+    if (!known || lot.retiredAt > known.retiredAt) byLot.set(lot.createdAt, lot);
+  }
+  return [...byLot.values()].sort((x, y) => x.retiredAt - y.retiredAt).slice(-MAX_ARCHIVE);
+}
+
+/** Whether a lot was left (and so is not to be taken back): its archive says so, and it was not worked on since. */
+export const isRetired = (
+  set: Pick<WoodpeckerSet, 'createdAt' | 'updatedAt'>,
+  archive: readonly ArchivedLot[]
+): boolean => archive.some((lot) => lot.createdAt === set.createdAt && set.updatedAt <= lot.retiredAt);

@@ -594,10 +594,21 @@ Le « second temps » annoncé : garder ce qui a été joué pour éviter les r�
 - [x] **Sauvegarde** : `puzzleHistory` dans le fichier JSON et la synchronisation Drive, au **format 6** (une application de format 5 refuse un fichier de format 6 plutôt que de renvoyer une copie sans l'historique et d'écraser Drive). Fusion : les tentatives et les séances s'unissent (chacune compte une fois), un puzzle joué des deux côtés garde l'enregistrement du plus récent. Un fichier de format 5 se lit sans historique ; les éléments illisibles sont écartés et comptés avec les puzzles.
 - Vérifié dans Chromium sur la version de production avec de vrais puzzles : un cycle Woodpecker de 20 puzzles avec 3 ratés volontaires (20 tentatives enregistrées, 17 réussies, reprises non comptées), une séance libre, l'onglet Statistiques (thèmes, séances), le plan (« 1 puzzle joué sur 10 »), le profil (« 22 puzzles joués, 77 % ») et le bouton du profil qui ouvre les puzzles sur le thème, sans erreur de console.
 - Tests : 13 pour la logique, 12 pour le stockage, 9 pour l'enregistrement et les statistiques à l'écran, 2 pour le plan, 3 pour le profil, 9 pour la sauvegarde et Drive.
+- **Limites** : traitées dans « Suite : les limites de l'historique et du Woodpecker » ci-dessous.
+
+### Suite : les limites de l'historique et du Woodpecker — fait
+
+Les trois limites laissées par l'historique des puzzles. Sauvegarde passée au **format 7**.
+
+- [x] **Statistiques sur 7 jours, 30 jours ou tout** : un sélecteur de période pour la réussite et le tableau par thème (les 30 jours restent la valeur de départ ; « Tout » dit « depuis le début »). Le journal garde désormais **20 000 tentatives** (5 000 avant), environ 3 Mo de texte dans la sauvegarde, bien moins compressé ; la liste et le plan restent sur 30 jours et 7 jours.
+- [x] **Effacer l'historique** : bouton en bas de l'onglet « Statistiques », avec confirmation qui dit ce qui part (statistiques, séances, liste des puzzles déjà joués) et ce qui reste (puzzles ratés à revoir, lot Woodpecker). Comme une suppression locale reviendrait par Drive, l'effacement laisse une **date d'effacement** (`clearedAt`, dans un nouveau magasin `meta` de la base, qui passe en version 2 sans toucher aux données existantes). Elle voyage dans la sauvegarde : lors d'une **synchronisation**, la plus récente des deux dates gagne, ce qui a été joué jusque-là est retiré des deux côtés et une copie qui l'aurait encore ne le ramène pas ; ce qui est joué après compte. Un **fichier importé** à la main n'applique pas l'effacement (comme pour les parties, il ne fait qu'ajouter). Un historique effacé et vide reste une sauvegarde à envoyer (la date l'empêche d'être jugée vide).
+- [x] **Lots Woodpecker précédents** : « Nouveau lot » garde les cycles terminés du lot qu'on quitte (date, taille, tranche, nombre de cycles, temps du premier cycle et du meilleur) dans une **archive** de 20 lots, listée sous le lot ou sur l'écran de création (« Lots précédents », les 5 derniers). Un lot sans cycle terminé ne laisse rien. L'archive est dans la sauvegarde (`woodpeckerArchive`) et sert aussi de trace : un lot que l'archive dit quitté, ici ou sur un autre appareil (et qui n'a pas été travaillé depuis), n'est ni gardé ni repris ; les archives de deux copies s'unissent. Les puzzles du lot quitté ne sont pas gardés, seulement ses temps.
+- Vérifié dans Chromium sur la version de production : une base d'historique de l'ancienne version (version 1) s'ouvre sans perte (9 puzzles retrouvés), le sélecteur de période, l'effacement (base à zéro, date notée, version 2), puis « Nouveau lot » sur un lot de 2 cycles (« 2 cycles : de 18 min 05 s au premier à 12 min 10 s au meilleur », archive stockée, lot courant supprimé), sans erreur de console.
+- Tests : 7 pour l'effacement dans le stockage, 8 pour les lots quittés (stockage et fusion), 5 pour la sauvegarde et Drive, 3 pour la période, l'effacement et les lots à l'écran.
 - **Limites** :
-  - Pas de suppression de l'historique : la synchronisation Drive unit les copies, une suppression locale reviendrait (il faudrait des traces de suppression, comme pour les parties).
-  - Les temps des cycles du Woodpecker restent dans le lot ; changer de lot efface l'historique de ses cycles.
-  - Les figures par thème sont sur les 5 000 dernières tentatives, et sur 30 jours.
+  - L'archive ne garde que les temps, pas les puzzles : on ne peut pas rejouer un ancien lot.
+  - Un lot quitté sur un appareil pendant qu'un autre le travaille (plus récemment) reste en cours sur ce dernier.
+  - Le journal est plafonné à 20 000 tentatives : « Tout » veut dire tout ce qui est gardé.
 
 ## Grands plateaux dans les fenêtres — fait
 

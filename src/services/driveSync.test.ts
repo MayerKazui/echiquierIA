@@ -179,7 +179,7 @@ describe('syncWithDrive, the history of the puzzles', () => {
       )
     );
     const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
-    expect(report.restore?.puzzleHistory).toEqual({ added: 2 });
+    expect(report.restore?.puzzleHistory).toEqual({ added: 2, cleared: false });
     expect((await loadPuzzleHistory()).log.map((a) => a.id)).toEqual(['here', 'there']);
     const parsed = parseBackup(await unpackText(drive.files.get('file-1') as Uint8Array));
     expect(parsed.ok && parsed.backup.puzzleHistory.log).toHaveLength(2);

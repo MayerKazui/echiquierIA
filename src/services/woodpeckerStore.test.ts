@@ -4,7 +4,9 @@ import type { Puzzle } from '../utils/puzzleData';
 import { beginCycle, createSet, type WoodpeckerSet } from '../utils/woodpecker';
 import {
   MAX_LOT,
-  clearWoodpecker,
+  isArchivedLot,
+  loadWoodpeckerArchive,
+  retireWoodpecker,
   isWoodpeckerSet,
   loadWoodpecker,
   mergeWoodpecker,
@@ -73,7 +75,7 @@ describe('the store', () => {
     await saveWoodpecker(set(1, ['a']));
     await saveWoodpecker(set(2, ['b', 'c']));
     expect((await loadWoodpecker())?.puzzles.map((p) => p.id)).toEqual(['b', 'c']);
-    await clearWoodpecker();
+    await retireWoodpecker((await loadWoodpecker())!, 99);
     expect(await loadWoodpecker()).toBeNull();
   });
 
@@ -86,7 +88,8 @@ describe('the store', () => {
     Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true, writable: true });
     expect(await loadWoodpecker()).toBeNull();
     expect(await saveWoodpecker(set())).toBe(false);
-    await expect(clearWoodpecker()).resolves.toBeUndefined();
+    expect(await retireWoodpecker(set(), 5)).toBeNull();
+    expect(await loadWoodpeckerArchive()).toEqual([]);
     expect(await mergeWoodpecker(set())).toBeNull();
   });
 });
@@ -110,5 +113,84 @@ describe('mergeWoodpecker', () => {
     expect(await mergeWoodpecker(null)).toBe('kept');
     expect(await mergeWoodpecker({ nope: 1 } as unknown as WoodpeckerSet)).toBe('kept');
     expect((await loadWoodpecker())?.updatedAt).toBe(100);
+  });
+});
+
+const withCycles = (createdAt: number, updatedAt: number, ids = ['a', 'b']): WoodpeckerSet => ({
+  ...set(updatedAt, ids),
+  createdAt,
+  cycles: [
+    { number: 1, startedAt: 1, finishedAt: 2, totalMs: 9000, size: ids.length, firstTry: ids.length },
+    { number: 2, startedAt: 3, finishedAt: 4, totalMs: 7000, size: ids.length, firstTry: ids.length },
+  ],
+});
+
+describe('the lots left', () => {
+  it('keeps the cycles of the lot that is left, and the lot goes', async () => {
+    const lot = withCycles(10, 100);
+    await saveWoodpecker(lot);
+    const archive = await retireWoodpecker(lot, 500);
+    expect(archive).toEqual([{ createdAt: 10, retiredAt: 500, range: lot.range, size: 2, cycles: lot.cycles }]);
+    expect(await loadWoodpecker()).toBeNull();
+    expect(await loadWoodpeckerArchive()).toEqual(archive);
+  });
+
+  it('keeps nothing of a lot on which no cycle was finished', async () => {
+    const lot = set(100);
+    await saveWoodpecker(lot);
+    expect(await retireWoodpecker(lot, 500)).toEqual([]);
+    expect(await loadWoodpecker()).toBeNull();
+  });
+
+  it('adds lot after lot, the one left last at the end', async () => {
+    await retireWoodpecker(withCycles(10, 100), 500);
+    await retireWoodpecker(withCycles(20, 600), 700);
+    expect((await loadWoodpeckerArchive()).map((lot) => lot.createdAt)).toEqual([10, 20]);
+  });
+
+  it('validates what it reads', () => {
+    const lot = { createdAt: 1, retiredAt: 2, range: { from: 1000, to: 1200 }, size: 5, cycles: [] };
+    expect(isArchivedLot(lot)).toBe(true);
+    expect(isArchivedLot({ ...lot, range: null })).toBe(false);
+    expect(isArchivedLot({ ...lot, cycles: [{ number: 1 }] })).toBe(false);
+    expect(isArchivedLot(null)).toBe(false);
+  });
+});
+
+describe('merging the lots left', () => {
+  const left = (createdAt: number, retiredAt: number) => {
+    const lot = withCycles(createdAt, retiredAt - 1);
+    return { createdAt, retiredAt, range: lot.range, size: 2, cycles: lot.cycles };
+  };
+
+  it('unites the archives, a lot in both counting once', async () => {
+    await retireWoodpecker(withCycles(10, 100), 500);
+    expect(await mergeWoodpecker(null, [left(10, 500), left(20, 800)])).toBe('kept');
+    expect((await loadWoodpeckerArchive()).map((lot) => lot.createdAt)).toEqual([10, 20]);
+  });
+
+  it('does not bring back a lot that the archives say was left', async () => {
+    const old = withCycles(10, 100);
+    expect(await mergeWoodpecker(old, [left(10, 500)])).toBe('kept');
+    expect(await loadWoodpecker()).toBeNull();
+  });
+
+  it('drops the lot kept here when the archive of the other copy says it was left', async () => {
+    await saveWoodpecker(withCycles(10, 100));
+    await mergeWoodpecker(null, [left(10, 500)]);
+    expect(await loadWoodpecker()).toBeNull();
+    expect((await loadWoodpeckerArchive()).map((lot) => lot.createdAt)).toEqual([10]);
+  });
+
+  it('keeps a lot worked on after it was left elsewhere', async () => {
+    await saveWoodpecker(withCycles(10, 900));
+    await mergeWoodpecker(null, [left(10, 500)]);
+    expect((await loadWoodpecker())?.createdAt).toBe(10);
+  });
+
+  it('takes the new lot of the other copy beside the lots left', async () => {
+    await saveWoodpecker(withCycles(10, 100));
+    expect(await mergeWoodpecker(withCycles(30, 900), [left(10, 500)])).toBe('added');
+    expect((await loadWoodpecker())?.createdAt).toBe(30);
   });
 });

@@ -45,15 +45,23 @@ export interface PuzzleHistory {
   log: readonly PuzzleAttempt[];
   /** Oldest first. */
   sessions: readonly PuzzleSession[];
+  /**
+   * When the player cleared the history (ms, 0 for never). Everything played up to then is gone, here and, through
+   * the backup, on the other devices: it is what stops a copy that still has the old records from bringing them back.
+   */
+  clearedAt: number;
 }
 
-/** Attempts kept: the figures are about recent play, and the backup stays small. */
-export const MAX_LOG = 5000;
+/** Attempts kept: the backup stays small (about 3 MB of text, much less compressed). */
+export const MAX_LOG = 20_000;
 export const MAX_SESSIONS = 200;
 /** Puzzles remembered (out of the 200 000 there are): the ones played longest ago are forgotten first. */
 export const MAX_SEEN = 20_000;
 
-export const EMPTY_HISTORY: PuzzleHistory = { seen: new Map(), log: [], sessions: [] };
+export const EMPTY_HISTORY: PuzzleHistory = { seen: new Map(), log: [], sessions: [], clearedAt: 0 };
+
+/** The history once cleared at `now`: nothing is left, and the date is kept. */
+export const clearedHistory = (now: number): PuzzleHistory => ({ ...EMPTY_HISTORY, clearedAt: now });
 
 export const WEEK_MS = 7 * DAY_MS;
 export const MONTH_MS = 30 * DAY_MS;

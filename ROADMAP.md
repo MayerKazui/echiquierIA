@@ -98,4 +98,5 @@ Cadré dans `COMPARATIF_PATCHCHESS.md` (section 4). Voir `IMPROVEMENTS.md` (« P
 - [x] Plan : les objectifs d'erreurs (type de faute dominant, phase fragile) proposent les puzzles du thème Lichess correspondant, au niveau de ses parties.
 - [x] Historique des puzzles (onglet « Statistiques ») : réussite par thème sur 30 jours, séances, puzzles déjà joués tirés en dernier ; dans la sauvegarde JSON (format 6) et Drive.
 - [x] Plan et profil branchés sur l'historique : progression de la semaine en puzzles sur le thème d'un objectif, section « Vos puzzles » dans « Mon profil » avec le thème le plus fragile.
-- [ ] Historique : suppression de l'historique (demande des traces de suppression pour la synchronisation Drive), courbe de progression, historique des cycles Woodpecker au-delà du lot courant.
+- [x] Historique : statistiques sur 7 jours, 30 jours ou tout (20 000 tentatives gardées), effacement de l'historique qui se synchronise (date d'effacement), cycles des lots Woodpecker précédents gardés (format 7).
+- [ ] Historique : courbe de progression dans le temps, rejouer un ancien lot Woodpecker.

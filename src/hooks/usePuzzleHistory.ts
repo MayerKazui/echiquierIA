@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { loadPuzzleHistory, savePuzzleAttempt, savePuzzleSession } from '../services/puzzleHistoryStore';
-import { EMPTY_HISTORY, addAttempt, addSession, type PuzzleHistory, type PuzzleSession } from '../utils/puzzleHistory';
+import {
+  clearPuzzleHistory,
+  loadPuzzleHistory,
+  savePuzzleAttempt,
+  savePuzzleSession,
+} from '../services/puzzleHistoryStore';
+import {
+  EMPTY_HISTORY,
+  addAttempt,
+  addSession,
+  clearedHistory,
+  type PuzzleHistory,
+  type PuzzleSession,
+} from '../utils/puzzleHistory';
 import type { Puzzle } from '../utils/puzzleData';
 
 export type PuzzleHistoryData = { status: 'loading' } | { status: 'ready'; history: PuzzleHistory };
@@ -49,5 +61,14 @@ export function usePuzzleHistory(now: () => number = Date.now) {
     void savePuzzleSession(full);
   }, []);
 
-  return { data, record, recordSession };
+  /** Forgets everything played (and notes when, so that a copy elsewhere cannot bring it back). */
+  const clear = useCallback(() => {
+    isChanged.current = true;
+    const at = nowRef.current();
+    latest.current = clearedHistory(at);
+    setData({ status: 'ready', history: latest.current });
+    void clearPuzzleHistory(at);
+  }, []);
+
+  return { data, record, recordSession, clear };
 }
