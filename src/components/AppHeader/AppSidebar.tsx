@@ -12,7 +12,7 @@ interface AppSidebarProps {
 export const AppSidebar: React.FC<AppSidebarProps> = ({ sections }) => (
   <nav
     aria-label="Navigation principale"
-    className="hidden xl:flex flex-col gap-4 w-56 shrink-0 self-start sticky top-[3.75rem] max-h-[calc(100dvh-3.75rem)] overflow-y-auto overscroll-contain border-r border-slate-800/80 bg-slate-900/40 px-3 py-4"
+    className="hidden xl:flex flex-col gap-4 w-56 shrink-0 sticky top-[3.75rem] h-[calc(100dvh-3.75rem)] self-start overflow-y-auto overscroll-contain border-r border-slate-800/80 bg-slate-900/40 px-3 py-4"
   >
     {sections.map((section) => (
       <section key={section.id} aria-labelledby={`sidebar-${section.id}`} className="flex flex-col gap-0.5">
