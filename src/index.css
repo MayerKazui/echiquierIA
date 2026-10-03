@@ -5,6 +5,17 @@ html {
   overflow-y: scroll;
 }
 
+/*
+ * Very large screens (1440p and up, the browser bars already taken off): the whole interface is in rem, so a larger
+ * root size makes the text, the board, the panels and the windows grow together and use the room. Not below that
+ * height: the chrome around the board grows too, and the board would come out smaller, not larger.
+ */
+@media (min-width: 137.5rem) and (min-height: 80rem) {
+  html {
+    font-size: 125%;
+  }
+}
+
 @keyframes pieceSlide {
   0% {
     transform: translate(var(--delta-x, 0), var(--delta-y, 0)) scale(1.08);

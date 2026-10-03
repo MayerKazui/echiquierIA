@@ -651,7 +651,7 @@ export default function App() {
           <main
             id="main-content"
             tabIndex={-1}
-            className={`flex-1 w-full mx-auto max-w-[1600px] p-2.5 sm:p-4 lg:px-6 lg:py-4 flex flex-col gap-4 sm:gap-6 overflow-x-hidden ${
+            className={`flex-1 w-full mx-auto max-w-[120rem] p-2.5 sm:p-4 lg:px-6 lg:py-4 flex flex-col gap-4 sm:gap-6 overflow-x-hidden ${
               analysis ? 'pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pb-4 lg:pb-4' : ''
             }`}
           >
