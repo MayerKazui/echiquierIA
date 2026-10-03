@@ -15,7 +15,7 @@ Module._resolveFilename = function (request, ...args) {
 const { default: tseslint } = await import('typescript-eslint');
 
 export default tseslint.config(
-  { ignores: ['dist', 'server.js', 'node_modules', 'coverage', 'public'] },
+  { ignores: ['dist', 'server.js', 'node_modules', 'coverage', 'public', 'test-results', 'playwright-report'] },
   js.configs.recommended,
   tseslint.configs.recommended,
   {
@@ -24,7 +24,7 @@ export default tseslint.config(
     extends: [reactHooks.configs.flat.recommended],
   },
   {
-    files: ['server.ts', 'server/**/*.ts', 'scripts/**/*.ts', 'vite/**/*.ts', '*.config.{ts,js}'],
+    files: ['server.ts', 'server/**/*.ts', 'scripts/**/*.ts', 'vite/**/*.ts', 'e2e/**/*.ts', '*.config.{ts,js}'],
     languageOptions: { globals: globals.node },
   },
   {

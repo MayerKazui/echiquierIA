@@ -39,6 +39,7 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 - Sauvegarde JSON de tout (format 7) et synchronisation avec Google Drive, manuelle ou automatique, suppressions comprises.
 - Mobile (navigation en bas, balayage) et accessibilité (clavier, lecteurs d'écran, contrastes, mouvement réduit), vérifiés sur de vrais appareils et un vrai lecteur d'écran.
 - Sécurité du serveur, limites de débit, CI (lint, typecheck, format, tests, build).
+- Tests de bout en bout (Playwright, `bun run test:e2e`, second job de la CI) : l'application construite est pilotée dans Chromium avec le vrai Stockfish. Ils couvrent l'import d'un PGN collé et d'un pseudo chess.com, l'analyse, la réouverture après rechargement, l'export et l'import d'une sauvegarde, la synchronisation entre deux appareils par Drive (Google et chess.com sont des faux), et un contrôle axe-core (WCAG A et AA, contrastes compris) sur l'import, la partie, le bilan et « Mes parties ».
 
 ### Décisions prises : abandonné ou clos
 
@@ -83,16 +84,16 @@ Faites sur de vrais appareils (2026-10-03), sans défaut constaté : lecteur d'�
 
 Ce sont des suggestions, pas des décisions. « Précision par ouverture » et « Entraînement au répertoire d'ouvertures » ont été faites, avec leurs limites (précision limitée aux coups qui suivent la sortie du livre, lignes qui marchent, lien depuis « Mon plan ») : elles sont décrites dans « Ce qui est fait » (Ouvertures), et ce qui reste dans « Ouvertures » de la section 2.
 
-| #   | Idée                         | Intérêt                                                                                                                                                  |
-| --- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Préparer ses adversaires     | Analyser le répertoire d'un pseudo avec les briques de l'import et de l'explorateur.                                                                     |
-| 2   | Jouer contre Stockfish       | Niveau réglable, depuis une position d'étude, d'ouverture ou d'une position critique de ses parties.                                                     |
-| 3   | ~~Entraînement aux finales~~ | Fait : voir « Finales » dans « Ce qui est fait ».                                                                                                        |
-| 4   | Puzzles : mode « tempête »   | Score à battre, et puzzles tirés de ses propres erreurs avec les statistiques des puzzles.                                                               |
-| 5   | ~~Stockfish multi-thread~~   | Abandonné (2026-10-03) : voir « Décisions prises ».                                                                                                      |
-| 6   | Version anglaise             | Tout est en français (interface, ouvertures, thèmes) ; élargirait le public.                                                                             |
-| 7   | Tests de bout en bout        | Playwright est disponible ; couvrir import, analyse, sauvegarde et synchronisation Drive. Il n'y a aujourd'hui que des tests unitaires et de composants. |
-| 8   | Ménage du dépôt              | `server.ts` et `server.js` compilé, et `dist/` sont présents : vérifier ce qui est versionné par erreur.                                                 |
+| #   | Idée                         | Intérêt                                                                                                                                     |
+| --- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Préparer ses adversaires     | Analyser le répertoire d'un pseudo avec les briques de l'import et de l'explorateur.                                                        |
+| 2   | Jouer contre Stockfish       | Niveau réglable, depuis une position d'étude, d'ouverture ou d'une position critique de ses parties.                                        |
+| 3   | ~~Entraînement aux finales~~ | Fait : voir « Finales » dans « Ce qui est fait ».                                                                                           |
+| 4   | Puzzles : mode « tempête »   | Score à battre, et puzzles tirés de ses propres erreurs avec les statistiques des puzzles.                                                  |
+| 5   | ~~Stockfish multi-thread~~   | Abandonné (2026-10-03) : voir « Décisions prises ».                                                                                         |
+| 6   | Version anglaise             | Tout est en français (interface, ouvertures, thèmes) ; élargirait le public.                                                                |
+| 7   | ~~Tests de bout en bout~~    | Fait : voir « Confort et technique » dans « Ce qui est fait ».                                                                              |
+| 8   | ~~Ménage du dépôt~~          | Fait (2026-10-03) : `peek.png` (capture oubliée) retiré ; `server.js` et `dist/` sont des sorties de `bun run build` déjà ignorées par git. |
 
 ## 4. Ordre conseillé
 
@@ -101,4 +102,5 @@ Ce sont des suggestions, pas des décisions. « Précision par ouverture » et �
 3. ~~Petits ajouts d'entraînement : ouvrir la partie depuis « S'entraîner », dédoublonnage, bouton « nouvelles parties ».~~ Fait.
 4. ~~Vérifications sur de vrais appareils et un vrai lecteur d'écran.~~ Fait, tout est bon.
 5. ~~Couvrir les ouvertures : précision par ouverture et entraînement au répertoire.~~ Fait.
-6. Ensuite seulement les grosses évolutions (adversaires, jeu contre Stockfish, version anglaise). Les finales sont faites.
+6. ~~Tests de bout en bout et ménage du dépôt (points 7 et 8).~~ Fait.
+7. Ensuite seulement les grosses évolutions (adversaires, jeu contre Stockfish, version anglaise). Les finales sont faites.
