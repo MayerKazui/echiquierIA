@@ -2,18 +2,9 @@ import React from 'react';
 import type { PuzzleIndex } from '../../utils/puzzleData';
 import { ratingCount, themeCount } from '../../services/puzzleBook';
 import { REVIEW_SIZE, summarizeEntries, type PuzzleEntry } from '../../utils/puzzleReview';
-import {
-  RANGE_FROM_VALUES,
-  RANGE_TO_VALUES,
-  TIMER_OPTIONS,
-  TOP_END,
-  normalizeRange,
-  rangeLabel,
-  suggestRange,
-  toFilter,
-  type EloRange,
-} from '../../utils/puzzleRun';
+import { TIMER_OPTIONS, rangeLabel, suggestRange, toFilter, type EloRange } from '../../utils/puzzleRun';
 import { describeDelay } from '../../utils/spacedRepetition';
+import { EloRangeSelect } from './EloRangeSelect';
 import { groupThemes, themeLabel } from '../../utils/puzzleThemes';
 
 export interface PuzzleChoice {
@@ -41,8 +32,6 @@ const CHIP =
   'px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400';
 const CHIP_ON = 'bg-indigo-600/30 border-indigo-500 text-white';
 const CHIP_OFF = 'bg-slate-900/90 border-slate-800 text-slate-300 hover:bg-slate-800/80';
-const SELECT =
-  'rounded-lg bg-slate-950 border border-slate-700 px-2 py-1.5 text-xs text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400';
 const PRIMARY =
   'px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-xs font-semibold text-white cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300';
 
@@ -88,39 +77,7 @@ export const PuzzleSetup: React.FC<PuzzleSetupProps> = ({
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
         <p className="text-xs font-semibold text-slate-300">Niveau des puzzles (Elo Lichess)</p>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
-          <label className="flex items-center gap-1.5">
-            De
-            <select
-              aria-label="Elo minimum"
-              value={range.from}
-              onChange={(e) => change({ range: normalizeRange({ from: Number(e.target.value), to: range.to }) })}
-              className={SELECT}
-            >
-              {RANGE_FROM_VALUES.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-1.5">
-            à
-            <select
-              aria-label="Elo maximum (exclu)"
-              value={range.to}
-              onChange={(e) => change({ range: normalizeRange({ from: range.from, to: Number(e.target.value) }) })}
-              className={SELECT}
-            >
-              {RANGE_TO_VALUES.map((value) => (
-                <option key={value} value={value}>
-                  {value >= TOP_END ? 'et plus' : value}
-                </option>
-              ))}
-            </select>
-          </label>
-          <span className="text-slate-400 tabular-nums">{formatCount(total)} puzzles</span>
-        </div>
+        <EloRangeSelect range={range} onChange={(next) => change({ range: next })} total={total} />
         {suggestion && (
           <p className="text-[11px] text-slate-400">
             Votre Elo en partie : {elo}.{' '}

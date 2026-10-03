@@ -28,6 +28,8 @@ interface PuzzleAttemptProps {
   onRetry: () => void;
   onNext: () => void;
   isLast: boolean;
+  missedNotice: string;
+  repeatsMisses: boolean;
 }
 
 /** One attempt at a puzzle: the state starts afresh with the component (a new `key` for a new attempt). */
@@ -39,6 +41,8 @@ const PuzzleAttempt: React.FC<PuzzleAttemptProps> = ({
   onRetry,
   onNext,
   isLast,
+  missedNotice,
+  repeatsMisses,
 }) => {
   const [start] = useState(() => startPuzzle(puzzle));
   const [state, setState] = useState<PuzzleState | null>(start);
@@ -166,7 +170,7 @@ const PuzzleAttempt: React.FC<PuzzleAttemptProps> = ({
               <p>
                 <span className="font-semibold">Raté. </span>
                 {solution ? `Le coup attendu était ${toFrenchSan(solution)}.` : 'Voyez le coup attendu sur le plateau.'}
-                {counted === false && ' Il reviendra dans vos puzzles à revoir.'}
+                {counted === false && ` ${missedNotice}`}
               </p>
             </div>
           )}
@@ -204,7 +208,7 @@ const PuzzleAttempt: React.FC<PuzzleAttemptProps> = ({
           )}
           {isEnded && (
             <button type="button" onClick={onNext} className={`${BUTTON} bg-indigo-600 hover:bg-indigo-500 text-white`}>
-              {isLast ? 'Voir le résultat' : 'Puzzle suivant'}
+              {isLast && !(repeatsMisses && counted === false) ? 'Voir le résultat' : 'Puzzle suivant'}
             </button>
           )}
         </div>
@@ -220,13 +224,25 @@ interface PuzzlePlayProps {
   onResult: (puzzle: Puzzle, isSuccess: boolean) => void;
   onNext: () => void;
   isLast: boolean;
+  /** What is said after a miss about the puzzle's future. */
+  missedNotice?: string;
+  /** A missed puzzle comes back (Woodpecker): the last one of the queue is then not the end after a miss. */
+  repeatsMisses?: boolean;
 }
 
 /**
  * A puzzle on its board. The first outcome is what counts (a wrong move, or the solution asked for, is a miss);
  * after a miss the player may try again, for practice. A puzzle solved at the first try gives way to the next one.
  */
-export const PuzzlePlay: React.FC<PuzzlePlayProps> = ({ puzzle, boardTheme, onResult, onNext, isLast }) => {
+export const PuzzlePlay: React.FC<PuzzlePlayProps> = ({
+  puzzle,
+  boardTheme,
+  onResult,
+  onNext,
+  isLast,
+  missedNotice = 'Il reviendra dans vos puzzles à revoir.',
+  repeatsMisses = false,
+}) => {
   const [attempt, setAttempt] = useState(0);
   const [counted, setCounted] = useState<boolean | null>(null);
   const isCounted = useRef(false);
@@ -252,6 +268,8 @@ export const PuzzlePlay: React.FC<PuzzlePlayProps> = ({ puzzle, boardTheme, onRe
       onRetry={() => setAttempt((n) => n + 1)}
       onNext={onNext}
       isLast={isLast}
+      missedNotice={missedNotice}
+      repeatsMisses={repeatsMisses}
     />
   );
 };

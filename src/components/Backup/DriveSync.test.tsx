@@ -13,6 +13,7 @@ const restoreOf = (over: Partial<NonNullable<DriveSyncReport['restore']>> = {}) 
   cards: { added: 0, replaced: 0, kept: 0 },
   studies: { added: 0, replaced: 0, kept: 0, deleted: 0 },
   puzzles: { added: 0, replaced: 0, kept: 0 },
+  woodpecker: 'kept' as const,
   preferencesApplied: 0,
   ...over,
 });
@@ -222,6 +223,7 @@ describe('DriveSync', () => {
       cards: null as never,
       studies: null as never,
       puzzles: null as never,
+      woodpecker: null as never,
     });
     renderSync({ run: vi.fn(() => Promise.resolve(report({ restore: lost }))) });
     await userEvent.click(await syncButton());

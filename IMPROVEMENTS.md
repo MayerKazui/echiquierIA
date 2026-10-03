@@ -548,7 +548,26 @@ Menu d'en-tête « Puzzles » (`src/components/Puzzles/`), au niveau et sur les 
 - **Limites** :
   - Le tirage est au hasard : un puzzle déjà joué peut revenir (l'historique des puzzles vus, prévu dans un second temps, l'évitera).
   - Le nombre de puzzles d'une combinaison de thèmes n'est connu qu'au lancement (l'index compte par thème) : un choix vide est signalé quand l'index le sait, sinon au chargement.
-  - Pas encore de Woodpecker, ni de lien depuis « Mon plan ».
+  - Pas de lien depuis « Mon plan » (voir la suite).
+
+### Suite : le Woodpecker — fait
+
+Onglet « Woodpecker » de la fenêtre « Puzzles » (`WoodpeckerHome`, `WoodpeckerRun`, `WoodpeckerSummary`), cadré dans le comparatif (section 4). Le choix « Séance libre / Woodpecker » est gardé dans le navigateur.
+
+- [x] **Lot figé** (`utils/woodpecker`) : tiré une seule fois dans la tranche d'Elo choisie (20, 50, 100, 200 ou 500 puzzles, au plus ce que la tranche contient), avec une graine (générateur mulberry32, le pool étant trié par identifiant : même pool et même graine donnent le même lot). Le lot est stocké en entier (les puzzles, pas leurs seuls identifiants) pour qu'une nouvelle sélection de puzzles dans l'application ne le change pas ; l'ordre est le même à chaque cycle. « Nouveau lot » demande confirmation, car il efface aussi les cycles.
+- [x] **Cycle** : la file contient tout le lot ; un puzzle réussi la quitte, un puzzle raté (mauvais coup ou solution demandée) passe en fin de file et revient jusqu'à être réussi. Le cycle finit quand la file est vide ; les reprises comptent dans le cycle et dans son temps. Le résultat d'un puzzle compte quand le joueur passe au suivant (pas avant d'avoir vu la réponse). « Réessayer » reste possible, sans changer le résultat.
+- [x] **Chronomètre** (`useStopwatch`) : global au cycle, avec **Pause** (le plateau est masqué et inerte pour qu'on ne puisse pas réfléchir à l'arrêt) ; le temps hors de l'écran (onglet caché) met aussi en pause. Le temps vient de l'horloge, pas d'un comptage de ticks.
+- [x] **Reprise** : le cycle en cours (file, puzzles ratés, temps) est écrit après chaque puzzle, en pause, en quittant le cycle et à la fermeture de la fenêtre ; « Reprendre le cycle N » repart où le chronomètre s'était arrêté, après un rechargement aussi. Perte au pire : le puzzle sur le plateau.
+- [x] **Bilan** : temps total du cycle, puzzles réussis du premier coup (et nombre de repris), écart avec le cycle précédent en temps et en pourcentage, « meilleur cycle jusqu'ici ». L'accueil du lot donne les cycles terminés, le dernier et le meilleur temps, et la liste des cycles.
+- [x] **Séparé des puzzles ratés** : les puzzles ratés du Woodpecker ne vont pas dans la répétition espacée des séances libres (le Woodpecker se répète de lui-même, cycle après cycle).
+- [x] **Stockage** (`woodpeckerStore`) : base IndexedDB `echiquier-ia-woodpecker`, un seul enregistrement ; lecture validée (lot sans doublon, file qui ne cite que des puzzles du lot).
+- [x] **Sauvegarde** : le lot, ses cycles et le cycle en cours sont dans le fichier JSON et la synchronisation Drive, au **format 5** (une application de format 4 refuse un fichier de format 5 plutôt que de renvoyer une copie sans le lot et d'écraser Drive). Fusion : un seul lot, celui travaillé en dernier gagne (deux lots ne se mélangent pas : leurs temps ne se comparent pas). Un fichier de format 4 se lit sans lot ; un lot abîmé est écarté et compté avec les éléments illisibles.
+- Vérifié dans Chromium (bureau et mobile) sur la version de production, avec de vrais puzzles : création du lot (20 puzzles de 800 à 1200), cycle complet joué avec un raté volontaire (19 sur 20 du premier coup, le raté repris à la fin), pause (chronomètre et plateau arrêtés), cycle 2 quitté puis repris après rechargement avec le temps d'avant, même ordre des puzzles qu'au cycle 1, aucune erreur de console.
+- Tests : 14 pour l'écran (lot, cycle, reprise des ratés, comparaison, pause, reprise, fermeture), 29 pour la logique et le stockage, 4 pour le chronomètre, 9 pour la sauvegarde et Drive.
+- **Limites** :
+  - Un seul lot à la fois (changer de lot efface l'historique de l'ancien).
+  - Pas de choix des thèmes pour le Woodpecker (lot mélangé, comme la méthode).
+  - Pas encore d'historique détaillé (précision par thème, courbe des temps) ni de lien avec « Mon plan » : c'est le second temps annoncé.
 
 ## Grands plateaux dans les fenêtres — fait
 

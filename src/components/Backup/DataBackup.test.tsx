@@ -75,7 +75,7 @@ describe('DataBackup', () => {
       const [name, text] = download.mock.calls[0] as [string, string];
       expect(name).toMatch(/^echiquier-ia-sauvegarde-\d{4}-\d{2}-\d{2}\.json$/);
       const data = JSON.parse(text);
-      expect(data).toMatchObject({ app: BACKUP_APP, format: 4, preferences: { chess_board_theme: 'wood' } });
+      expect(data).toMatchObject({ app: BACKUP_APP, format: 5, preferences: { chess_board_theme: 'wood' } });
       expect(data.games).toHaveLength(1);
       expect(data.cards).toHaveLength(1);
     });
@@ -261,6 +261,7 @@ describe('describeRestore', () => {
     cards: cards(),
     studies: studies(),
     puzzles: puzzles(),
+    woodpecker: 'kept' as const,
     preferencesApplied: 0,
     ...over,
   });
@@ -327,6 +328,15 @@ describe('describeRestore', () => {
   it('says when the studies could not be written', () => {
     expect(describeRestore(report({ studies: null }), none)).toContain(
       "Les études n'ont pas pu être écrites dans ce navigateur."
+    );
+  });
+
+  it('tells when the Woodpecker lot came back, and when it could not be written', () => {
+    expect(describeRestore(report({ woodpecker: 'added' }), none)).toContain('Woodpecker : lot et cycles restaurés.');
+    expect(describeRestore(report({ woodpecker: 'replaced' }), none)).toContain('Woodpecker');
+    expect(describeRestore(report({ woodpecker: 'kept' }), none)).not.toContain('Woodpecker');
+    expect(describeRestore(report({ woodpecker: null }), none)).toContain(
+      "Le lot Woodpecker n'a pas pu être écrit dans ce navigateur."
     );
   });
 
