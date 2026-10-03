@@ -1,6 +1,6 @@
 # Bilan du projet et suites possibles
 
-Synthèse rédigée le 2026-10-03 à partir de `README.md`, `ROADMAP.md`, `COMPARATIF_PATCHCHESS.md` et `IMPROVEMENTS.md`. Ces fichiers restent la référence : la feuille de route suit ce qui reste, `IMPROVEMENTS.md` garde l'historique.
+Seul fichier de suivi du projet (avec `README.md`). Il remplace `ROADMAP.md`, `IMPROVEMENTS.md` et `COMPARATIF_PATCHCHESS.md`, supprimés le 2026-10-03 : leur contenu détaillé reste dans l'historique git (`git log -- IMPROVEMENTS.md`).
 
 Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses**, pas seulement relire une partie.
 
@@ -87,20 +87,20 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 
 Ce sont des suggestions, pas des décisions.
 
-| #   | Idée                                    | Intérêt                                                                                                                                              |
-| --- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #   | Idée                                      | Intérêt                                                                                                                                                                                                             |
+| --- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Élargir la détection des thèmes tactiques | Il n'y en a que quatre (fourchette, clouage, enfilade, pièce en prise) contre une soixantaine chez Lichess. Rend les liens avec les puzzles et le plan plus précis (rayons X, attaque à la découverte, déviation…). |
-| 2   | Affiner le type d'erreur                | « Autre » reste le plus gros groupe du profil, ce qui limite le diagnostic.                                                                          |
-| 3   | Précision par ouverture                 | Non calculée dans « Mes ouvertures ».                                                                                                                |
-| 4   | Préparer ses adversaires                | Analyser le répertoire d'un pseudo avec les briques de l'import et de l'explorateur.                                                                 |
-| 5   | Jouer contre Stockfish                  | Niveau réglable, depuis une position d'étude, d'ouverture ou d'une position critique de ses parties.                                                 |
-| 6   | Entraînement aux finales                | Positions théoriques (Lucena, Philidor…) avec correction par le moteur.                                                                              |
-| 7   | Entraînement au répertoire d'ouvertures | Rejouer ses lignes en répétition espacée, sur le modèle de « S'entraîner ».                                                                          |
-| 8   | Puzzles : mode « tempête »              | Score à battre, et puzzles tirés de ses propres erreurs avec les statistiques des puzzles.                                                           |
-| 9   | Stockfish multi-thread                  | Analyse en lot plus rapide ; demande les en-têtes COOP/COEP.                                                                                         |
-| 10  | Version anglaise                        | Tout est en français (interface, ouvertures, thèmes) ; élargirait le public.                                                                         |
-| 11  | Tests de bout en bout                   | Playwright est disponible ; couvrir import, analyse, sauvegarde et synchronisation Drive. Il n'y a aujourd'hui que des tests unitaires et de composants. |
-| 12  | Ménage du dépôt                         | `server.ts` et `server.js` compilé, et `dist/`, sont présents : vérifier ce qui est versionné par erreur. Alléger `IMPROVEMENTS.md` (140 Ko).      |
+| 2   | Affiner le type d'erreur                  | « Autre » reste le plus gros groupe du profil, ce qui limite le diagnostic.                                                                                                                                         |
+| 3   | Précision par ouverture                   | Non calculée dans « Mes ouvertures ».                                                                                                                                                                               |
+| 4   | Préparer ses adversaires                  | Analyser le répertoire d'un pseudo avec les briques de l'import et de l'explorateur.                                                                                                                                |
+| 5   | Jouer contre Stockfish                    | Niveau réglable, depuis une position d'étude, d'ouverture ou d'une position critique de ses parties.                                                                                                                |
+| 6   | Entraînement aux finales                  | Positions théoriques (Lucena, Philidor…) avec correction par le moteur.                                                                                                                                             |
+| 7   | Entraînement au répertoire d'ouvertures   | Rejouer ses lignes en répétition espacée, sur le modèle de « S'entraîner ».                                                                                                                                         |
+| 8   | Puzzles : mode « tempête »                | Score à battre, et puzzles tirés de ses propres erreurs avec les statistiques des puzzles.                                                                                                                          |
+| 9   | Stockfish multi-thread                    | Analyse en lot plus rapide ; demande les en-têtes COOP/COEP.                                                                                                                                                        |
+| 10  | Version anglaise                          | Tout est en français (interface, ouvertures, thèmes) ; élargirait le public.                                                                                                                                        |
+| 11  | Tests de bout en bout                     | Playwright est disponible ; couvrir import, analyse, sauvegarde et synchronisation Drive. Il n'y a aujourd'hui que des tests unitaires et de composants.                                                            |
+| 12  | Ménage du dépôt                           | `server.ts` et `server.js` compilé, et `dist/`, sont présents : vérifier ce qui est versionné par erreur.                                                                                                           |
 
 ## 4. Ordre conseillé
 

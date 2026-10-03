@@ -3,7 +3,7 @@ import { phaseOf } from './gamePhase';
 
 const LICHESS_COEFFICIENT = 0.00368208;
 // The three constants below were fitted on 66 public chess.com games (132 players, 160 to 3300 Elo) whose
-// accuracy is published by chess.com: see IMPROVEMENTS.md. Held-out error: 3.7 points on average.
+// accuracy is published by chess.com (see `bun run calibrate`). Held-out error: 3.7 points on average.
 /** The curve is flatter than Lichess' (0.6 times its slope): a won position is worth less than it looks. */
 const WIN_CURVE_SLOPE = 0.6;
 /** The accuracy of a move decays 2.5 times faster with the Win% given away than in Lichess' formula. */
