@@ -73,6 +73,16 @@ export function useGameAnalysis(userPseudo: string, userColor: PlayerColor) {
   /** A restored result is already stored: do not write it back. */
   const skipSaveRef = useRef<GameAnalysisResult | null>(null);
 
+  /** The result waiting to be written (see `SAVE_DELAY_MS`); null when nothing waits. */
+  const pendingSaveRef = useRef<{ pgn: string; depth: number; result: GameAnalysisResult } | null>(null);
+  /** The game (PGN and depth) that was last handed to the store: a game not seen yet is written without delay. */
+  const writtenKeyRef = useRef<string | null>(null);
+  const flushSave = useCallback(() => {
+    const pending = pendingSaveRef.current;
+    pendingSaveRef.current = null;
+    if (pending) void saveGame(pending);
+  }, []);
+
   // Keep the stored copy in sync with the displayed result (new analysis, new AI explanation…)
   useEffect(() => {
     if (!result || depth === null) return;
@@ -80,9 +90,31 @@ export function useGameAnalysis(userPseudo: string, userColor: PlayerColor) {
       skipSaveRef.current = null;
       return;
     }
-    const timer = setTimeout(() => void saveGame({ pgn, depth, result }), SAVE_DELAY_MS);
+    pendingSaveRef.current = { pgn, depth, result };
+    // A finished analysis is the work worth keeping: write it at once, so that a reload cannot lose it. The changes
+    // that follow (the side, an explanation) come in bursts and wait for the delay
+    const key = `${depth}:${pgn}`;
+    if (writtenKeyRef.current !== key) {
+      writtenKeyRef.current = key;
+      flushSave();
+      return;
+    }
+    const timer = setTimeout(flushSave, SAVE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [result, pgn, depth]);
+  }, [result, pgn, depth, flushSave]);
+
+  // Leaving the page within the delay: write what waits now (best effort: the browser may end the page first)
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flushSave();
+    };
+    window.addEventListener('pagehide', flushSave);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', flushSave);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [flushSave]);
 
   /**
    * Reopens the last analysed game, unless an analysis was started in the meantime. Safe to call twice (it

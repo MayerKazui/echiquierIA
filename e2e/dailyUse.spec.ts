@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
-import { analyzeSample, openFromMenu } from './support/app';
+import { analyzeSample, openFromMenu, waitForGameSaved } from './support/app';
 
 const axeSource = createRequire(import.meta.url).resolve('axe-core/axe.min.js');
 
@@ -32,17 +32,10 @@ test.describe("l'usage de tous les jours", () => {
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto('/');
     await analyzeSample(page, /Partie de l'Opéra/);
-    // La partie est enregistrée un instant après l'analyse : on rouvre la liste tant qu'elle n'y est pas
+    await waitForGameSaved(page);
+    await openFromMenu(page, /Mes parties/);
     const dialog = page.getByRole('dialog');
-    await expect(async () => {
-      await openFromMenu(page, /Mes parties/);
-      try {
-        await expect(dialog.getByRole('button', { name: /^Ouvrir la partie/ })).toHaveCount(1, { timeout: 1000 });
-      } catch (error) {
-        await page.keyboard.press('Escape');
-        throw error;
-      }
-    }).toPass({ timeout: 15_000 });
+    await expect(dialog.getByRole('button', { name: /^Ouvrir la partie/ })).toHaveCount(1);
 
     // La recherche et les filtres, accessibles
     await dialog.getByRole('button', { name: /^Filtres/ }).click();

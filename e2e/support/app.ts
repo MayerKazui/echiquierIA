@@ -25,3 +25,40 @@ export async function analyzeSample(page: Page, name: string | RegExp): Promise<
   await page.getByRole('button', { name: /Lancer l'Analyse/ }).click();
   await waitForAnalysis(page);
 }
+
+/**
+ * Waits until the analysed game is in the browser's history. The app writes it a moment (250 ms) after the analysis
+ * ends: a reload or a look at « Mes parties » before that would not find it.
+ */
+export async function waitForGameSaved(page: Page): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            new Promise<number>((resolve) => {
+              const open = indexedDB.open('echiquier-ia');
+              open.onerror = () => resolve(0);
+              open.onsuccess = () => {
+                const db = open.result;
+                if (!db.objectStoreNames.contains('games')) {
+                  db.close();
+                  resolve(0);
+                  return;
+                }
+                const count = db.transaction('games').objectStore('games').count();
+                count.onsuccess = () => {
+                  db.close();
+                  resolve(count.result);
+                };
+                count.onerror = () => {
+                  db.close();
+                  resolve(0);
+                };
+              };
+            })
+        ),
+      { message: 'la partie analysée est enregistrée dans le navigateur' }
+    )
+    .toBeGreaterThan(0);
+}
