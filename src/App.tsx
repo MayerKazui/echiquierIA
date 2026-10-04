@@ -42,12 +42,14 @@ import {
   Puzzles,
   Studies,
   Training,
+  Vision,
   WeaknessProfile,
   prefetchViews,
 } from './lazyViews';
 import type { PuzzleMode, PuzzleStart } from './components/Puzzles/Puzzles';
 import type { View as OpeningsView } from './components/Openings/Openings';
 import type { PlayStart } from './utils/playGame';
+import type { VisionMode } from './utils/vision';
 import { LiveRegion, useAnnouncer } from './components/a11y/LiveRegion';
 import { Modal } from './components/a11y/Modal';
 import { GameHistory } from './components/GameHistory/GameHistory';
@@ -96,6 +98,9 @@ export default function App() {
   const [isEndgamesOpen, setIsEndgamesOpen] = useState(false);
   /** The family of endgames the plan points to (null: all of them). */
   const [endgamesCategory, setEndgamesCategory] = useState<EndgameCategory | null>(null);
+  /** The vision exercises, on the one the menu named. */
+  const [isVisionOpen, setIsVisionOpen] = useState(false);
+  const [visionMode, setVisionMode] = useState<VisionMode>('coordinates');
   const [isStudiesOpen, setIsStudiesOpen] = useState(false);
   const [isPuzzlesOpen, setIsPuzzlesOpen] = useState(false);
   const [isPlanOpen, setIsPlanOpen] = useState(false);
@@ -672,6 +677,10 @@ export default function App() {
       setEndgamesCategory(category);
       setIsEndgamesOpen(true);
     },
+    onOpenVision: (mode) => {
+      setVisionMode(mode);
+      setIsVisionOpen(true);
+    },
     onOpenStudies: () => setIsStudiesOpen(true),
     onOpenPlay: () => openPlay(),
   });
@@ -964,6 +973,14 @@ export default function App() {
               initialCategory={endgamesCategory}
               onClose={() => leaveStock(setIsEndgamesOpen)}
             />
+          </Suspense>
+        </Modal>
+      )}
+
+      {isVisionOpen && (
+        <Modal title="Vision" onClose={() => setIsVisionOpen(false)} className="w-full max-w-[min(96vw,84rem)]">
+          <Suspense fallback={null}>
+            <Vision boardTheme={boardTheme} initialMode={visionMode} onClose={() => setIsVisionOpen(false)} />
           </Suspense>
         </Modal>
       )}

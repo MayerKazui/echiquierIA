@@ -12,6 +12,7 @@ const actions = (over: Partial<NavigationActions> = {}): NavigationActions => ({
   onOpenPuzzles: vi.fn(),
   onOpenOpenings: vi.fn(),
   onOpenEndgames: vi.fn(),
+  onOpenVision: vi.fn(),
   onOpenStudies: vi.fn(),
   onOpenPlay: vi.fn(),
   ...over,
@@ -36,6 +37,7 @@ describe('buildNavigation', () => {
       'Finales de pions',
       'Finales de tours',
     ]);
+    expect(labels(sections, 'vision')).toEqual(['Coordonnées', 'Mode aveugle', 'Calcul de lignes']);
   });
 
   it('puts "À réviser aujourd\'hui" first, with what waits there, and opens it', () => {
@@ -65,11 +67,15 @@ describe('buildNavigation', () => {
     select('openings-opponent');
     select('endgames-rooks');
     select('endgames-all');
+    select('vision-blind');
+    select('vision-lines');
     expect(a.onOpenPuzzles).toHaveBeenNthCalledWith(1, 'woodpecker');
     expect(a.onOpenPuzzles).toHaveBeenNthCalledWith(2, 'stats');
     expect(a.onOpenOpenings).toHaveBeenCalledWith('opponent');
     expect(a.onOpenEndgames).toHaveBeenNthCalledWith(1, 'rooks');
     expect(a.onOpenEndgames).toHaveBeenNthCalledWith(2, null);
+    expect(a.onOpenVision).toHaveBeenNthCalledWith(1, 'blind');
+    expect(a.onOpenVision).toHaveBeenNthCalledWith(2, 'lines');
   });
 
   it('shows the sound as a switch, and the install entry only where the browser offers it', () => {

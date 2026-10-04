@@ -15,6 +15,7 @@ const loaders = {
   training: () => import('./components/Training/Training'),
   openings: () => import('./components/Openings/Openings'),
   endgames: () => import('./components/Endgames/Endgames'),
+  vision: () => import('./components/Vision/Vision'),
   plan: () => import('./components/Plan/Plan'),
   studies: () => import('./components/Studies/Studies'),
   puzzles: () => import('./components/Puzzles/Puzzles'),
@@ -30,6 +31,7 @@ export const WeaknessProfile = lazy(() => loaders.profile().then((m) => ({ defau
 export const Training = lazy(() => loaders.training().then((m) => ({ default: m.Training })));
 export const Openings = lazy(() => loaders.openings().then((m) => ({ default: m.Openings })));
 export const Endgames = lazy(() => loaders.endgames().then((m) => ({ default: m.Endgames })));
+export const Vision = lazy(() => loaders.vision().then((m) => ({ default: m.Vision })));
 export const Plan = lazy(() => loaders.plan().then((m) => ({ default: m.Plan })));
 export const Studies = lazy(() => loaders.studies().then((m) => ({ default: m.Studies })));
 export const Puzzles = lazy(() => loaders.puzzles().then((m) => ({ default: m.Puzzles })));

@@ -8,10 +8,13 @@ import {
   Crown,
   Download,
   Dumbbell,
+  EyeOff,
   GraduationCap,
   History,
+  Grid3x3,
   Library,
   Puzzle,
+  Route,
   Swords,
   Target,
   Timer,
@@ -23,6 +26,7 @@ import {
 import { ENDGAME_CATEGORIES, type EndgameCategory } from '../../data/endgames';
 import type { View as OpeningsView } from '../Openings/Openings';
 import type { PuzzleMode } from '../Puzzles/Puzzles';
+import type { VisionMode } from '../../utils/vision';
 
 /** One destination of the navigation: it opens its view directly, on the right screen. */
 export interface NavItem {
@@ -61,6 +65,7 @@ export interface NavigationActions {
   onOpenOpenings: (view: OpeningsView) => void;
   /** `null`: all the endgames. */
   onOpenEndgames: (category: EndgameCategory | null) => void;
+  onOpenVision: (mode: VisionMode) => void;
   onOpenStudies: () => void;
   onOpenPlay: () => void;
 }
@@ -198,6 +203,33 @@ export function buildNavigation(actions: NavigationActions): NavSection[] {
           icon: <Target className={ICON} />,
           onSelect: () => actions.onOpenEndgames(value),
         })),
+      ],
+    },
+    {
+      id: 'vision',
+      label: 'Vision',
+      items: [
+        {
+          id: 'vision-coordinates',
+          label: 'Coordonnées',
+          hint: 'Trouver une case par son nom, 30 secondes, sans coordonnées affichées',
+          icon: <Grid3x3 className={ICON} />,
+          onSelect: () => actions.onOpenVision('coordinates'),
+        },
+        {
+          id: 'vision-blind',
+          label: 'Mode aveugle',
+          hint: 'Suivre une partie lue coup par coup, sans voir les pièces',
+          icon: <EyeOff className={ICON} />,
+          onSelect: () => actions.onOpenVision('blind'),
+        },
+        {
+          id: 'vision-lines',
+          label: 'Calcul de lignes',
+          hint: 'Calculer une ligne sans la jouer, puis dire où finit une pièce',
+          icon: <Route className={ICON} />,
+          onSelect: () => actions.onOpenVision('lines'),
+        },
       ],
     },
     {
