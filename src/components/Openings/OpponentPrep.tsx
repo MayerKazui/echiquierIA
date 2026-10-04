@@ -28,6 +28,8 @@ interface OpponentPrepProps {
   onImport: () => void;
   /** Starts a game against Stockfish from a position of the explorer. */
   onPlay?: (start: PlayStart) => void;
+  /** Opens the free analysis on a position of the explorer. */
+  onAnalyze?: (fen: string) => void;
   boardTheme?: BoardTheme;
 }
 
@@ -335,6 +337,7 @@ export const OpponentPrep: React.FC<OpponentPrepProps> = ({
   onReset,
   onImport,
   onPlay,
+  onAnalyze,
   boardTheme,
 }) => {
   const [sans, setSans] = useState<string[]>([]);
@@ -386,6 +389,7 @@ export const OpponentPrep: React.FC<OpponentPrepProps> = ({
                   onSansChange={setSans}
                   onImport={onImport}
                   onPlay={onPlay}
+                  onAnalyze={onAnalyze}
                   boardTheme={boardTheme}
                   opponent={{ name: state.search.username, index: state.prep.index }}
                   side={side}

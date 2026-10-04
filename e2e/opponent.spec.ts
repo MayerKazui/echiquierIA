@@ -55,3 +55,33 @@ test("un pseudo introuvable donne un message d'erreur, sans résultat", async ({
   await expect(dialog.getByRole('alert')).toContainText('Aucun joueur de ce nom');
   await expect(dialog.getByRole('region', { name: 'Avec les Blancs' })).toHaveCount(0);
 });
+
+test("sa ligne favorite s'analyse : « Analyser la position » ouvre l'analyse libre sur cette position", async ({
+  page,
+}) => {
+  await fakeChessComPlayer(page, 'rival', [
+    chessComGame(1, 'rival', RUY),
+    chessComGame(2, 'rival', RUY),
+    chessComGame(3, 'rival', RUY, 'loss'),
+  ]);
+  await page.goto('/');
+  await openFromMenu(page, /Préparer un adversaire/);
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('textbox', { name: /Pseudo de l'adversaire/ }).fill('rival');
+  await dialog.getByRole('button', { name: 'Préparer', exact: true }).click();
+  await dialog
+    .getByRole('region', { name: 'Avec les Blancs' })
+    .getByRole('button', { name: /Voir sa ligne favorite/ })
+    .click();
+  await dialog.getByRole('button', { name: 'Analyser la position' }).click();
+
+  // L'analyse libre remplace la préparation, sur la position de la ligne (8 demi-coups, aux Blancs)
+  const analysis = page.getByRole('dialog');
+  await expect(analysis.getByRole('heading', { name: 'Analyser une position' })).toBeVisible();
+  await expect(analysis.getByLabel('Position (FEN)')).toHaveValue(
+    'r1bqkb1r/1ppp1ppp/p1n2n2/4p3/B3P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 2 5'
+  );
+  await expect(analysis.getByRole('list', { name: 'Meilleures lignes' }).getByRole('listitem')).toHaveCount(3, {
+    timeout: 30_000,
+  });
+});
