@@ -7,6 +7,7 @@ import {
   PERIOD_LABELS,
   RESULT_LABELS,
   SORT_LABELS,
+  SOURCE_LABELS,
   activeFilterCount,
   type AccuracyFilter,
   type ColorFilter,
@@ -15,6 +16,7 @@ import {
   type PeriodFilter,
   type ResultFilter,
   type SortKey,
+  type SourceFilter,
 } from '../../utils/gameFilters';
 
 interface GameFiltersBarProps {
@@ -213,6 +215,18 @@ export const GameFiltersBar: React.FC<GameFiltersBarProps> = ({ filters, onChang
                 />
               </Field>
             </>
+          )}
+          {choices.engineGames > 0 && (
+            <Field id={`${id}-source`} label="Origine">
+              <select
+                id={`${id}-source`}
+                value={filters.source}
+                onChange={(event) => set('source', event.target.value as SourceFilter)}
+                className={CONTROL}
+              >
+                <Options labels={SOURCE_LABELS} />
+              </select>
+            </Field>
           )}
           {tags.length > 0 && (
             <Field id={`${id}-tag`} label="Étiquette">

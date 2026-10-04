@@ -820,6 +820,10 @@ export default function App() {
               setIsHistoryOpen(false);
               void runAnalysis(game.pgn, game.depth);
             }}
+            onAnalyzePlayed={(gamePgn) => {
+              setIsHistoryOpen(false);
+              void runAnalysis(gamePgn);
+            }}
           />
         </Modal>
       )}

@@ -25,6 +25,9 @@ import { loadCards, saveCard } from './trainingStore';
 import { exportNotes, loadNotes, saveNote } from './gameNoteStore';
 import { exportPracticeDays, recordPractice } from './practiceStore';
 import { exportVisionRecords, recordVisionRun } from './visionStore';
+import { deletePlayedGames, exportPlayedGames, listPlayedGames, savePlayedGame } from './playedGameStore';
+import { makePlayedGame } from '../utils/playedGames';
+import { replay } from '../utils/playGame';
 import type { GameNote } from '../utils/gameNotes';
 import { deleteStudy, listStudies, listStudyDeletions, saveStudy, STUDY_SCHEMA_VERSION } from './studyStore';
 import { createChapter } from '../utils/studyTree';
@@ -157,8 +160,8 @@ describe('createBackup', () => {
     expect(backup.puzzles.map((entry) => entry.id)).toEqual(['p1']);
   });
 
-  it('is of format 9', () => {
-    expect(BACKUP_FORMAT).toBe(9);
+  it('is of format 10', () => {
+    expect(BACKUP_FORMAT).toBe(10);
   });
 });
 
@@ -456,6 +459,7 @@ describe('restoreBackup', () => {
       gameNotes: [],
       practiceDays: [],
       visionRecords: [],
+      playedGames: [],
       preferences: { chess_board_theme: 'wood', chess_sound_enabled: 'false' },
     };
     const data = new Map<string, string>();
@@ -817,6 +821,7 @@ describe('backup of the studies', () => {
       gameNotes: [],
       practiceDays: [],
       visionRecords: [],
+      playedGames: [],
       preferences: {},
     };
     const report = await restoreBackup(backup, fakeStorage());
@@ -846,6 +851,7 @@ describe('backup of the studies', () => {
       gameNotes: [],
       practiceDays: [],
       visionRecords: [],
+      playedGames: [],
       preferences: {},
     };
     const report = await restoreBackup(backup, fakeStorage(), { mode: 'sync', silent: true });
@@ -1062,5 +1068,70 @@ describe('backup of the vision records', () => {
     const parsed = parseBackup(JSON.stringify({ app: BACKUP_APP, format: 9, visionRecords: [good, bad] }));
     expect(parsed.ok && parsed.backup.visionRecords).toEqual([good]);
     expect(parsed.ok && parsed.rejected.notes).toBe(1);
+  });
+});
+
+describe('backup of the games played against the engine', () => {
+  const finished = (now: number, ...moves: string[]) => {
+    const played = replay(
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      moves.length ? moves : ['e2e4', 'e7e5']
+    );
+    return makePlayedGame({
+      startFen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      prefix: [],
+      label: 'Partie complète',
+      moves: played.moves,
+      outcome: { kind: 'resigned', winner: 'b' },
+      color: 'w',
+      level: { id: 'club', label: 'Club', elo: 1600 },
+      userName: 'Alice',
+      hints: 1,
+      evals: 0,
+      now,
+    });
+  };
+
+  it('holds the games, the deleted ones as tombstones, and reads them back', async () => {
+    const kept = finished(1000);
+    const gone = finished(2000, 'd2d4', 'd7d5');
+    await savePlayedGame(kept);
+    await savePlayedGame(gone);
+    await deletePlayedGames([gone.id], 3000);
+    const backup = await createBackup(0, fakeStorage());
+    expect(backup.playedGames.map((record) => record.id).sort()).toEqual([kept.id, gone.id].sort());
+    const parsed = parseBackup(serializeBackup(backup));
+    expect(parsed.ok && parsed.backup.playedGames).toEqual(backup.playedGames);
+  });
+
+  it('is a file worth restoring on its own, and counts the records that are not valid', () => {
+    const good = finished(1000);
+    const parsed = parseBackup(
+      JSON.stringify({ app: BACKUP_APP, format: 10, playedGames: [good, { ...good, id: 'x', result: '2-0' }, 'nope'] })
+    );
+    expect(parsed.ok && parsed.backup.playedGames).toEqual([good]);
+    expect(parsed.ok && parsed.rejected.notes).toBe(2);
+  });
+
+  it('reads a file of format 9, which has none', () => {
+    const parsed = parseBackup(JSON.stringify({ app: BACKUP_APP, format: 9, cards: [card('a')] }));
+    expect(parsed.ok && parsed.backup.playedGames).toEqual([]);
+  });
+
+  it('restores the games, and a deletion made elsewhere wins over an older copy', async () => {
+    const game = finished(1000);
+    await savePlayedGame(game);
+    const backup = await sampleBackup();
+    const report = await restoreBackup(
+      {
+        ...backup,
+        playedGames: [{ id: game.id, deleted: true, updatedAt: 5000 }, finished(2000, 'c2c4', 'e7e5')],
+      },
+      fakeStorage(),
+      { mode: 'sync', silent: true }
+    );
+    expect(report.playedGames).toEqual({ added: 1, replaced: 1, kept: 0 });
+    expect((await listPlayedGames()).map((g) => g.sans)).toEqual([['c4', 'e5']]);
+    expect((await exportPlayedGames()).length).toBe(2);
   });
 });
