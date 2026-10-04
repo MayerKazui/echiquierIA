@@ -579,6 +579,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
           modelId={coach.modelId}
           onModelIdChange={coach.setModelId}
           modelSupported={coach.modelSupported}
+          refreshKey={coach.status.phase}
         />
 
         {/* Announces the state of the explanation to screen readers */}

@@ -92,4 +92,25 @@ test.describe('import et analyse', () => {
     await page.getByText('Réglages de l’entraîneur').click();
     await expect(page.getByLabel('Profondeur de l’analyse')).toHaveValue('14');
   });
+
+  test("on peut supprimer un ancien modèle de l'IA locale pour libérer la place", async ({ page }) => {
+    await page.goto('/');
+    await analyzeSample(page, OPERA);
+    // Un modèle téléchargé auparavant : un fichier dans le cache où la bibliothèque les range
+    await page.evaluate(async () => {
+      const cache = await caches.open('transformers-cache');
+      const url = 'https://huggingface.co/onnx-community/Qwen2.5-1.5B-Instruct/resolve/main/onnx/model_q4f16.onnx';
+      await cache.put(url, new Response('x', { headers: { 'content-length': '1222000000' } }));
+    });
+
+    await page.reload();
+    await page.getByText('Réglages de l’entraîneur').click();
+    const models = page.getByTestId('cached-models');
+    await expect(models).toContainText('Qwen2.5 1,5 Md');
+    await expect(models).toContainText('1,2 Go');
+
+    await page.getByRole('button', { name: 'Supprimer le modèle Qwen2.5 1,5 Md' }).click();
+    await expect(models).toHaveCount(0);
+    expect(await page.evaluate(async () => (await (await caches.open('transformers-cache')).keys()).length)).toBe(0);
+  });
 });

@@ -1,6 +1,7 @@
 import React, { useId } from 'react';
 import { COACH_DEPTHS, COACH_DEPTH_LABELS, type CoachDepth } from '../../services/deepMoveAnalysis';
 import { LOCAL_MODELS, resolveLocalModel } from '../../services/localLlm.protocol';
+import { CachedModels } from './CachedModels';
 
 interface CoachSettingsProps {
   depth: CoachDepth;
@@ -10,6 +11,8 @@ interface CoachSettingsProps {
   modelId: string;
   onModelIdChange: (id: string) => void;
   modelSupported: boolean;
+  /** Changes when a download ends, so that the list of downloaded models is read again. */
+  refreshKey?: unknown;
 }
 
 /** The choices of the coach: how deep the engine looks, and whether (and which) local language model writes the sentences. */
@@ -21,6 +24,7 @@ export const CoachSettings: React.FC<CoachSettingsProps> = ({
   modelId,
   onModelIdChange,
   modelSupported,
+  refreshKey,
 }) => {
   const ids = useId();
   const model = resolveLocalModel(modelId);
@@ -100,6 +104,7 @@ export const CoachSettings: React.FC<CoachSettingsProps> = ({
             </div>
           </div>
         )}
+        <CachedModels refreshKey={refreshKey} currentRepo={model.repo} />
       </div>
     </details>
   );

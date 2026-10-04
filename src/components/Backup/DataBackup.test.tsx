@@ -197,8 +197,9 @@ describe('DataBackup', () => {
       Object.defineProperty(globalThis, 'indexedDB', { value: onlyGames, configurable: true, writable: true });
       renderBackup();
       await chooseFile(fileOf(text));
-      const status = await screen.findByRole('status');
-      expect(status.textContent).toContain('Parties : 1 partie ajoutée.');
+      // The first message is « Lecture de la sauvegarde… »: the test waits for the result, not for the first status
+      await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Parties : 1 partie ajoutée.'));
+      const status = screen.getByRole('status');
       expect(status.textContent).toContain("La progression d'entraînement n'a pas pu être écrite");
       expect(screen.queryByRole('alert')).toBeNull();
     });

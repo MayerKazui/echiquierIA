@@ -58,6 +58,18 @@ function ensureWorker(): Worker {
   return worker;
 }
 
+/**
+ * Stops the worker and with it the model it holds in memory (the next text starts a new one). Used when a model is
+ * deleted, so that it is not still taking the memory it was just taken out of the cache for.
+ */
+export function releaseLocalModel(): void {
+  worker?.terminate();
+  worker = null;
+  const error = new DOMException('Aborted', 'AbortError');
+  for (const entry of pending.values()) entry.reject(error);
+  pending.clear();
+}
+
 /** Asks the local model for a text. The first call downloads the model (`progress` follows it). */
 export function generateLocally(
   messages: ChatMessage[],
