@@ -58,4 +58,19 @@ test.describe('import et analyse', () => {
     await openFromMenu(page, /Mes parties/);
     await expect(page.getByText('Paul Morphy – Duke Karl / Count Isouard')).toBeVisible();
   });
+
+  test("l'entraîneur explique un coup sans rien demander au réseau", async ({ page }) => {
+    const apiCalls: string[] = [];
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname.startsWith('/api/')) apiCalls.push(request.url());
+    });
+    await page.goto('/');
+    await analyzeSample(page, OPERA);
+
+    await page.getByRole('button', { name: 'Expliquer ce coup' }).click();
+    await expect(page.getByText('Concept clé : Théorie de l’ouverture', { exact: true })).toBeVisible();
+    await expect(page.getByText(/e4 est un coup de théorie \(Partie du pion roi\)/)).toBeVisible();
+    await expect(page.getByText(/Plan (suggéré|de redressement)/)).toBeVisible();
+    expect(apiCalls).toEqual([]);
+  });
 });

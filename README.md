@@ -1,7 +1,7 @@
 # Échiquier IA
 
 Analyse de parties d'échecs dans le navigateur : Stockfish 19 évalue chaque coup, classe les gaffes, erreurs et
-coups brillants, trace la courbe d'évaluation et un « entraîneur IA » (Gemini) explique les moments clés en français.
+coups brillants, trace la courbe d'évaluation et un entraîneur explique les moments clés en français, sans serveur ni modèle de langage.
 
 - Import d'un PGN (collé, fichier ou exemples) avec reconnaissance de l'ouverture (base lichess, ~3 800 lignes)
 - Import direct des dernières parties d'un compte **chess.com** ou **Lichess** (pseudo, filtre de cadence, parties plus anciennes à la demande, bouton « Analyser seulement les nouvelles » pour tenir son profil à jour) : le navigateur appelle leurs API publiques, sans passer par le serveur
@@ -20,7 +20,7 @@ coups brillants, trace la courbe d'évaluation et un « entraîneur IA » (Gemin
 - « Analyser une position » (menu ; « Analyser ici » au-dessus de l'échiquier d'une partie analysée ; « Analyser la position » dans l'explorateur d'ouvertures, donc aussi sur la ligne favorite d'un adversaire dans « Préparer un adversaire ») : les **trois meilleures lignes de Stockfish en direct** sur n'importe quelle position, avec leur évaluation vue des Blancs, la profondeur atteinte et une flèche par ligne sur l'échiquier. On colle une FEN (celle d'une partie d'un adversaire, par exemple) ou on pose les pièces à la main avec l'éditeur (pièces, gomme, trait, roques) ; une position impossible est refusée avec la raison. On joue sur l'échiquier pour suivre une ligne (un clic sur un coup d'une ligne la joue), on peut annuler, retourner l'échiquier, mettre le moteur en pause, et demander de 1 à 5 lignes (le choix est gardé)
 - « Vision » (menu) : quatre exercices courts pour voir l'échiquier sans bouger les pièces, entièrement dans le navigateur (aucun réseau, utilisables hors ligne). **Coordonnées** : un nom de case (« e4 ») s'affiche, on clique dessus sur un échiquier sans coordonnées, 30 secondes, du côté des Blancs ou des Noirs ; une case manquée est montrée en vert avant de passer à la suivante. Deux autres niveaux : **nommer la case** éclairée (une lettre et un chiffre, au clavier ou avec les boutons) et dire si une case est **claire ou foncée**. Le chronomètre s'arrête quand l'onglet est caché. **Mode aveugle** : une vraie partie, célèbre ou une des vôtres (parmi celles que vous avez analysées), est lue coup par coup (6, 12 ou 20 demi-coups) sur un échiquier sans une pièce, puis cinq questions « que contient la case f3 ? » (vide ou l'une des douze pièces) ; les pièces apparaissent à la fin pour vérifier, et la liste des coups déjà lus peut rester affichée (plus facile). **Calcul de lignes** : un bout de partie (2, 4 ou 6 demi-coups) s'écrit sous la position, que l'on ne joue pas : on dit où une pièce a fini (clic sur la case, ou « la pièce est prise ») ou ce que contient une case, puis l'échiquier montre la position atteinte. **Partie à l'aveugle** : une partie complète contre Stockfish (sept niveaux) sur un échiquier sans pièces, les coups tapés au clavier (`Cf3`, `Nf3`, `g1f3`, `O-O`) ; on peut regarder l'échiquier, mais chaque regard est compté et une partie où l'on a regardé ne compte pas pour le record (victoire 2, nulle 1, défaite 0). **Progression** : la courbe des dernières séries de chaque niveau, avec le record et la moyenne des cinq dernières. Chaque réponse est celle que donnent les règles (rejouées avec chess.js, les pièces suivies à travers les prises, l'en passant et le roque). Le **meilleur score de chaque niveau** est gardé, avec le nombre de parties, dans la sauvegarde (format 10, `visionRecords`) et la synchronisation Drive ; chaque série compte aussi pour la série de jours
 - **Sauvegarde** : « Mes parties » exporte tout ce que l'application garde dans le navigateur (parties et leurs notes, progression d'entraînement, jours travaillés, records de vision, puzzles ratés, lot Woodpecker et lots précédents, historique des puzzles, études, réglages) en un fichier JSON, et le réimporte (fusion avec l'existant) ; le bouton « Synchroniser avec Google Drive » garde la même copie dans le dossier caché de votre Drive, pour retrouver vos données sur un autre appareil, à la demande ou automatiquement (à l'ouverture et après chaque partie ou étude ajoutée, modifiée ou supprimée, suppressions comprises) ; sans serveur
-- **Application installable et utilisable hors ligne** (PWA) : le moteur, la base d'ouvertures et l'interface sont mis en cache ; une nouvelle version est proposée sans interrompre la partie en cours. Ne marchent pas hors ligne : l'import chess.com / Lichess et le coach IA
+- **Application installable et utilisable hors ligne** (PWA) : le moteur, la base d'ouvertures et l'interface sont mis en cache ; une nouvelle version est proposée sans interrompre la partie en cours. Ne marche pas hors ligne : l'import chess.com / Lichess
 - Noms d'ouverture en français (« Défense sicilienne : variante Dragon »)
 - Bilan par joueur : précision, phases de jeu, répartition des coups, gestion du temps si le PGN contient les pendules
 - Utilisable sur téléphone : en-tête et barre d'outils compacts, navigation en bas de l'écran, balayage pour changer de coup
@@ -28,7 +28,7 @@ coups brillants, trace la courbe d'évaluation et un « entraîneur IA » (Gemin
 - Mise en page : sur ordinateur l'échiquier est dimensionné sur la hauteur de la fenêtre, avec ses commandes de lecture, et un panneau à onglets (Coup / Liste) à côté du graphique d'évaluation
 - Échiquier interactif : exploration libre (« Et si j'avais joué… ? », glisser-déposer à la souris ou au doigt, choix de la pièce à la promotion), animation des coups dans les deux sens avec les captures, flèches et surbrillances au clic droit,
   contrôle de l'espace, menaces tactiques, lecture automatique (qui s'arrête sur les erreurs, réglable), raccourcis clavier
-- Explications pédagogiques via l'API Gemini, appelée uniquement côté serveur
+- **Entraîneur pédagogique** (bouton « Expliquer ce coup ») : une explication en français écrite dans le navigateur à partir de l'analyse de Stockfish et de la position (`src/utils/moveCoach.ts`). Il part de faits lus sur l'échiquier : la tactique manquée ou jouée (fourchette, clouage, mat du couloir…), la pièce laissée en prise et qui la prend, l'avantage gâché, les principes d'ouverture, le Roi en finale ; il donne l'évaluation avant et après le coup, la suite attendue du moteur et un plan en trois étapes. Rien n'est envoyé nulle part, tout marche hors ligne, et deux fois le même coup donne le même texte
 
 ## Démarrage
 
@@ -36,11 +36,9 @@ Prérequis : [Bun](https://bun.sh) 1.3 ou plus récent (c'est le seul gestionnai
 
 ```bash
 bun install
-cp .env.example .env     # puis renseignez GEMINI_API_KEY (optionnel)
+cp .env.example .env     # optionnel : toutes les variables ont une valeur par défaut
 bun run dev              # http://localhost:3000
 ```
-
-Sans clé Gemini, l'application fonctionne : les explications de l'entraîneur IA utilisent un repli heuristique local.
 
 ## Commandes
 
@@ -73,7 +71,6 @@ Variables d'environnement (voir `.env.example`) :
 
 | Variable                | Rôle                                                                                                   |
 | ----------------------- | ------------------------------------------------------------------------------------------------------ |
-| `GEMINI_API_KEY`        | Clé de l'API Gemini (côté serveur uniquement)                                                          |
 | `PORT`                  | Port d'écoute, 3000 par défaut                                                                         |
 | `APP_URL`               | URL publique, toujours autorisée à appeler `/api`                                                      |
 | `ALLOWED_ORIGINS`       | Autres origines autorisées (CORS), séparées par des virgules                                           |
@@ -85,7 +82,7 @@ Variables d'environnement (voir `.env.example`) :
 ## Architecture
 
 ```
-server.ts            API Express : /api/coach/explain (Gemini) et /api/lichess/import, CORS, limites de débit
+server.ts            API Express : /api/lichess/import, CORS, limites de débit
 server/              schémas de validation (zod), configuration
 src/
   App.tsx            composition de l'interface
@@ -111,9 +108,7 @@ moteur est indisponible, les positions sont évaluées par une heuristique simpl
 
 ### Sécurité du serveur
 
-CORS restreint, limites de débit par IP, corps de requête plafonné, validation stricte des entrées (les chaînes
-insérées dans le prompt Gemini ne peuvent contenir ni guillemets ni retours à la ligne), réponse de Gemini validée,
-erreurs génériques côté client.
+CORS restreint, limites de débit par IP, corps de requête plafonné, validation stricte des entrées, erreurs génériques côté client.
 
 ## Déploiement
 
@@ -124,14 +119,12 @@ reverse proxy, définissez `TRUST_PROXY` (automatique sur Cloud Run) et `APP_URL
 
 ### Interface sur GitHub Pages, API ailleurs
 
-GitHub Pages ne sert que des fichiers statiques : l'analyse (Stockfish dans le navigateur) et l'import des parties chess.com / Lichess (appels directs du navigateur) y fonctionnent entièrement, mais le coach IA (clé Gemini) et l'import vers Lichess ont besoin du serveur, qui reste par exemple sur Cloud Run. Le workflow `.github/workflows/pages.yml` publie `dist/` à chaque push sur `main`. Le service worker (`sw.js`) est construit par `vite build` lui-même : il fonctionne aussi sur Pages (portée `/<dépôt>/`).
+GitHub Pages ne sert que des fichiers statiques : l'analyse (Stockfish dans le navigateur) et l'import des parties chess.com / Lichess (appels directs du navigateur) y fonctionnent entièrement, mais l'import vers Lichess a besoin du serveur, qui reste par exemple sur Cloud Run. Le workflow `.github/workflows/pages.yml` publie `dist/` à chaque push sur `main`. Le service worker (`sw.js`) est construit par `vite build` lui-même : il fonctionne aussi sur Pages (portée `/<dépôt>/`).
 
 1. **Pages** : dans les réglages du dépôt, _Pages_ > _Source_ : **GitHub Actions** (un dépôt public est nécessaire sur l'offre gratuite).
-2. **Adresse de l'API** : variable de dépôt `API_URL` (_Settings_ > _Secrets and variables_ > _Actions_ > _Variables_), par exemple `https://mon-service.europe-west2.run.app`, sans barre finale. Sans elle, l'interface appelle `/api/...` sur son propre site, qui n'existe pas sur Pages : le coach bascule sur ses explications locales et l'import Lichess ouvre la page « coller un PGN ».
+2. **Adresse de l'API** : variable de dépôt `API_URL` (_Settings_ > _Secrets and variables_ > _Actions_ > _Variables_), par exemple `https://mon-service.europe-west2.run.app`, sans barre finale. Sans elle, l'interface appelle `/api/...` sur son propre site, qui n'existe pas sur Pages : l'import Lichess ouvre la page « coller un PGN ».
 3. **Serveur** : variable d'environnement `ALLOWED_ORIGINS=https://<utilisateur>.github.io` (l'origine, sans le nom du dépôt). Sans elle, le serveur refuse les appels venus d'un autre site (403).
 4. L'interface est servie depuis `https://<utilisateur>.github.io/<dépôt>/` : le workflow construit avec `BASE_PATH=/<dépôt>/`. Pour tester en local : `BASE_PATH=/echiquierIA/ VITE_API_URL=http://localhost:3000 bunx vite build --outDir /tmp/site/echiquierIA`.
-
-La clé Gemini ne doit jamais figurer dans l'interface : elle reste une variable d'environnement du serveur.
 
 ## Suivi des améliorations
 

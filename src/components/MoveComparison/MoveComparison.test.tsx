@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { render } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import type { MoveAnalysis } from '../../types/chess';
 import { MoveComparison } from './MoveComparison';
 
+const FORK = 'r3k3/8/8/3N4/8/8/8/4K3 w - - 0 1';
 const AFTER_D4 = 'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1';
 
 function move(overrides: Partial<MoveAnalysis> = {}): MoveAnalysis {
@@ -49,7 +50,6 @@ function renderMove(current: MoveAnalysis) {
       isPreviewingAlternative={false}
       onTogglePreviewAlternative={() => {}}
       onUpdateAiExplanation={() => {}}
-      sanHistory={[]}
     />
   );
 }
@@ -96,10 +96,51 @@ describe('MoveComparison: French notation', () => {
         isPreviewingAlternative={false}
         onTogglePreviewAlternative={() => {}}
         onUpdateAiExplanation={() => {}}
-        sanHistory={[]}
         openingName="Ruy Lopez: Berlin Defense"
       />
     );
     expect(container.textContent).toContain('Coup théorique (Partie espagnole : défense de Berlin)');
+  });
+
+  it('explains the move on the spot, with no network, when the button is pressed', () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const onUpdate = vi.fn();
+    render(
+      <MoveComparison
+        currentMove={move({
+          aiExplanation: undefined,
+          fenBefore: FORK,
+          uci: 'e1d2',
+          san: 'Kd2',
+          bestMoveUci: 'd5c7',
+          bestMoveSan: 'Nc7+',
+        })}
+        previousMove={null}
+        isPreviewingAlternative={false}
+        onTogglePreviewAlternative={() => {}}
+        onUpdateAiExplanation={onUpdate}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Expliquer ce coup/ }));
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    const [ply, explanation] = onUpdate.mock.calls[0];
+    expect(ply).toBe(20);
+    expect(explanation.concept).toBe('Fourchette');
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it('disables the button while the analysis runs', () => {
+    render(
+      <MoveComparison
+        currentMove={move({ aiExplanation: undefined })}
+        previousMove={null}
+        isPreviewingAlternative={false}
+        onTogglePreviewAlternative={() => {}}
+        onUpdateAiExplanation={() => {}}
+        isCoachDisabled
+      />
+    );
+    expect((screen.getByRole('button', { name: /Expliquer ce coup/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

@@ -19,9 +19,9 @@ describe('assetUrl', () => {
 
 describe('apiUrl', () => {
   it('is relative to the page when no API host is configured', () => {
-    expect(apiUrl('/api/coach/explain', undefined)).toBe('/api/coach/explain');
-    expect(apiUrl('/api/coach/explain', '')).toBe('/api/coach/explain');
-    expect(apiUrl('/api/coach/explain', '  ')).toBe('/api/coach/explain');
+    expect(apiUrl('/api/lichess/import', undefined)).toBe('/api/lichess/import');
+    expect(apiUrl('/api/lichess/import', '')).toBe('/api/lichess/import');
+    expect(apiUrl('/api/lichess/import', '  ')).toBe('/api/lichess/import');
   });
 
   it('points to the configured host, with or without a trailing slash', () => {

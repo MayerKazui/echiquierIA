@@ -8,7 +8,7 @@
  *   offline. The page being asked for goes to the network first (a new deployment is seen at once) and falls back to
  *   the cached page when the network fails or is too slow.
  * - Files of the site are served from the cache first, and cached when they come from the network.
- * - Everything else is left to the browser: other sites (chess.com, Lichess), the API of the AI coach, anything
+ * - Everything else is left to the browser: other sites (chess.com, Lichess), the API, anything
  *   that is not a GET.
  */
 

@@ -602,7 +602,6 @@ export default function App() {
           isPreviewingAlternative={isPreviewingAlternative}
           onTogglePreviewAlternative={toggleAlternative}
           onUpdateAiExplanation={updateAiExplanation}
-          sanHistory={moves?.map((m) => m.san) || []}
           userColor={userColor}
           openingName={currentOpening?.name}
           eco={currentOpening?.eco}
@@ -612,7 +611,7 @@ export default function App() {
           onSelectThreatsMode={setThreatsMode}
           showThreats={showAnnotations}
           onToggleShowThreats={toggleAnnotations}
-          isAiDisabled={isAnalyzing}
+          isCoachDisabled={isAnalyzing}
         />
       }
       list={
