@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { listGames } from '../services/gameStore';
+import { recordPractice } from '../services/practiceStore';
 import { loadCards, saveCard } from '../services/trainingStore';
 import { review, type Card } from '../utils/spacedRepetition';
 import { collectPositions, type TrainingPosition } from '../utils/trainingPositions';
@@ -59,6 +60,7 @@ export function useTrainingData(now: () => number = Date.now) {
     dataRef.current = next; // two results in a row must not start from the same cards
     setData(next);
     void saveCard(card);
+    void recordPractice(card.lastSeen);
     return card;
   }, []);
 

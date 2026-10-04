@@ -22,6 +22,8 @@ import type { Study } from '../types/study';
 import { isPuzzleEntry, loadPuzzleEntries, mergePuzzleEntries, type PuzzleMergeReport } from './puzzleStore';
 import { isCard, loadCards, mergeCards, type CardMergeReport } from './trainingStore';
 import { exportNotes, mergeNotes, type NoteMergeReport } from './gameNoteStore';
+import { exportPracticeDays, mergePracticeDays, type PracticeMergeReport } from './practiceStore';
+import { isPracticeDay, type PracticeDay } from '../utils/practiceDays';
 import { isGameNote, type GameNote } from '../utils/gameNotes';
 import type { PuzzleEntry } from '../utils/puzzleReview';
 import type { ArchivedLot, WoodpeckerSet } from '../utils/woodpecker';
@@ -80,8 +82,8 @@ export const BACKUP_APP = 'echiquier-ia';
  * them, and a lot or a history that was cleared would come back from Drive.
  */
 /**
- * 8 added the tags and notes of the games (`gameNotes`), for the same reason: an application of format 7 would send
- * back a copy without them and overwrite the ones kept in Drive.
+ * 8 added the tags and notes of the games (`gameNotes`) and the days practised (`practiceDays`), for the same reason:
+ * an application of format 7 would send back a copy without them and overwrite the ones kept in Drive.
  */
 export const BACKUP_FORMAT = 8;
 
@@ -134,6 +136,8 @@ export interface Backup {
   puzzleHistory: PuzzleHistoryData;
   /** The tags and notes of the games, an emptied one included (empty before format 8). */
   gameNotes: GameNote[];
+  /** The days the player practised, with how many times (empty before format 8). */
+  practiceDays: PracticeDay[];
   preferences: Record<string, string>;
 }
 
@@ -178,6 +182,7 @@ export async function createBackup(
     woodpeckerArchive,
     puzzleHistory,
     gameNotes,
+    practiceDays,
   ] = await Promise.all([
     exportGames(),
     loadCards(),
@@ -189,6 +194,7 @@ export async function createBackup(
     loadWoodpeckerArchive(),
     exportPuzzleHistory(),
     exportNotes(),
+    exportPracticeDays(),
   ]);
   return {
     app: BACKUP_APP,
@@ -204,6 +210,7 @@ export async function createBackup(
     woodpeckerArchive,
     puzzleHistory,
     gameNotes,
+    practiceDays,
     preferences: readPreferences(storage),
   };
 }
@@ -256,6 +263,7 @@ export function parseBackup(text: string): ParsedBackup {
   const studyDeletions: unknown[] = Array.isArray(data.studyDeletions) ? data.studyDeletions : [];
   const puzzles: unknown[] = Array.isArray(data.puzzles) ? data.puzzles : [];
   const gameNotes: unknown[] = Array.isArray(data.gameNotes) ? data.gameNotes : [];
+  const practiceDays: unknown[] = Array.isArray(data.practiceDays) ? data.practiceDays : [];
   if (
     games.length > MAX_ITEMS ||
     cards.length > MAX_ITEMS ||
@@ -263,7 +271,8 @@ export function parseBackup(text: string): ParsedBackup {
     studies.length > MAX_ITEMS ||
     studyDeletions.length > MAX_ITEMS ||
     puzzles.length > MAX_ITEMS ||
-    gameNotes.length > MAX_ITEMS
+    gameNotes.length > MAX_ITEMS ||
+    practiceDays.length > MAX_ITEMS
   ) {
     return { ok: false, error: 'Cette sauvegarde contient trop de données pour être valide.' };
   }
@@ -274,6 +283,7 @@ export function parseBackup(text: string): ParsedBackup {
   const validStudyDeletions = studyDeletions.filter(isStudyDeletion);
   const validPuzzles = puzzles.filter(isPuzzleEntry);
   const validNotes = gameNotes.filter(isGameNote);
+  const validDays = practiceDays.filter(isPracticeDay);
   const hasWoodpecker = data.woodpecker !== undefined && data.woodpecker !== null;
   const woodpecker = isWoodpeckerSet(data.woodpecker) ? data.woodpecker : null;
   const archive: unknown[] = Array.isArray(data.woodpeckerArchive) ? data.woodpeckerArchive : [];
@@ -320,6 +330,7 @@ export function parseBackup(text: string): ParsedBackup {
     woodpeckerArchive.length === 0 &&
     isHistoryEmpty(puzzleHistory) &&
     validNotes.length === 0 &&
+    validDays.length === 0 &&
     Object.keys(preferences).length === 0
   ) {
     return { ok: false, error: EMPTY_BACKUP_ERROR };
@@ -340,6 +351,7 @@ export function parseBackup(text: string): ParsedBackup {
       woodpeckerArchive,
       puzzleHistory,
       gameNotes: validNotes,
+      practiceDays: validDays,
       preferences,
     },
     rejected: {
@@ -352,7 +364,7 @@ export function parseBackup(text: string): ParsedBackup {
         (hasWoodpecker && woodpecker === null ? 1 : 0) +
         historyRejected +
         archiveRejected,
-      notes: gameNotes.length - validNotes.length,
+      notes: gameNotes.length - validNotes.length + practiceDays.length - validDays.length,
     },
   };
 }
@@ -371,6 +383,8 @@ export interface RestoreReport {
   puzzleHistory: PuzzleHistoryMergeReport | null;
   /** Null when the notes could not be written. */
   gameNotes?: NoteMergeReport | null;
+  /** Null when the days practised could not be written. */
+  practiceDays?: PracticeMergeReport | null;
   /** Settings written: the ones the browser did not have yet (the settings chosen here are not overwritten). */
   preferencesApplied: number;
 }
@@ -392,7 +406,7 @@ export async function restoreBackup(
   storage: WritableStorage | undefined = defaultStorage(),
   { mode = 'import', silent }: RestoreOptions = {}
 ): Promise<RestoreReport> {
-  const [games, cards, studies, puzzles, woodpecker, puzzleHistory, gameNotes] = await Promise.all([
+  const [games, cards, studies, puzzles, woodpecker, puzzleHistory, gameNotes, practiceDays] = await Promise.all([
     mode === 'sync'
       ? mergeGames(backup.games, undefined, backup.deletions, { silent })
       : mergeGames(backup.games, undefined, [], { silent, override: true }),
@@ -404,6 +418,7 @@ export async function restoreBackup(
     mergeWoodpecker(backup.woodpecker, backup.woodpeckerArchive),
     mergePuzzleHistory(backup.puzzleHistory, { mode }),
     mergeNotes(backup.gameNotes, { silent }),
+    mergePracticeDays(backup.practiceDays, { silent }),
   ]);
   let preferencesApplied = 0;
   for (const key of PREFERENCE_KEYS) {
@@ -418,5 +433,5 @@ export async function restoreBackup(
       // Storage unavailable or full: this setting is not restored
     }
   }
-  return { games, cards, studies, puzzles, woodpecker, puzzleHistory, gameNotes, preferencesApplied };
+  return { games, cards, studies, puzzles, woodpecker, puzzleHistory, gameNotes, practiceDays, preferencesApplied };
 }

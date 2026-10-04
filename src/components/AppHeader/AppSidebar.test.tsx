@@ -51,4 +51,20 @@ describe('AppSidebar', () => {
     await user.click(sound);
     expect(onSound).toHaveBeenCalledTimes(1);
   });
+
+  it('shows what waits behind an entry, and says it to a screen reader', () => {
+    const withBadge: NavSection[] = [
+      {
+        id: 'games',
+        label: 'Mon jeu',
+        items: [
+          { id: 'review', label: "À réviser aujourd'hui", icon: null, onSelect: vi.fn(), badge: 12 },
+          { id: 'history', label: 'Mes parties', icon: null, onSelect: vi.fn(), badge: 0 },
+        ],
+      },
+    ];
+    render(<AppSidebar sections={withBadge} />);
+    expect(screen.getByRole('button', { name: "À réviser aujourd'hui, 12 à réviser" })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Mes parties' })).toBeTruthy();
+  });
 });

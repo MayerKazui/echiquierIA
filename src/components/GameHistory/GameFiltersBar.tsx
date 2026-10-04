@@ -68,7 +68,7 @@ export const GameFiltersBar: React.FC<GameFiltersBarProps> = ({ filters, onChang
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1 min-w-0">
           <Search
-            className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+            className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
             aria-hidden="true"
           />
           <input

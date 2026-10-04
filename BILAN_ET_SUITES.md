@@ -23,6 +23,9 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 
 ### Outils d'entraînement
 
+- **Mes parties** : recherche (adversaire, ouverture en anglais et en français, ECO, événement, note, étiquette), filtres (résultat et couleur vus du côté du joueur, adversaire, famille d'ouverture, période, précision, étiquette), cinq tris, note personnelle (2 000 caractères) et jusqu'à 8 étiquettes par partie. Les notes sont dans leur propre base IndexedDB (`gameNoteStore`), pas dans la partie : modifier une note ne bouge pas la date d'analyse, donc ni l'ordre ni le tassement des 50 parties complètes ; une note effacée ou dont la partie est supprimée reste comme trace vide datée, pour que l'effacement atteigne les autres appareils de la synchronisation. Sauvegarde au format 8 (`gameNotes`).
+- **À réviser aujourd'hui** (`dueReviews`) : compte ce qui est dû aujourd'hui dans les cartes de répétition espacée (erreurs dont la partie existe encore, lignes d'ouverture, finales connues), les puzzles ratés, et, pour Woodpecker qui n'a pas de date, un cycle commencé et pas fini (compté pour 1, pas pour ses puzzles). Les positions jamais travaillées ne sont pas comptées : ce n'est pas de la révision. « Tout réviser » ouvre le premier stock qui a quelque chose, dans l'ordre erreurs, puzzles, ouvertures, finales, Woodpecker, puis la liste revient à la fermeture de chaque vue. La série et le calendrier viennent d'un journal des jours travaillés (`practiceStore`, dans la sauvegarde format 8 : `practiceDays`), complété par ce que les données montrent déjà (dernier passage de chaque carte, puzzles joués, cycles Woodpecker finis), pour ne pas repartir de zéro. Le nombre est aussi mis sur l'icône de l'application installée (`appBadge`).
+- **Export PGN annoté** (`annotatedPgn`) : `[%eval]`, `[%clk]`, symboles des coups (`!!` brillant, `!` excellent coup, `?!` imprécision, `?` erreur et occasion manquée, `??` gaffe) et commentaires (verdict, meilleur coup, explication du coach), chaque famille au choix ; en-têtes d'origine gardés, `Annotator` ajouté. Relu avec chess.js et avec l'import d'études (test d'aller-retour). Aucun lien écrit par l'application, aucun appel réseau.
 - **Mon profil** : faiblesses par phase, type d'erreur (dix types, dont le thème tactique manqué parmi dix-neuf : fourchette, clouage, déviation, pièce piégée…), zeitnot, couleur, force de l'adversaire, cadence, évolution ; points forts.
 - **S'entraîner** : rejouer ses propres erreurs avec correction par le moteur, en répétition espacée (1, 3 puis 7 jours), filtres par type d'erreur et par phase ; une même position ratée dans plusieurs parties n'est proposée qu'une fois ; « Voir dans la partie » ouvre la partie au coup de l'erreur.
 - **Résumé de la partie** : trois lignes en tête du bilan (moment décisif avec son type de faute, précision comparée à sa moyenne sur les autres parties, fautes et phase la plus fragile).
@@ -38,7 +41,7 @@ Objectif du projet : un outil pour **s'améliorer** et **corriger ses faiblesses
 ### Confort et technique
 
 - Application installable et utilisable hors ligne (PWA).
-- Sauvegarde JSON de tout (format 7) et synchronisation avec Google Drive, manuelle ou automatique, suppressions comprises.
+- Sauvegarde JSON de tout (format 8) et synchronisation avec Google Drive, manuelle ou automatique, suppressions comprises.
 - Mobile (navigation en bas, balayage) et accessibilité (clavier, lecteurs d'écran, contrastes, mouvement réduit), vérifiés sur de vrais appareils et un vrai lecteur d'écran.
 - Sécurité du serveur, limites de débit, CI (lint, typecheck, format, tests, build).
 - Tests de bout en bout (Playwright, `bun run test:e2e`, second job de la CI) : l'application construite est pilotée dans Chromium avec le vrai Stockfish. Ils couvrent l'import d'un PGN collé et d'un pseudo chess.com, l'analyse, la réouverture après rechargement, l'export et l'import d'une sauvegarde, la synchronisation entre deux appareils par Drive (Google et chess.com sont des faux), et un contrôle axe-core (WCAG A et AA, contrastes compris) sur l'import, la partie, le bilan et « Mes parties », et l'ouverture de « S'entraîner » après l'analyse d'une partie importée (sans erreur, sans débordement de l'écran).
@@ -80,6 +83,15 @@ Faites sur de vrais appareils (2026-10-03), sans défaut constaté : lecteur d'�
 - [ ] La ligne favorite suit le coup le plus joué à chaque position, y compris celui de l'adversaire de l'adversaire : elle décrit ce qui arrive le plus souvent, pas une ligne qu'il choisit seul (avec les Noirs, c'est surtout sa réponse). Elle n'est pas rejouable en entraînement, et il n'y a pas de bouton « jouer cette ligne contre Stockfish » dans la synthèse (on le fait depuis l'explorateur).
 - [ ] Les parties lues ne sont pas gardées : il faut les relire à chaque ouverture des Ouvertures. Les enregistrer (par pseudo, avec une date) permettrait de ne lire que les nouvelles, mais ajouterait des données de tiers à la sauvegarde.
 - [ ] Chess.com et Lichess seulement, parties classiques (pas de variantes) ; pas de recherche par nom de tournoi ni de fichier PGN d'un adversaire (on peut importer ses parties par PGN, mais pas dans cette vue).
+
+### Mes parties, révisions du jour, export annoté
+
+- [ ] Le compteur « À réviser aujourd'hui » compte les cartes de lignes d'ouverture sans vérifier que la ligne existe encore dans les parties gardées (les positions d'ouverture se calculent avec la base d'ouvertures, trop lourd pour un compteur lu à chaque ouverture) : après la suppression de parties, la vue « Réviser mes lignes » peut montrer moins de lignes que le compteur. Les erreurs, elles, sont vérifiées par l'existence de la partie.
+- [ ] Woodpecker n'a pas de date de retour : il compte pour 1 tant qu'un cycle est en cours, et pour rien sinon.
+- [ ] « Tout réviser » ouvre chaque vue sur son écran de départ (un clic de plus pour lancer la séance) : les vues n'ont pas de démarrage automatique.
+- [ ] L'icône de l'application ne se met à jour que quand l'application est ouverte ou revient au premier plan (pas de notification ni de tâche en arrière-plan sans serveur) ; elle n'existe que pour l'application installée, et sur iOS que si l'application est ajoutée à l'écran d'accueil. Non vérifié sur de vrais appareils.
+- [ ] Les filtres de « Mes parties » ne sont pas gardés d'une ouverture à l'autre. « Couleur » et « Résultat » se lisent du côté que l'application connaît pour la partie (le pseudo, ou le choix fait à l'écran) : sans pseudo, la couleur par défaut est Blancs.
+- [ ] L'export annoté n'écrit pas la ligne du moteur en variante (seulement le meilleur coup dans le commentaire), et n'est offert que pour les parties gardées complètes (pas les versions allégées). Les commentaires du coach sont écrits tels qu'ils sont gardés (notation anglaise des coups).
 
 ### Jouer contre Stockfish
 

@@ -25,6 +25,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useSwipe } from './hooks/useSwipe';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { useIdleWarmUp } from './hooks/useIdleWarmUp';
+import { useDueReviews } from './hooks/useDueReviews';
 import { stockfishService } from './services/stockfishEngine';
 import { ensureOpeningBookLoaded } from './services/openingBook';
 import { loadGameById, reclassifyStoredGames } from './services/gameStore';
@@ -51,6 +52,8 @@ import { LiveRegion, useAnnouncer } from './components/a11y/LiveRegion';
 import { Modal } from './components/a11y/Modal';
 import { GameHistory } from './components/GameHistory/GameHistory';
 import { ExportPgn } from './components/GameView/ExportPgn';
+import { ReviewToday } from './components/Review/ReviewToday';
+import type { StockId } from './utils/dueReviews';
 import type { AnnotatedPgnSource } from './utils/annotatedPgn';
 
 import { EvaluationBar } from './components/EvaluationBar/EvaluationBar';
@@ -82,6 +85,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('board');
   const [isPgnModalOpen, setIsPgnModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  /** "À réviser aujourd'hui" in a window, and whether a review of everything is going on (stock after stock). */
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isReviewChain, setIsReviewChain] = useState(false);
   /** The game being exported as an annotated PGN: the one on screen, or one picked in the history. */
   const [exportSource, setExportSource] = useState<AnnotatedPgnSource | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -301,6 +307,53 @@ export default function App() {
     setPlayStart(start);
     setIsPlayOpen(true);
   }, []);
+
+  const { summary: dueSummary, refresh: refreshDue } = useDueReviews();
+
+  /** Opens the place where one stock of reviews is done. */
+  const openStock = useCallback((stock: StockId) => {
+    switch (stock) {
+      case 'errors':
+        setTrainingFilter(undefined);
+        setIsTrainingOpen(true);
+        break;
+      case 'puzzles':
+        setPuzzleStart(undefined);
+        setPuzzleMode('free');
+        setIsPuzzlesOpen(true);
+        break;
+      case 'repertoire':
+        setOpeningsStart({ view: 'drill', sans: [] });
+        setIsOpeningsOpen(true);
+        break;
+      case 'endgames':
+        setEndgamesCategory(null);
+        setIsEndgamesOpen(true);
+        break;
+      case 'woodpecker':
+        setPuzzleStart(undefined);
+        setPuzzleMode('woodpecker');
+        setIsPuzzlesOpen(true);
+        break;
+    }
+  }, []);
+  const reviewOne = (stock: StockId) => {
+    setIsReviewOpen(false);
+    openStock(stock);
+  };
+  const reviewAll = () => {
+    const next = dueSummary?.next;
+    if (!next) return;
+    setIsReviewChain(true);
+    setIsReviewOpen(false);
+    openStock(next.id);
+  };
+  /** Closes a place of reviews; during a review of everything, the list comes back to go on with the next one. */
+  const leaveStock = (close: (isOpen: boolean) => void) => {
+    close(false);
+    void refreshDue();
+    if (isReviewChain) setIsReviewOpen(true);
+  };
 
   /** Shows a stored game at the move of an error (from the training); an old game is analysed again to be shown. */
   const openStoredGame = useCallback(
@@ -591,6 +644,11 @@ export default function App() {
   );
 
   const navigation = buildNavigation({
+    reviewCount: dueSummary?.total,
+    onOpenReview: () => {
+      setIsReviewChain(false);
+      setIsReviewOpen(true);
+    },
     isMuted,
     onToggleSound: toggleSoundAnnounced,
     onInstall: canInstall ? () => void install() : undefined,
@@ -671,7 +729,8 @@ export default function App() {
                 <ViewFallback />
               ) : !analysis ? (
                 <div className="flex flex-col items-center justify-center my-auto py-8">
-                  <div className="max-w-2xl w-full">
+                  <div className="max-w-2xl w-full flex flex-col gap-4">
+                    <ReviewToday variant="card" summary={dueSummary} onReview={reviewOne} onReviewAll={reviewAll} />
                     <PgnInput
                       currentPgn={pgn}
                       userPseudo={userPseudo}
@@ -704,6 +763,28 @@ export default function App() {
       </div>
 
       {analysis && <BottomNav activeTab={visibleTab} isAnalyzing={isAnalyzing} onChangeTab={setActiveTab} />}
+
+      {isReviewOpen && (
+        <Modal
+          title="À réviser aujourd'hui"
+          onClose={() => {
+            setIsReviewOpen(false);
+            setIsReviewChain(false);
+          }}
+          className="w-full max-w-2xl"
+        >
+          <ReviewToday
+            summary={dueSummary}
+            isChain={isReviewChain}
+            onReview={reviewOne}
+            onReviewAll={reviewAll}
+            onClose={() => {
+              setIsReviewOpen(false);
+              setIsReviewChain(false);
+            }}
+          />
+        </Modal>
+      )}
 
       {isHistoryOpen && (
         <Modal title="Mes parties" onClose={() => setIsHistoryOpen(false)} className="w-full max-w-2xl">
@@ -760,7 +841,7 @@ export default function App() {
       {isTrainingOpen && (
         <Modal
           title="S'entraîner sur mes erreurs"
-          onClose={() => setIsTrainingOpen(false)}
+          onClose={() => leaveStock(setIsTrainingOpen)}
           className="w-full max-w-[min(96vw,84rem)]"
         >
           <Suspense fallback={null}>
@@ -775,7 +856,7 @@ export default function App() {
                 setIsTrainingOpen(false);
                 openPlay(start);
               }}
-              onClose={() => setIsTrainingOpen(false)}
+              onClose={() => leaveStock(setIsTrainingOpen)}
               onImport={() => {
                 setIsTrainingOpen(false);
                 // Without a game on screen the start screen already shows the import form
@@ -827,13 +908,13 @@ export default function App() {
       )}
 
       {isPuzzlesOpen && (
-        <Modal title="Puzzles" onClose={() => setIsPuzzlesOpen(false)} className="w-full max-w-[min(96vw,84rem)]">
+        <Modal title="Puzzles" onClose={() => leaveStock(setIsPuzzlesOpen)} className="w-full max-w-[min(96vw,84rem)]">
           <Suspense fallback={null}>
             <Puzzles
               boardTheme={boardTheme}
               start={puzzleStart}
               initialMode={puzzleMode}
-              onClose={() => setIsPuzzlesOpen(false)}
+              onClose={() => leaveStock(setIsPuzzlesOpen)}
             />
           </Suspense>
         </Modal>
@@ -876,24 +957,28 @@ export default function App() {
       )}
 
       {isEndgamesOpen && (
-        <Modal title="Finales" onClose={() => setIsEndgamesOpen(false)} className="w-full max-w-[min(96vw,84rem)]">
+        <Modal title="Finales" onClose={() => leaveStock(setIsEndgamesOpen)} className="w-full max-w-[min(96vw,84rem)]">
           <Suspense fallback={null}>
             <Endgames
               boardTheme={boardTheme}
               initialCategory={endgamesCategory}
-              onClose={() => setIsEndgamesOpen(false)}
+              onClose={() => leaveStock(setIsEndgamesOpen)}
             />
           </Suspense>
         </Modal>
       )}
 
       {isOpeningsOpen && (
-        <Modal title="Ouvertures" onClose={() => setIsOpeningsOpen(false)} className="w-full max-w-[min(96vw,84rem)]">
+        <Modal
+          title="Ouvertures"
+          onClose={() => leaveStock(setIsOpeningsOpen)}
+          className="w-full max-w-[min(96vw,84rem)]"
+        >
           <Suspense fallback={null}>
             <Openings
               boardTheme={boardTheme}
               start={openingsStart}
-              onClose={() => setIsOpeningsOpen(false)}
+              onClose={() => leaveStock(setIsOpeningsOpen)}
               onPlay={(start) => {
                 setIsOpeningsOpen(false);
                 openPlay(start);

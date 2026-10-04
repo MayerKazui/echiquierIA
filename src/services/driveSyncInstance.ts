@@ -1,6 +1,7 @@
 import { onGamesChanged } from './gameStore';
 import { onStudiesChanged } from './studyStore';
 import { onNotesChanged } from './gameNoteStore';
+import { onPracticeChanged } from './practiceStore';
 import { createTokenProvider, googleClientId, loadGoogleIdentity, type TokenProvider } from './googleAuth';
 import { syncWithDrive } from './driveSync';
 import { createDriveSyncManager, type DriveSyncManager } from './driveSyncManager';
@@ -10,10 +11,12 @@ export function onLocalDataChanged(listener: () => void): () => void {
   const offGames = onGamesChanged(listener);
   const offStudies = onStudiesChanged(listener);
   const offNotes = onNotesChanged(listener);
+  const offPractice = onPracticeChanged(listener);
   return () => {
     offGames();
     offStudies();
     offNotes();
+    offPractice();
   };
 }
 

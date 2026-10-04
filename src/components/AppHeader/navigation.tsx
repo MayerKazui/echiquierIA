@@ -3,6 +3,7 @@ import {
   BarChart3,
   BookMarked,
   BookOpen,
+  CalendarCheck,
   ClipboardList,
   Crown,
   Download,
@@ -33,6 +34,8 @@ export interface NavItem {
   onSelect: () => void;
   /** A switch (on or off) rather than an action. */
   checked?: boolean;
+  /** A number to the right of the label (what waits there); nothing for 0 or none. */
+  badge?: number;
 }
 
 /** A group of destinations, always shown open: reaching a view never takes more than one click. */
@@ -47,6 +50,9 @@ export interface NavigationActions {
   onToggleSound: () => void;
   /** Installs the app: given only when the browser offers it. */
   onInstall?: () => void;
+  /** What is to be reviewed today, in all (the entry shows it); unknown until it is read. */
+  reviewCount?: number;
+  onOpenReview: () => void;
   onOpenHistory: () => void;
   onOpenProfile: () => void;
   onOpenPlan: () => void;
@@ -75,6 +81,14 @@ export function buildNavigation(actions: NavigationActions): NavSection[] {
       id: 'games',
       label: 'Mon jeu',
       items: [
+        {
+          id: 'review',
+          label: "À réviser aujourd'hui",
+          hint: 'Tout ce qui revient aujourd’hui : erreurs, puzzles, ouvertures, finales',
+          icon: <CalendarCheck className={ICON} />,
+          onSelect: actions.onOpenReview,
+          badge: actions.reviewCount,
+        },
         {
           id: 'history',
           label: 'Mes parties',

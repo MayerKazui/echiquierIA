@@ -102,6 +102,7 @@ export async function syncWithDrive({
     backup.woodpeckerArchive.length === 0 &&
     isHistoryEmpty(backup.puzzleHistory) &&
     backup.gameNotes.length === 0 &&
+    backup.practiceDays.length === 0 &&
     Object.keys(backup.preferences).length === 0
   ) {
     return { restore, rejected, sent: null };

@@ -16,7 +16,7 @@ interface GameNoteEditorProps {
 const SUGGESTIONS = 8;
 
 const FIELD =
-  'w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400';
+  'w-full rounded-lg bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400';
 const SMALL_BUTTON =
   'px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300';
 
@@ -75,7 +75,7 @@ export const GameNoteEditor: React.FC<GameNoteEditorProps> = ({
           placeholder="Ce que je retiens de cette partie, ce que je dois revoir…"
           className={`${FIELD} resize-y min-h-16`}
         />
-        <span className="text-[11px] text-slate-500 self-end" aria-hidden="true">
+        <span className="text-[11px] text-slate-400 self-end" aria-hidden="true">
           {note.length} / {MAX_NOTE_LENGTH}
         </span>
       </div>
