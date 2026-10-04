@@ -274,15 +274,16 @@ function ColorCard({
             {weakest && (
               <li>
                 Ses moins bons résultats : <span className="font-semibold text-rose-300">{labelOf(weakest.name)}</span>{' '}
-                ({plural(weakest.tally.games, 'partie', 'parties')}, {score(weakest)} de points) : une ligne à viser.
+                ({plural(weakest.tally.games, 'partie', 'parties')}, {score(weakest)} de points) : ses parties passées y
+                sont moins réussies, sans que cela dise comment la prochaine ira.
               </li>
             )}
             {strongest && (
               <li>
                 Son ouverture la plus solide :{' '}
                 <span className="font-semibold text-emerald-300">{labelOf(strongest.name)}</span> (
-                {plural(strongest.tally.games, 'partie', 'parties')}, {score(strongest)} de points) : mieux vaut
-                s&apos;y préparer ou l&apos;éviter.
+                {plural(strongest.tally.games, 'partie', 'parties')}, {score(strongest)} de points) : c&apos;est là
+                qu&apos;il a le mieux réussi jusqu&apos;ici, sans garantie pour la prochaine.
               </li>
             )}
             {meanBookMoves !== null && (
