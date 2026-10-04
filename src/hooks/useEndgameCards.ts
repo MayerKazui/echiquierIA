@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Endgame } from '../data/endgames';
+import { recordPractice } from '../services/practiceStore';
 import { loadCards, saveCard } from '../services/trainingStore';
 import { endgameCardId } from '../utils/endgameDrill';
 import { review, type Card } from '../utils/spacedRepetition';
@@ -38,6 +39,7 @@ export function useEndgameCards(now: () => number = Date.now) {
     cardsRef.current = next; // two results in a row must not start from the same cards
     setCards(next);
     void saveCard(card);
+    void recordPractice(card.lastSeen);
     return card;
   }, []);
 

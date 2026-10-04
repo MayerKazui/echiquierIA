@@ -276,7 +276,7 @@ describe('syncWithDrive, studies', () => {
   it('counts the studies of the copy that were not valid', async () => {
     const drive = fakeDrive(await bytesOf(remoteBackup({ studies: [studyOf('ok', 'Ok', 5), { id: 'broken' }] })));
     const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
-    expect(report.rejected).toEqual({ games: 0, cards: 0, studies: 1, puzzles: 0 });
+    expect(report.rejected).toEqual({ games: 0, cards: 0, studies: 1, puzzles: 0, notes: 0 });
   });
 });
 
@@ -336,7 +336,7 @@ describe('syncWithDrive', () => {
   it('counts the items of the copy that were not valid', async () => {
     const drive = fakeDrive(await bytesOf(remoteBackup({ games: [{ broken: true }], cards: [cardOf('ok'), 3] })));
     const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
-    expect(report.rejected).toEqual({ games: 1, cards: 1, studies: 0, puzzles: 0 });
+    expect(report.rejected).toEqual({ games: 1, cards: 1, studies: 0, puzzles: 0, notes: 0 });
   });
 
   it('reads a copy written without compression', async () => {
@@ -349,7 +349,11 @@ describe('syncWithDrive', () => {
   it('sends nothing when there is nothing here and nothing there', async () => {
     const drive = fakeDrive();
     const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
-    expect(report).toEqual({ restore: null, rejected: { games: 0, cards: 0, studies: 0, puzzles: 0 }, sent: null });
+    expect(report).toEqual({
+      restore: null,
+      rejected: { games: 0, cards: 0, studies: 0, puzzles: 0, notes: 0 },
+      sent: null,
+    });
     expect(drive.calls).toEqual(['GET /drive/v3/files']);
   });
 

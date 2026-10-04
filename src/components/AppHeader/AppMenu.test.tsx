@@ -176,4 +176,18 @@ describe('AppMenu', () => {
       expect(screen.getByRole('menu')).toBeTruthy();
     });
   });
+
+  it('shows what waits behind an entry', async () => {
+    const user = userEvent.setup();
+    const withBadge: NavSection[] = [
+      {
+        id: 'games',
+        label: 'Mon jeu',
+        items: [{ id: 'review', label: "À réviser aujourd'hui", icon: null, onSelect: vi.fn(), badge: 120 }],
+      },
+    ];
+    render(<AppMenu sections={withBadge} />);
+    await user.click(button());
+    expect(screen.getByRole('menuitem', { name: "À réviser aujourd'hui, 120 à réviser" }).textContent).toContain('99+');
+  });
 });

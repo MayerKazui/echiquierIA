@@ -75,7 +75,7 @@ describe('DataBackup', () => {
       const [name, text] = download.mock.calls[0] as [string, string];
       expect(name).toMatch(/^echiquier-ia-sauvegarde-\d{4}-\d{2}-\d{2}\.json$/);
       const data = JSON.parse(text);
-      expect(data).toMatchObject({ app: BACKUP_APP, format: 7, preferences: { chess_board_theme: 'wood' } });
+      expect(data).toMatchObject({ app: BACKUP_APP, format: 8, preferences: { chess_board_theme: 'wood' } });
       expect(data.games).toHaveLength(1);
       expect(data.cards).toHaveLength(1);
     });
@@ -265,6 +265,20 @@ describe('describeRestore', () => {
     puzzleHistory: { added: 0, cleared: false },
     preferencesApplied: 0,
     ...over,
+  });
+
+  it('tells how many notes of the games were restored, and when they could not be written', () => {
+    expect(describeRestore(report({ gameNotes: { added: 2, replaced: 1, kept: 0 } }), none)).toContain(
+      'Notes des parties : 3 notes restaurées.'
+    );
+    expect(describeRestore(report({ gameNotes: { added: 1, replaced: 0, kept: 0 } }), none)).toContain(
+      '1 note restaurée'
+    );
+    expect(describeRestore(report({ gameNotes: { added: 0, replaced: 0, kept: 4 } }), none)).not.toContain('Notes');
+    expect(describeRestore(report({ gameNotes: null }), none)).toContain(
+      "Les notes des parties n'ont pas pu être écrites"
+    );
+    expect(describeRestore(report(), { ...none, notes: 2 })).toContain('2 éléments illisibles ignorés');
   });
 
   it('says that all was up to date when nothing changed and nothing was lost', () => {

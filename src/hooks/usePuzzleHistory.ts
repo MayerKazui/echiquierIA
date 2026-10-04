@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { recordPractice } from '../services/practiceStore';
 import {
   clearPuzzleHistory,
   loadPuzzleHistory,
@@ -51,6 +52,7 @@ export function usePuzzleHistory(now: () => number = Date.now) {
     latest.current = next;
     setData({ status: 'ready', history: next });
     void savePuzzleAttempt(next.seen.get(puzzle.id)!, next.log[next.log.length - 1]);
+    void recordPractice(at);
   }, []);
 
   const recordSession = useCallback((session: Omit<PuzzleSession, 'at'>) => {

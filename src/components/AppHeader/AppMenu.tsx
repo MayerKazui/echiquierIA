@@ -153,6 +153,12 @@ export const AppMenu: React.FC<AppMenuProps> = ({ sections, label = 'Menu' }) =>
                       {item.icon}
                     </span>
                     <span className="min-w-0 flex-1 text-xs font-semibold text-slate-100">{item.label}</span>
+                    {item.badge !== undefined && item.badge > 0 && (
+                      <span className="shrink-0 min-w-5 text-center text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-500 text-white">
+                        <span aria-hidden="true">{item.badge > 99 ? '99+' : item.badge}</span>
+                        <span className="sr-only">, {item.badge} à réviser</span>
+                      </span>
+                    )}
                     {item.checked !== undefined && (
                       <span
                         aria-hidden="true"

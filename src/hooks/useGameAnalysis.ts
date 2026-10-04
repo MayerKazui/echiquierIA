@@ -206,6 +206,8 @@ export function useGameAnalysis(userPseudo: string, userColor: PlayerColor) {
     isRestoring,
     progress,
     result,
+    /** Search depth of `result` (null before any analysis). */
+    depth,
     partial,
     analyze,
     cancel,

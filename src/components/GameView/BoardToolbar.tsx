@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Swords, Target } from 'lucide-react';
+import { FileDown, Shield, Swords, Target } from 'lucide-react';
 import { BoardTheme, HeatmapMode } from '../../types/ui';
 
 interface BoardToolbarProps {
@@ -12,6 +12,8 @@ interface BoardToolbarProps {
   onBoardThemeChange: (theme: BoardTheme) => void;
   /** Starts a game against Stockfish from the position on the board. */
   onPlay?: () => void;
+  /** Opens the export of the game as an annotated PGN: given only when the analysis is complete. */
+  onExport?: () => void;
 }
 
 const GROUP_CLASS = 'flex items-center rounded-lg bg-slate-950 border border-slate-800 p-0.5';
@@ -92,6 +94,7 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
   boardTheme,
   onBoardThemeChange,
   onPlay,
+  onExport,
 }) => (
   // One scrollable row on a phone, a wrapping bar from `sm` up
   <div
@@ -126,6 +129,17 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
         >
           <Swords className="w-3 h-3 text-indigo-400" aria-hidden="true" />
           <span>Jouer ici</span>
+        </button>
+      )}
+
+      {onExport && (
+        <button
+          onClick={onExport}
+          className="flex items-center gap-1 px-2 py-1.5 sm:py-1 rounded-md font-medium border bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+          title="Exporter la partie en PGN avec les évaluations, les pendules et les commentaires"
+        >
+          <FileDown className="w-3 h-3 text-indigo-400" aria-hidden="true" />
+          <span>Exporter</span>
         </button>
       )}
 

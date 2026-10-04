@@ -22,6 +22,9 @@ import { clearPuzzleHistory, loadPuzzleHistory, savePuzzleAttempt, savePuzzleSes
 import { loadWoodpecker, loadWoodpeckerArchive, retireWoodpecker, saveWoodpecker } from './woodpeckerStore';
 import { beginCycle, createSet } from '../utils/woodpecker';
 import { loadCards, saveCard } from './trainingStore';
+import { exportNotes, loadNotes, saveNote } from './gameNoteStore';
+import { exportPracticeDays, recordPractice } from './practiceStore';
+import type { GameNote } from '../utils/gameNotes';
 import { deleteStudy, listStudies, listStudyDeletions, saveStudy, STUDY_SCHEMA_VERSION } from './studyStore';
 import { createChapter } from '../utils/studyTree';
 import { drillId } from '../utils/openingDrill';
@@ -153,8 +156,8 @@ describe('createBackup', () => {
     expect(backup.puzzles.map((entry) => entry.id)).toEqual(['p1']);
   });
 
-  it('is of format 7', () => {
-    expect(BACKUP_FORMAT).toBe(7);
+  it('is of format 8', () => {
+    expect(BACKUP_FORMAT).toBe(8);
   });
 });
 
@@ -172,7 +175,7 @@ describe('parseBackup', () => {
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     expect(parsed.backup.cards[0].dueAt).toBe(Number.MAX_SAFE_INTEGER);
-    expect(parsed.rejected).toEqual({ games: 0, cards: 0, studies: 0, puzzles: 0 });
+    expect(parsed.rejected).toEqual({ games: 0, cards: 0, studies: 0, puzzles: 0, notes: 0 });
   });
 
   describe('refuses a file that is not a backup', () => {
@@ -283,7 +286,7 @@ describe('parseBackup', () => {
     if (!parsed.ok) return;
     expect(parsed.backup.games).toHaveLength(1);
     expect(parsed.backup.cards).toHaveLength(1);
-    expect(parsed.rejected).toEqual({ games: 2, cards: 3, studies: 0, puzzles: 0 });
+    expect(parsed.rejected).toEqual({ games: 2, cards: 3, studies: 0, puzzles: 0, notes: 0 });
   });
 
   it('keeps only the settings of the app, with sane values', () => {
@@ -449,6 +452,8 @@ describe('restoreBackup', () => {
       woodpecker: null,
       woodpeckerArchive: [],
       puzzleHistory: { seen: [], log: [], sessions: [], clearedAt: 0 },
+      gameNotes: [],
+      practiceDays: [],
       preferences: { chess_board_theme: 'wood', chess_sound_enabled: 'false' },
     };
     const data = new Map<string, string>();
@@ -807,6 +812,8 @@ describe('backup of the studies', () => {
       woodpecker: null,
       woodpeckerArchive: [],
       puzzleHistory: { seen: [], log: [], sessions: [], clearedAt: 0 },
+      gameNotes: [],
+      practiceDays: [],
       preferences: {},
     };
     const report = await restoreBackup(backup, fakeStorage());
@@ -833,11 +840,125 @@ describe('backup of the studies', () => {
       woodpecker: null,
       woodpeckerArchive: [],
       puzzleHistory: { seen: [], log: [], sessions: [], clearedAt: 0 },
+      gameNotes: [],
+      practiceDays: [],
       preferences: {},
     };
     const report = await restoreBackup(backup, fakeStorage(), { mode: 'sync', silent: true });
     expect(report.studies).toMatchObject({ added: 0, deleted: 1 });
     expect(await listStudies()).toEqual([]);
     expect((await listStudyDeletions()).map((d) => d.id).sort()).toEqual(['deleted-here', 'here']);
+  });
+});
+
+describe('backup of the notes of the games', () => {
+  const gameNote = (id: string, note: string, tags: string[] = [], updatedAt = 5): GameNote => ({
+    id,
+    note,
+    tags,
+    updatedAt,
+  });
+
+  it('holds the notes, an emptied one included, and is read back by parseBackup', async () => {
+    await saveNote(gameNote('a', 'à revoir', ['finale']));
+    await saveNote(gameNote('b', '', [], 9));
+    const backup = await createBackup(0, fakeStorage());
+    expect(backup.gameNotes.map((n) => n.id).sort()).toEqual(['a', 'b']);
+    const parsed = parseBackup(serializeBackup(backup));
+    expect(parsed.ok && parsed.backup.gameNotes).toEqual(backup.gameNotes);
+  });
+
+  it('is a file worth restoring on its own, and counts the notes that are not valid', () => {
+    const text = JSON.stringify({
+      app: BACKUP_APP,
+      format: 8,
+      gameNotes: [gameNote('a', 'x'), { id: 'b', note: 5, tags: [], updatedAt: 1 }, 'nope'],
+    });
+    const parsed = parseBackup(text);
+    expect(parsed.ok && parsed.backup.gameNotes).toEqual([gameNote('a', 'x')]);
+    expect(parsed.ok && parsed.rejected.notes).toBe(2);
+  });
+
+  it('reads a file of format 7, which has no notes', () => {
+    const parsed = parseBackup(JSON.stringify({ app: BACKUP_APP, format: 7, cards: [card('a')] }));
+    expect(parsed.ok && parsed.backup.gameNotes).toEqual([]);
+  });
+
+  it('refuses a file with too many notes', () => {
+    const notes = Array.from({ length: 20_001 }, (_, i) => gameNote(`n${i}`, 'x'));
+    expect(parseBackup(JSON.stringify({ app: BACKUP_APP, format: 8, gameNotes: notes })).ok).toBe(false);
+  });
+
+  it('puts the notes back, the one changed last winning, in an import and in a sync', async () => {
+    await saveNote(gameNote('local', 'ici', [], 100));
+    const backup = await sampleBackup();
+    const withNotes: Backup = {
+      ...backup,
+      gameNotes: [gameNote('local', 'ailleurs', [], 50), gameNote('remote', 'neuve', ['x'], 60)],
+    };
+    const report = await restoreBackup(withNotes, fakeStorage(), { mode: 'sync', silent: true });
+    expect(report.gameNotes).toEqual({ added: 1, replaced: 0, kept: 1 });
+    const notes = await loadNotes();
+    expect(notes.get('local')?.note).toBe('ici');
+    expect(notes.get('remote')?.tags).toEqual(['x']);
+  });
+
+  it('carries the deletion of a note: an emptied note replaces the older one', async () => {
+    await saveNote(gameNote('a', 'x', ['t'], 1));
+    const backup = await sampleBackup();
+    await restoreBackup({ ...backup, gameNotes: [gameNote('a', '', [], 2)] }, fakeStorage());
+    expect((await loadNotes()).size).toBe(0);
+    expect(await exportNotes()).toEqual([gameNote('a', '', [], 2)]);
+  });
+});
+
+describe('backup of the days practised', () => {
+  it('holds the days and reads them back', async () => {
+    await recordPractice(new Date(2026, 9, 3, 12).getTime());
+    await recordPractice(new Date(2026, 9, 3, 18).getTime());
+    const backup = await createBackup(0, fakeStorage());
+    expect(backup.practiceDays).toEqual([{ day: '2026-10-03', count: 2 }]);
+    const parsed = parseBackup(serializeBackup(backup));
+    expect(parsed.ok && parsed.backup.practiceDays).toEqual(backup.practiceDays);
+  });
+
+  it('keeps the larger count of a day when restoring (the same practice seen twice is not added up)', async () => {
+    await recordPractice(new Date(2026, 9, 3, 12).getTime());
+    const backup = await sampleBackup();
+    const report = await restoreBackup(
+      {
+        ...backup,
+        practiceDays: [
+          { day: '2026-10-03', count: 4 },
+          { day: '2026-10-02', count: 1 },
+        ],
+      },
+      fakeStorage(),
+      { mode: 'sync', silent: true }
+    );
+    expect(report.practiceDays).toEqual({ added: 1, replaced: 1 });
+    expect(await exportPracticeDays()).toEqual(
+      expect.arrayContaining([
+        { day: '2026-10-03', count: 4 },
+        { day: '2026-10-02', count: 1 },
+      ])
+    );
+  });
+
+  it('counts the days that are not valid with the unreadable items, and reads a format 7 file without any', () => {
+    const parsed = parseBackup(
+      JSON.stringify({
+        app: BACKUP_APP,
+        format: 8,
+        practiceDays: [
+          { day: '2026-10-03', count: 1 },
+          { day: 'hier', count: 1 },
+        ],
+      })
+    );
+    expect(parsed.ok && parsed.backup.practiceDays).toEqual([{ day: '2026-10-03', count: 1 }]);
+    expect(parsed.ok && parsed.rejected.notes).toBe(1);
+    const old = parseBackup(JSON.stringify({ app: BACKUP_APP, format: 7, cards: [card('a')] }));
+    expect(old.ok && old.backup.practiceDays).toEqual([]);
   });
 });

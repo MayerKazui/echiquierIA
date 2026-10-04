@@ -24,7 +24,7 @@ export interface DriveSyncReport {
   /** What Drive held, merged into the browser. Null when Drive had no copy yet. */
   restore: RestoreReport | null;
   /** Items of the copy that were not valid and were left out. */
-  rejected: { games: number; cards: number; studies: number; puzzles: number };
+  rejected: { games: number; cards: number; studies: number; puzzles: number; notes?: number };
   /** What was sent to Drive. Null when there was nothing to send. */
   sent: { games: number; cards: number; studies: number; puzzles: number; bytes: number } | null;
 }
@@ -66,7 +66,7 @@ export async function syncWithDrive({
   const remote = await withToken((token) => findBackupFile(token, fetchFn));
 
   let restore: RestoreReport | null = null;
-  let rejected = { games: 0, cards: 0, studies: 0, puzzles: 0 };
+  let rejected = { games: 0, cards: 0, studies: 0, puzzles: 0, notes: 0 };
   if (remote) {
     const bytes = await withToken((token) => downloadFile(token, remote.id, fetchFn));
     let text: string;
@@ -101,6 +101,8 @@ export async function syncWithDrive({
     backup.woodpecker === null &&
     backup.woodpeckerArchive.length === 0 &&
     isHistoryEmpty(backup.puzzleHistory) &&
+    backup.gameNotes.length === 0 &&
+    backup.practiceDays.length === 0 &&
     Object.keys(backup.preferences).length === 0
   ) {
     return { restore, rejected, sent: null };

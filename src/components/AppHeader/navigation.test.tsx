@@ -4,6 +4,7 @@ import { buildNavigation, type NavigationActions } from './navigation';
 const actions = (over: Partial<NavigationActions> = {}): NavigationActions => ({
   isMuted: false,
   onToggleSound: vi.fn(),
+  onOpenReview: vi.fn(),
   onOpenHistory: vi.fn(),
   onOpenProfile: vi.fn(),
   onOpenPlan: vi.fn(),
@@ -35,6 +36,15 @@ describe('buildNavigation', () => {
       'Finales de pions',
       'Finales de tours',
     ]);
+  });
+
+  it('puts "À réviser aujourd\'hui" first, with what waits there, and opens it', () => {
+    const a = actions({ reviewCount: 7 });
+    const [first] = buildNavigation(a)[0].items;
+    expect(first).toMatchObject({ id: 'review', label: "À réviser aujourd'hui", badge: 7 });
+    first.onSelect();
+    expect(a.onOpenReview).toHaveBeenCalledTimes(1);
+    expect(buildNavigation(actions())[0].items[0].badge).toBeUndefined();
   });
 
   it('has no two entries with the same name, so that each one can be told apart', () => {
