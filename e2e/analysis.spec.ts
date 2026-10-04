@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { analyzeSample, openFromMenu, waitForAnalysis } from './support/app';
+import { analyzeSample, openFromMenu, waitForAnalysis, waitForGameSaved } from './support/app';
 
 const OPERA = /Partie de l'Opéra/;
 
@@ -31,6 +31,8 @@ test.describe('import et analyse', () => {
   test('la dernière partie se rouvre après un rechargement, sans nouvelle analyse', async ({ page }) => {
     await page.goto('/');
     await analyzeSample(page, OPERA);
+    // La partie est écrite un instant après l'analyse : recharger avant ne retrouverait rien
+    await waitForGameSaved(page);
 
     await page.reload();
     await expect(page.getByRole('banner')).toContainText('Paul Morphy vs Duke Karl');
