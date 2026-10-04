@@ -98,6 +98,19 @@ describe('PositionAnalysis: the engine lines', () => {
     expect((screen.getByRole('combobox', { name: 'Lignes' }) as HTMLSelectElement).value).toBe('5');
   });
 
+  it('keeps the lines still while the pointer is on them, so that the move aimed at is the one played', async () => {
+    const user = userEvent.setup();
+    renderAnalysis();
+    report(THREE_LINES);
+    const list = () => screen.getByRole('list', { name: 'Meilleures lignes' });
+    await user.hover(list());
+    // The engine re-ranks the lines: the second one is now the best
+    report([THREE_LINES[1], THREE_LINES[0], THREE_LINES[2]].map((l, i) => ({ ...l, rank: i + 1 })));
+    expect(within(list()).getAllByRole('listitem')[0].textContent).toContain('1.e4');
+    await user.unhover(list());
+    expect(within(list()).getAllByRole('listitem')[0].textContent).toContain('1.d4');
+  });
+
   it('shows no more lines than were asked for', async () => {
     const user = userEvent.setup();
     renderAnalysis();

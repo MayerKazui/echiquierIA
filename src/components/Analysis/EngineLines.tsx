@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pause, Play } from 'lucide-react';
 import type { LiveStatus } from '../../hooks/useLiveAnalysis';
 import type { LiveAnalysis } from '../../services/analysisEngine';
@@ -87,7 +87,13 @@ export const EngineLines: React.FC<EngineLinesProps> = ({
   onRetry,
   onPlayLine,
 }) => {
-  const lines = (analysis?.lines ?? []).slice(0, lineCount);
+  // The lines are re-ranked many times a second: while the pointer or the focus is on them they stay as they were
+  // when it arrived, so that the move one aims at is the move one plays
+  const [held, setHeld] = useState<{ fen: string; lines: AnalysisLine[] } | null>(null);
+  const live = (analysis?.lines ?? []).slice(0, lineCount);
+  const lines = held && held.fen === fen ? held.lines.slice(0, lineCount) : live;
+  const hold = () => setHeld({ fen, lines: live });
+  const release = () => setHeld(null);
   const speed = analysis?.nps ? `${Math.round(analysis.nps / 1000).toLocaleString('fr-FR')} kn/s` : null;
 
   return (
@@ -148,7 +154,15 @@ export const EngineLines: React.FC<EngineLinesProps> = ({
       )}
 
       {lines.length > 0 ? (
-        <ol aria-label="Meilleures lignes" className="flex flex-col gap-2">
+        <ol
+          aria-label="Meilleures lignes"
+          className="flex flex-col gap-2"
+          onPointerEnter={hold}
+          onPointerMove={() => held?.fen !== fen && hold()} // the position changed under a pointer that stayed
+          onPointerLeave={release}
+          onFocus={() => held === null && hold()}
+          onBlur={release}
+        >
           {lines.map((line) => (
             <EngineLine key={line.rank} fen={fen} line={line} onPlay={onPlayLine} />
           ))}

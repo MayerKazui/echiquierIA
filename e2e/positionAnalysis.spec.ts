@@ -23,6 +23,7 @@ test("l'analyse libre : les trois meilleures lignes du vrai moteur, en direct, e
   // Un clic sur un coup de la deuxième ligne le joue, et la position suivante est analysée à son tour
   const secondLine = lines.nth(1);
   const firstMove = secondLine.getByRole('button').first();
+  await firstMove.hover(); // the lines hold still under the pointer
   const label = ((await firstMove.getAttribute('aria-label')) ?? '').replace('Jouer la ligne jusqu’à ', '');
   await firstMove.click();
   await expect(dialog.locator('p', { hasText: 'Coups joués' })).toContainText(label);
