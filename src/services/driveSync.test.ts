@@ -17,6 +17,7 @@ import { deleteStudy, listStudies, saveStudy, STUDY_SCHEMA_VERSION } from './stu
 import { createChapter } from '../utils/studyTree';
 import type { Study } from '../types/study';
 import type { PuzzleEntry } from '../utils/puzzleReview';
+import { exportVisionRecords, recordVisionRun } from './visionStore';
 
 const move = {
   san: 'e4',
@@ -601,3 +602,36 @@ function cardOf(id: string) {
 function freshGameRecord(pgn: string, white: string) {
   return { id: `id-${white}`, pgn, depth: 14, savedAt: 5000, schemaVersion: 1, result: result(white) };
 }
+
+describe('syncWithDrive, vision records', () => {
+  it('sends the records, and keeps the better score of each side', async () => {
+    await recordVisionRun('coordinates:white', 12, 1000);
+    const drive = fakeDrive(
+      await bytesOf(
+        remoteBackup({
+          visionRecords: [
+            { key: 'coordinates:white', best: 20, bestAt: 500, runs: 4 },
+            { key: 'blind:long', best: 3, bestAt: 600, runs: 1 },
+          ],
+        })
+      )
+    );
+    await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
+    const expected = [
+      { key: 'blind:long', best: 3, bestAt: 600, runs: 1 },
+      { key: 'coordinates:white', best: 20, bestAt: 500, runs: 4 },
+    ];
+    expect(await exportVisionRecords()).toEqual(expected);
+    const sent = parseBackup(await unpackText(drive.files.get('file-1') as Uint8Array));
+    expect(sent.ok && sent.backup.visionRecords).toEqual(expected);
+  });
+
+  it('sends the records alone if that is all there is', async () => {
+    await recordVisionRun('lines:short', 4, 1000);
+    const drive = fakeDrive();
+    const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
+    expect(report.sent).not.toBeNull();
+    const parsed = parseBackup(await unpackText(drive.files.get('file-2') as Uint8Array));
+    expect(parsed.ok && parsed.backup.visionRecords).toEqual([{ key: 'lines:short', best: 4, bestAt: 1000, runs: 1 }]);
+  });
+});

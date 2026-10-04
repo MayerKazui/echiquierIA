@@ -102,6 +102,12 @@ export function describeRestore(
   } else if (report.gameNotes === null) {
     parts.push("Les notes des parties n'ont pas pu être écrites dans ce navigateur.");
   }
+  if (report.visionRecords && report.visionRecords.added + report.visionRecords.replaced > 0) {
+    const { added, replaced } = report.visionRecords;
+    parts.push(`Vision : ${plural(added + replaced, 'record restauré', 'records restaurés')}.`);
+  } else if (report.visionRecords === null) {
+    parts.push("Les records de vision n'ont pas pu être écrits dans ce navigateur.");
+  }
   if (report.preferencesApplied > 0) {
     parts.push(
       `${plural(report.preferencesApplied, 'réglage restauré', 'réglages restaurés')} (rechargez la page pour les appliquer).`

@@ -24,6 +24,7 @@ import { beginCycle, createSet } from '../utils/woodpecker';
 import { loadCards, saveCard } from './trainingStore';
 import { exportNotes, loadNotes, saveNote } from './gameNoteStore';
 import { exportPracticeDays, recordPractice } from './practiceStore';
+import { exportVisionRecords, recordVisionRun } from './visionStore';
 import type { GameNote } from '../utils/gameNotes';
 import { deleteStudy, listStudies, listStudyDeletions, saveStudy, STUDY_SCHEMA_VERSION } from './studyStore';
 import { createChapter } from '../utils/studyTree';
@@ -156,8 +157,8 @@ describe('createBackup', () => {
     expect(backup.puzzles.map((entry) => entry.id)).toEqual(['p1']);
   });
 
-  it('is of format 8', () => {
-    expect(BACKUP_FORMAT).toBe(8);
+  it('is of format 9', () => {
+    expect(BACKUP_FORMAT).toBe(9);
   });
 });
 
@@ -454,6 +455,7 @@ describe('restoreBackup', () => {
       puzzleHistory: { seen: [], log: [], sessions: [], clearedAt: 0 },
       gameNotes: [],
       practiceDays: [],
+      visionRecords: [],
       preferences: { chess_board_theme: 'wood', chess_sound_enabled: 'false' },
     };
     const data = new Map<string, string>();
@@ -814,6 +816,7 @@ describe('backup of the studies', () => {
       puzzleHistory: { seen: [], log: [], sessions: [], clearedAt: 0 },
       gameNotes: [],
       practiceDays: [],
+      visionRecords: [],
       preferences: {},
     };
     const report = await restoreBackup(backup, fakeStorage());
@@ -842,6 +845,7 @@ describe('backup of the studies', () => {
       puzzleHistory: { seen: [], log: [], sessions: [], clearedAt: 0 },
       gameNotes: [],
       practiceDays: [],
+      visionRecords: [],
       preferences: {},
     };
     const report = await restoreBackup(backup, fakeStorage(), { mode: 'sync', silent: true });
@@ -960,5 +964,66 @@ describe('backup of the days practised', () => {
     expect(parsed.ok && parsed.rejected.notes).toBe(1);
     const old = parseBackup(JSON.stringify({ app: BACKUP_APP, format: 7, cards: [card('a')] }));
     expect(old.ok && old.backup.practiceDays).toEqual([]);
+  });
+});
+
+describe('backup of the vision records', () => {
+  it('holds the records and reads them back', async () => {
+    await recordVisionRun('coordinates:white', 22, 1000);
+    await recordVisionRun('blind:long', 4, 2000);
+    const backup = await createBackup(0, fakeStorage());
+    expect(backup.visionRecords).toEqual([
+      { key: 'blind:long', best: 4, bestAt: 2000, runs: 1 },
+      { key: 'coordinates:white', best: 22, bestAt: 1000, runs: 1 },
+    ]);
+    const parsed = parseBackup(serializeBackup(backup));
+    expect(parsed.ok && parsed.backup.visionRecords).toEqual(backup.visionRecords);
+  });
+
+  it('is a file worth restoring on its own, and counts the records that are not valid', () => {
+    const parsed = parseBackup(
+      JSON.stringify({
+        app: BACKUP_APP,
+        format: 9,
+        visionRecords: [
+          { key: 'lines:short', best: 3, bestAt: 5, runs: 2 },
+          { key: 'lines:short', best: -3, bestAt: 5, runs: 2 },
+          'nope',
+        ],
+      })
+    );
+    expect(parsed.ok && parsed.backup.visionRecords).toEqual([{ key: 'lines:short', best: 3, bestAt: 5, runs: 2 }]);
+    expect(parsed.ok && parsed.rejected.notes).toBe(2);
+  });
+
+  it('reads a file of format 8, which has no records', () => {
+    const parsed = parseBackup(JSON.stringify({ app: BACKUP_APP, format: 8, cards: [card('a')] }));
+    expect(parsed.ok && parsed.backup.visionRecords).toEqual([]);
+  });
+
+  it('refuses a file with too many records', () => {
+    const records = Array.from({ length: 20_001 }, () => ({ key: 'blind:short', best: 1, bestAt: 1, runs: 1 }));
+    expect(parseBackup(JSON.stringify({ app: BACKUP_APP, format: 9, visionRecords: records })).ok).toBe(false);
+  });
+
+  it('keeps the better score of a record when restoring, in an import and in a sync', async () => {
+    await recordVisionRun('coordinates:white', 20, 1000);
+    const backup = await sampleBackup();
+    const report = await restoreBackup(
+      {
+        ...backup,
+        visionRecords: [
+          { key: 'coordinates:white', best: 15, bestAt: 5, runs: 1 },
+          { key: 'lines:long', best: 5, bestAt: 6, runs: 3 },
+        ],
+      },
+      fakeStorage(),
+      { mode: 'sync', silent: true }
+    );
+    expect(report.visionRecords).toEqual({ added: 1, replaced: 0 });
+    expect(await exportVisionRecords()).toEqual([
+      { key: 'coordinates:white', best: 20, bestAt: 1000, runs: 1 },
+      { key: 'lines:long', best: 5, bestAt: 6, runs: 3 },
+    ]);
   });
 });

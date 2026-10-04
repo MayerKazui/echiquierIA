@@ -50,14 +50,19 @@ const PIECES: Record<string, { name: string; white: string; black: string }> = {
   k: { name: 'roi', white: 'blanc', black: 'noir' },
 };
 
+/** "cavalier blanc", "dame noire": a piece in words, with the colour agreeing with it. */
+export function pieceName(piece: { type: string; color: 'w' | 'b' }): string {
+  const info = PIECES[piece.type];
+  return info ? `${info.name} ${piece.color === 'w' ? info.white : info.black}` : '';
+}
+
 /** Accessible name of a board square, e.g. "e4, pion blanc" or "a3, vide, coup possible". */
 export function squareLabel(
   square: string,
   piece: { type: string; color: 'w' | 'b' } | null | undefined,
   options: { selected?: boolean; legalDestination?: boolean; threat?: string } = {}
 ): string {
-  const info = piece ? PIECES[piece.type] : null;
-  const parts = [square, info ? `${info.name} ${piece!.color === 'w' ? info.white : info.black}` : 'vide'];
+  const parts = [square, (piece && pieceName(piece)) || 'vide'];
   if (options.selected) parts.push('sélectionné');
   if (options.legalDestination) parts.push('coup possible');
   if (options.threat) parts.push(`menace : ${options.threat}`);
