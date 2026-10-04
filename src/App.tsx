@@ -1024,6 +1024,10 @@ export default function App() {
                 setIsOpeningsOpen(false);
                 openPlay(start);
               }}
+              onAnalyze={(fen) => {
+                setIsOpeningsOpen(false);
+                openAnalysis(fen);
+              }}
               onImport={() => {
                 setIsOpeningsOpen(false);
                 // Without a game on screen the start screen already shows the import form

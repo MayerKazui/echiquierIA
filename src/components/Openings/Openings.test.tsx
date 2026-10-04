@@ -217,6 +217,14 @@ describe('Openings, playing from a position', () => {
     expect(start.label).toContain("Position de l'explorateur");
   });
 
+  it('offers the free analysis of the position on the board, from the explorer too', async () => {
+    const onAnalyze = vi.fn();
+    const user = userEvent.setup();
+    renderOpenings({ onAnalyze, start: { view: 'explorer', sans: ['e4', 'c5'] } });
+    await user.click(await screen.findByRole('button', { name: 'Analyser la position' }));
+    expect(onAnalyze).toHaveBeenCalledWith(walkLine(['e4', 'c5'], getOpeningPosition).fen);
+  });
+
   it('does not offer it on the initial position (the menu has the complete game)', async () => {
     renderOpenings({ onPlay: vi.fn() });
     await table();

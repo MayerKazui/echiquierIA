@@ -17,6 +17,8 @@ interface OpeningsProps {
   onImport: () => void;
   /** Starts a game against Stockfish from a position of the explorer. */
   onPlay?: (start: PlayStart) => void;
+  /** Opens the free analysis (the engine's best lines, live) on a position of the explorer. */
+  onAnalyze?: (fen: string) => void;
   boardTheme?: BoardTheme;
   /** What to show first (the plan sends the player to a position of the explorer). */
   start?: { view: View; sans: string[] };
@@ -35,7 +37,15 @@ export const VIEWS: Array<{ value: View; label: string }> = [
  * "Ouvertures": the tree of the openings to walk through, the player's own repertoire, training on it, and the
  * preparation for an opponent.
  */
-export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardTheme, start, onPlay, fetchPage }) => {
+export const Openings: React.FC<OpeningsProps> = ({
+  onClose,
+  onImport,
+  boardTheme,
+  start,
+  onPlay,
+  onAnalyze,
+  fetchPage,
+}) => {
   const [view, setView] = useState<View>(start?.view ?? 'explorer');
   // Kept here so that the repertoire can send the player to a position of the explorer
   const [sans, setSans] = useState<string[]>(start?.sans ?? []);
@@ -104,6 +114,7 @@ export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardThem
             onSansChange={setSans}
             onImport={onImport}
             onPlay={onPlay}
+            onAnalyze={onAnalyze}
             boardTheme={boardTheme}
           />
         )}
@@ -116,6 +127,7 @@ export const Openings: React.FC<OpeningsProps> = ({ onClose, onImport, boardThem
             onReset={opponent.reset}
             onImport={onImport}
             onPlay={onPlay}
+            onAnalyze={onAnalyze}
             boardTheme={boardTheme}
           />
         )}

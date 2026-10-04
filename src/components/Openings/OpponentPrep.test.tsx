@@ -55,9 +55,15 @@ const HISTORY = [
 
 const pageOf = (games: ImportedGame[]) => vi.fn<typeof fetchGamesPage>(async () => ({ games, cursor: null }));
 
-const renderPrep = (fetchPage = pageOf(HISTORY)) => {
+const renderPrep = (fetchPage = pageOf(HISTORY), onAnalyze?: (fen: string) => void) => {
   render(
-    <Openings onClose={vi.fn()} onImport={vi.fn()} fetchPage={fetchPage} start={{ view: 'opponent', sans: [] }} />
+    <Openings
+      onClose={vi.fn()}
+      onImport={vi.fn()}
+      onAnalyze={onAnalyze}
+      fetchPage={fetchPage}
+      start={{ view: 'opponent', sans: [] }}
+    />
   );
   return fetchPage;
 };
@@ -143,6 +149,36 @@ describe('Préparer un adversaire', () => {
     const line = await screen.findByRole('list', { name: 'Coups joués' });
     expect(within(line).getAllByRole('button')).toHaveLength(6);
     expect(screen.getByRole('button', { name: 'Il joue les Blancs' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('offers to analyse the position of their favourite line, once it is shown, and only then', async () => {
+    const user = userEvent.setup();
+    const onAnalyze = vi.fn();
+    renderPrep(pageOf(HISTORY), onAnalyze);
+    await search(user);
+    const white = within(await card('Avec les Blancs'));
+    // On the initial position of the explorer there is nothing to analyse
+    expect(screen.queryByRole('button', { name: 'Analyser la position' })).toBeNull();
+
+    await user.click(white.getByRole('button', { name: "Voir sa ligne favorite avec les Blancs dans l'explorateur" }));
+    await user.click(await screen.findByRole('button', { name: 'Analyser la position' }));
+    expect(onAnalyze).toHaveBeenCalledTimes(1);
+    const chess = new Chess();
+    for (const san of RUY) chess.move(san);
+    expect(onAnalyze).toHaveBeenCalledWith(chess.fen());
+  });
+
+  it('does not offer it when the parent has no analysis to open', async () => {
+    const user = userEvent.setup();
+    renderPrep();
+    await search(user);
+    await user.click(
+      within(await card('Avec les Blancs')).getByRole('button', {
+        name: "Voir sa ligne favorite avec les Blancs dans l'explorateur",
+      })
+    );
+    await screen.findByRole('list', { name: 'Coups joués' });
+    expect(screen.queryByRole('button', { name: 'Analyser la position' })).toBeNull();
   });
 
   it('counts the opponent’s moves in the explorer, the most played first, with their share', async () => {

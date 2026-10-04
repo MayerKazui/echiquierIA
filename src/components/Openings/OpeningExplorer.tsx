@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Chess } from 'chess.js';
-import { ArrowLeft, FlipVertical2, RotateCcw, Swords } from 'lucide-react';
+import { ArrowLeft, FlipVertical2, RotateCcw, ScanSearch, Swords } from 'lucide-react';
 import { useOpeningExplorerData } from '../../hooks/useOpeningExplorerData';
 import { getOpeningPosition } from '../../services/openingBook';
 import { toFrenchSan } from '../../utils/chessNotation';
@@ -20,6 +20,8 @@ interface OpeningExplorerProps {
   onImport: () => void;
   /** Starts a game against Stockfish from the position on the board. */
   onPlay?: (start: PlayStart) => void;
+  /** Opens the free analysis (the engine's best lines, live) on the position on the board. */
+  onAnalyze?: (fen: string) => void;
   boardTheme?: BoardTheme;
   /**
    * The games of an opponent to prepare for: their moves are counted next to the player's own, the sides become
@@ -53,6 +55,7 @@ export const OpeningExplorer: React.FC<OpeningExplorerProps> = ({
   onSansChange,
   onImport,
   onPlay,
+  onAnalyze,
   boardTheme,
   opponent,
   side: controlledSide,
@@ -195,6 +198,12 @@ export const OpeningExplorer: React.FC<OpeningExplorerProps> = ({
                 >
                   <Swords className="w-3.5 h-3.5" aria-hidden="true" />
                   Jouer contre Stockfish
+                </button>
+              )}
+              {onAnalyze && sans.length > 0 && (
+                <button type="button" className={SECONDARY} onClick={() => onAnalyze(walk.fen)}>
+                  <ScanSearch className="w-3.5 h-3.5" aria-hidden="true" />
+                  Analyser la position
                 </button>
               )}
             </div>
