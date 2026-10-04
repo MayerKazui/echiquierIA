@@ -60,6 +60,88 @@ describe('saving analysed games', () => {
   });
 });
 
+describe('when the game is written', () => {
+  const hide = (state: 'hidden' | 'visible') => {
+    Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  };
+
+  /** Timers stopped: only what does not wait for the delay can reach the store. */
+  async function withFrozenTimers(run: () => Promise<void>) {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      await run();
+    } finally {
+      vi.useRealTimers();
+      hide('visible');
+    }
+  }
+
+  it('writes a finished analysis at once, without waiting for the delay (a reload right after must not lose it)', async () => {
+    await withFrozenTimers(async () => {
+      const { result } = render();
+      await act(() => result.current.analyze(PGN, 14));
+      await vi.waitFor(async () => expect((await loadGame(PGN))?.depth).toBe(14));
+    });
+  });
+
+  it('lets the changes that follow wait for the delay, and writes them when the page is hidden', async () => {
+    await withFrozenTimers(async () => {
+      const { result } = render();
+      await act(() => result.current.analyze(PGN, 12));
+      await vi.waitFor(async () => expect(await loadGame(PGN)).not.toBeNull());
+
+      act(() => result.current.updateUserColor('b'));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect((await loadGame(PGN))?.result.userColor).toBe('w');
+
+      act(() => hide('hidden'));
+      await vi.waitFor(async () => expect((await loadGame(PGN))?.result.userColor).toBe('b'));
+    });
+  });
+
+  it('writes the waiting change on pagehide too (a reload, a closed tab)', async () => {
+    await withFrozenTimers(async () => {
+      const { result } = render();
+      await act(() => result.current.analyze(PGN, 12));
+      await vi.waitFor(async () => expect(await loadGame(PGN)).not.toBeNull());
+      act(() => result.current.updateUserColor('b'));
+      act(() => {
+        window.dispatchEvent(new Event('pagehide'));
+      });
+      await vi.waitFor(async () => expect((await loadGame(PGN))?.result.userColor).toBe('b'));
+    });
+  });
+
+  it('writes a change once: the delayed save finds nothing left after the page was hidden', async () => {
+    await withFrozenTimers(async () => {
+      const { result } = render();
+      await act(() => result.current.analyze(PGN, 12));
+      await vi.waitFor(async () => expect(await loadGame(PGN)).not.toBeNull());
+      act(() => result.current.updateUserColor('b'));
+      act(() => hide('hidden'));
+      await vi.waitFor(async () => expect((await loadGame(PGN))?.result.userColor).toBe('b'));
+      const written = (await loadGame(PGN))!.savedAt;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect((await loadGame(PGN))!.savedAt).toBe(written);
+    });
+  });
+
+  it('does nothing when the page becomes visible again, or when nothing waits', async () => {
+    const { result } = render();
+    await act(() => result.current.analyze(PGN, 12));
+    await waitFor(async () => expect(await loadGame(PGN)).not.toBeNull());
+    const written = (await loadGame(PGN))!.savedAt;
+    act(() => hide('hidden'));
+    act(() => hide('visible'));
+    expect((await loadGame(PGN))!.savedAt).toBe(written);
+  });
+});
+
 describe('changing the side the user plays', () => {
   it('is stored with the game', async () => {
     const { result } = render('', 'w');

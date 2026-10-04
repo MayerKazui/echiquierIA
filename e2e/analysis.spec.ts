@@ -42,4 +42,20 @@ test.describe('import et analyse', () => {
     await expect(page.getByText('Paul Morphy – Duke Karl / Count Isouard')).toBeVisible();
     await expect(page.getByText('AFFICHÉE')).toBeVisible();
   });
+
+  test('recharger tout de suite après une analyse ne fait pas perdre la partie', async ({ page }) => {
+    // La sauvegarde différée de l'application (250 ms) est repoussée d'une minute : seule la fermeture de la page,
+    // qui écrit la partie sans attendre, peut alors la garder (sans cela le test dépendrait de la vitesse du rechargement)
+    await page.addInitScript(() => {
+      const setTimeoutNow = window.setTimeout.bind(window);
+      window.setTimeout = ((handler: TimerHandler, delay?: number, ...args: unknown[]) =>
+        setTimeoutNow(handler, delay === 250 ? 60_000 : delay, ...args)) as typeof window.setTimeout;
+    });
+    await page.goto('/');
+    await analyzeSample(page, OPERA);
+    await page.reload();
+    await expect(page.getByRole('banner')).toContainText('Paul Morphy vs Duke Karl');
+    await openFromMenu(page, /Mes parties/);
+    await expect(page.getByText('Paul Morphy – Duke Karl / Count Isouard')).toBeVisible();
+  });
 });
