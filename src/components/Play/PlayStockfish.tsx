@@ -1,10 +1,11 @@
 import React, { useId, useState } from 'react';
 import { Swords, X } from 'lucide-react';
 import { oneOf, usePersistentState } from '../../hooks/usePersistentState';
+import { clearPlaySession, loadPlaySession, type PlaySession } from '../../services/playSessionStore';
 import type { BoardTheme, PlayerColor } from '../../types/ui';
 import { DEFAULT_LEVEL_ID, PLAY_LEVELS, levelById, type PlayLevel } from '../../utils/playLevels';
 import { STANDARD_START_FEN, validFen, type PlayStart } from '../../utils/playGame';
-import { PRIMARY } from '../Openings/shared';
+import { PRIMARY, SECONDARY } from '../Openings/shared';
 import { PlayGame } from './PlayGame';
 
 interface PlayStockfishProps {
@@ -24,7 +25,16 @@ interface Game {
   start: PlayStart;
   color: PlayerColor;
   level: PlayLevel;
+  /** The game in progress being resumed. */
+  resume?: PlaySession;
 }
+
+const DATE_FORMAT = new Intl.DateTimeFormat('fr-FR', {
+  day: 'numeric',
+  month: 'long',
+  hour: '2-digit',
+  minute: '2-digit',
+});
 
 const LEGEND = 'text-xs font-semibold text-slate-200';
 const OPTION =
@@ -43,13 +53,32 @@ export const PlayStockfish: React.FC<PlayStockfishProps> = ({ start, boardTheme,
   const [customFen, setCustomFen] = useState('');
   const [color, setColor] = useState<ColorChoice>(start ? turnOf(start.fen) : 'w');
   const [game, setGame] = useState<Game | null>(null);
+  /** The game left unfinished the last time (kept after every move), if any. */
+  const [saved, setSaved] = useState<PlaySession | null>(() => loadPlaySession());
   const name = useId();
 
   const customIsValid = validFen(customFen);
   const canStart = position !== 'custom' || customIsValid;
 
+  const resumeSaved = () => {
+    if (!saved) return;
+    setGame({
+      start: { fen: saved.startFen, label: saved.label, prefix: saved.prefix },
+      color: saved.color,
+      level: levelById(saved.levelId),
+      resume: saved,
+    });
+  };
+
+  const discardSaved = () => {
+    clearPlaySession();
+    setSaved(null);
+  };
+
   const begin = () => {
     if (!canStart) return;
+    // A new game replaces the one that was left unfinished (the game clears it when it starts)
+    setSaved(null);
     const chosen: PlayStart =
       position === 'origin' && start
         ? start
@@ -103,9 +132,13 @@ export const PlayStockfish: React.FC<PlayStockfishProps> = ({ start, boardTheme,
             userColor={game.color}
             level={game.level}
             boardTheme={boardTheme}
+            resume={game.resume}
             userName={userName}
             onAnalyze={onAnalyze}
-            onNewGame={() => setGame(null)}
+            onNewGame={() => {
+              setGame(null);
+              setSaved(loadPlaySession());
+            }}
           />
         ) : (
           <form
@@ -115,6 +148,31 @@ export const PlayStockfish: React.FC<PlayStockfishProps> = ({ start, boardTheme,
               begin();
             }}
           >
+            {saved && (
+              <section
+                aria-label="Partie en cours"
+                className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-3 flex flex-col gap-2"
+              >
+                <p className="text-xs text-indigo-100">
+                  <span className="font-semibold">Une partie est en cours</span> : vous avez les{' '}
+                  {saved.color === 'w' ? 'Blancs' : 'Noirs'} contre Stockfish ({levelById(saved.levelId).label}),{' '}
+                  {saved.moves.length} demi-coup{saved.moves.length > 1 ? 's' : ''} joué
+                  {saved.moves.length > 1 ? 's' : ''}, dernier coup le {DATE_FORMAT.format(saved.updatedAt)}.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={resumeSaved} className={PRIMARY}>
+                    Reprendre la partie
+                  </button>
+                  <button type="button" onClick={discardSaved} className={SECONDARY}>
+                    Abandonner cette partie
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Lancer une nouvelle partie remplace celle-ci ; une partie abandonnée ici n&apos;est pas gardée.
+                </p>
+              </section>
+            )}
+
             <fieldset className="flex flex-col gap-2">
               <legend className={`${LEGEND} mb-1`}>Position de départ</legend>
               {start && (

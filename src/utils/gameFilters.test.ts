@@ -7,6 +7,7 @@ import {
   applyFilters,
   describeCount,
   describeGame,
+  describePlayed,
   filterChoices,
   fold,
   matchesFilters,
@@ -14,6 +15,7 @@ import {
   type HistoryFilters,
 } from './gameFilters';
 import type { GameNote } from './gameNotes';
+import type { PlayedGame } from './playedGames';
 
 const NOW = Date.UTC(2026, 9, 4);
 interface Spec {
@@ -55,7 +57,7 @@ const note = (id: string, text: string, tags: string[] = []): GameNote => ({ id,
 
 const facts = (spec: Spec, n?: GameNote) => describeGame(stored(spec), n);
 const filters = (over: Partial<HistoryFilters>): HistoryFilters => ({ ...NO_FILTERS, ...over });
-const ids = (list: ReturnType<typeof facts>[]) => list.map((f) => f.game.id);
+const ids = (list: ReturnType<typeof facts>[]) => list.map((f) => f.id);
 
 describe('describeGame', () => {
   it('reads the figures from the side the player had', () => {
@@ -253,6 +255,7 @@ describe('filterChoices and counts', () => {
 
   it('lists opponents and openings, the most frequent first, a name once whatever its case', () => {
     expect(filterChoices(list)).toEqual({
+      engineGames: 0,
       opponents: [
         { name: 'Bob', count: 2 },
         { name: 'Carl', count: 2 },
@@ -275,5 +278,79 @@ describe('filterChoices and counts', () => {
     expect(describeCount(340, 340)).toBe('340 parties');
     expect(describeCount(12, 340)).toBe('12 parties sur 340');
     expect(describeCount(0, 5)).toBe('0 partie sur 5');
+  });
+});
+
+describe('games played against the engine', () => {
+  const played = (over: Partial<PlayedGame> = {}): PlayedGame => ({
+    id: 'p1',
+    pgn: '1. e4 e5 *',
+    analysable: true,
+    sans: ['e4', 'e5'],
+    startFen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    label: 'Partie complète',
+    color: 'w',
+    levelId: 'club',
+    levelLabel: 'Club',
+    elo: 1600,
+    userName: 'Alice',
+    result: '1-0',
+    ending: 'checkmate',
+    hints: 0,
+    evals: 0,
+    finishedAt: 5000,
+    updatedAt: 5000,
+    ...over,
+  });
+
+  it('describes a game that was not analysed from the record alone', () => {
+    const item = describePlayed(played({ color: 'b', result: '1-0' }));
+    expect(item).toMatchObject({
+      id: 'p1',
+      game: null,
+      color: 'b',
+      outcome: 'loss',
+      opponent: 'Stockfish (Club)',
+      accuracy: null,
+      savedAt: 5000,
+      date: 5000,
+    });
+  });
+
+  it('is found by the words that name it', () => {
+    const item = describePlayed(played());
+    for (const query of ['stockfish', 'club', 'contre stockfish', 'moteur', 'partie complete']) {
+      expect(matchesFilters(item, filters({ query }), NOW)).toBe(true);
+    }
+    expect(matchesFilters(item, filters({ query: 'maitre' }), NOW)).toBe(false);
+  });
+
+  it('gives an analysed game the label of the game it comes from', () => {
+    const item = describeGame(stored({ id: 'p1' }), undefined, played());
+    expect(item.played?.levelLabel).toBe('Club');
+    expect(matchesFilters(item, filters({ query: 'stockfish' }), NOW)).toBe(true);
+  });
+
+  it('filters on where the games come from, and counts the filter', () => {
+    const list = [describePlayed(played()), facts({ id: 'a' }), describeGame(stored({ id: 'b' }), undefined, played())];
+    expect(ids(applyFilters(list, filters({ source: 'engine' }), NOW)).sort()).toEqual(['b', 'p1']);
+    expect(ids(applyFilters(list, filters({ source: 'other' }), NOW))).toEqual(['a']);
+    expect(activeFilterCount(filters({ source: 'engine' }))).toBe(1);
+    expect(filterChoices(list).engineGames).toBe(2);
+  });
+
+  it('puts the games in the order they were added, played ones included', () => {
+    const list = [
+      facts({ id: 'a', savedAt: 100 }),
+      describePlayed(played({ id: 'p1', finishedAt: 300 })),
+      facts({ id: 'b', savedAt: 200 }),
+    ];
+    expect(ids(sortFacts(list, 'recent'))).toEqual(['p1', 'b', 'a']);
+  });
+
+  it('leaves a game that has no accuracy out of an accuracy filter, and last of an accuracy sort', () => {
+    const list = [describePlayed(played()), facts({ id: 'a', accuracyWhite: 90 })];
+    expect(ids(applyFilters(list, filters({ accuracy: '80' }), NOW))).toEqual(['a']);
+    expect(ids(sortFacts(list, 'accuracy-asc'))).toEqual(['a', 'p1']);
   });
 });

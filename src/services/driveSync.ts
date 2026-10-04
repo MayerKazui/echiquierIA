@@ -104,6 +104,7 @@ export async function syncWithDrive({
     backup.gameNotes.length === 0 &&
     backup.practiceDays.length === 0 &&
     backup.visionRecords.length === 0 &&
+    backup.playedGames.length === 0 &&
     Object.keys(backup.preferences).length === 0
   ) {
     return { restore, rejected, sent: null };

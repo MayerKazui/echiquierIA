@@ -9,6 +9,8 @@ export interface PlayGameOptions {
   startFen: string;
   userColor: PlayerColor;
   level: PlayLevel;
+  /** The moves already played (UCI), when a game in progress is resumed. */
+  initialMoves?: readonly string[];
 }
 
 /**
@@ -16,8 +18,8 @@ export interface PlayGameOptions {
  * the list of moves (UCI) from the start position: everything else (the position, the notation, the result by
  * the rules) is read from it, so taking a move back is just a shorter list.
  */
-export function usePlayGame({ startFen, userColor, level }: PlayGameOptions) {
-  const [uciMoves, setUciMoves] = useState<string[]>([]);
+export function usePlayGame({ startFen, userColor, level, initialMoves }: PlayGameOptions) {
+  const [uciMoves, setUciMoves] = useState<string[]>(() => [...(initialMoves ?? [])]);
   const [resigned, setResigned] = useState<PlayerColor | null>(null);
   const [engineFailed, setEngineFailed] = useState(false);
   /** Bumped to ask the engine again after a failure. */
@@ -76,6 +78,7 @@ export function usePlayGame({ startFen, userColor, level }: PlayGameOptions) {
   return {
     fen: state.fen,
     moves: state.moves,
+    uciMoves,
     turn,
     outcome,
     isOver,

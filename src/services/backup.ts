@@ -24,6 +24,8 @@ import { isCard, loadCards, mergeCards, type CardMergeReport } from './trainingS
 import { exportNotes, mergeNotes, type NoteMergeReport } from './gameNoteStore';
 import { exportPracticeDays, mergePracticeDays, type PracticeMergeReport } from './practiceStore';
 import { exportVisionRecords, mergeVisionRecords, type VisionMergeReport } from './visionStore';
+import { exportPlayedGames, mergePlayedGames, type PlayedMergeReport } from './playedGameStore';
+import { isPlayedRecord, type PlayedRecord } from '../utils/playedGames';
 import { isVisionRecord, type VisionRecord } from '../utils/vision';
 import { isPracticeDay, type PracticeDay } from '../utils/practiceDays';
 import { isGameNote, type GameNote } from '../utils/gameNotes';
@@ -53,8 +55,8 @@ import {
  * cleared cache or another browser would otherwise lose the games, the training progress and the settings).
  *
  * The file holds the analysed games (as stored, light versions included), their tags and notes, the training cards,
- * the studies, the missed puzzles, the Woodpecker lot with its cycles, the records of the vision exercises and the
- * settings; it does not hold the queue of a running batch analysis (it is transient). It is plain text: anyone who has it can
+ * the studies, the missed puzzles, the Woodpecker lot with its cycles, the records of the vision exercises, the games
+ * played against the engine and the settings; it does not hold the queue of a running batch analysis (it is transient). It is plain text: anyone who has it can
  * read the games and the pseudo.
  */
 
@@ -92,7 +94,11 @@ export const BACKUP_APP = 'echiquier-ia';
  * 9 added the records of the vision exercises (`visionRecords`), for the same reason: an application of format 8 would
  * send back a copy without them and overwrite the ones kept in Drive.
  */
-export const BACKUP_FORMAT = 9;
+/**
+ * 10 added the games played against the engine (`playedGames`, with a tombstone for each one deleted), for the same
+ * reason: an application of format 9 would send back a copy without them and overwrite the ones kept in Drive.
+ */
+export const BACKUP_FORMAT = 10;
 
 /** The settings kept in the backup (localStorage keys): nothing else is read or written there. */
 export const PREFERENCE_KEYS = [
@@ -147,6 +153,8 @@ export interface Backup {
   practiceDays: PracticeDay[];
   /** The best score of each vision exercise at each level (empty before format 9). */
   visionRecords: VisionRecord[];
+  /** The games played against the engine, a deleted one as a tombstone (empty before format 10). */
+  playedGames: PlayedRecord[];
   preferences: Record<string, string>;
 }
 
@@ -193,6 +201,7 @@ export async function createBackup(
     gameNotes,
     practiceDays,
     visionRecords,
+    playedGames,
   ] = await Promise.all([
     exportGames(),
     loadCards(),
@@ -206,6 +215,7 @@ export async function createBackup(
     exportNotes(),
     exportPracticeDays(),
     exportVisionRecords(),
+    exportPlayedGames(),
   ]);
   return {
     app: BACKUP_APP,
@@ -223,6 +233,7 @@ export async function createBackup(
     gameNotes,
     practiceDays,
     visionRecords,
+    playedGames,
     preferences: readPreferences(storage),
   };
 }
@@ -277,6 +288,7 @@ export function parseBackup(text: string): ParsedBackup {
   const gameNotes: unknown[] = Array.isArray(data.gameNotes) ? data.gameNotes : [];
   const practiceDays: unknown[] = Array.isArray(data.practiceDays) ? data.practiceDays : [];
   const visionRecords: unknown[] = Array.isArray(data.visionRecords) ? data.visionRecords : [];
+  const playedGames: unknown[] = Array.isArray(data.playedGames) ? data.playedGames : [];
   if (
     games.length > MAX_ITEMS ||
     cards.length > MAX_ITEMS ||
@@ -286,7 +298,8 @@ export function parseBackup(text: string): ParsedBackup {
     puzzles.length > MAX_ITEMS ||
     gameNotes.length > MAX_ITEMS ||
     practiceDays.length > MAX_ITEMS ||
-    visionRecords.length > MAX_ITEMS
+    visionRecords.length > MAX_ITEMS ||
+    playedGames.length > MAX_ITEMS
   ) {
     return { ok: false, error: 'Cette sauvegarde contient trop de données pour être valide.' };
   }
@@ -299,6 +312,7 @@ export function parseBackup(text: string): ParsedBackup {
   const validNotes = gameNotes.filter(isGameNote);
   const validDays = practiceDays.filter(isPracticeDay);
   const validRecords = visionRecords.filter(isVisionRecord);
+  const validPlayed = playedGames.filter(isPlayedRecord);
   const hasWoodpecker = data.woodpecker !== undefined && data.woodpecker !== null;
   const woodpecker = isWoodpeckerSet(data.woodpecker) ? data.woodpecker : null;
   const archive: unknown[] = Array.isArray(data.woodpeckerArchive) ? data.woodpeckerArchive : [];
@@ -347,6 +361,7 @@ export function parseBackup(text: string): ParsedBackup {
     validNotes.length === 0 &&
     validDays.length === 0 &&
     validRecords.length === 0 &&
+    validPlayed.length === 0 &&
     Object.keys(preferences).length === 0
   ) {
     return { ok: false, error: EMPTY_BACKUP_ERROR };
@@ -369,6 +384,7 @@ export function parseBackup(text: string): ParsedBackup {
       gameNotes: validNotes,
       practiceDays: validDays,
       visionRecords: validRecords,
+      playedGames: validPlayed,
       preferences,
     },
     rejected: {
@@ -387,7 +403,9 @@ export function parseBackup(text: string): ParsedBackup {
         practiceDays.length -
         validDays.length +
         visionRecords.length -
-        validRecords.length,
+        validRecords.length +
+        playedGames.length -
+        validPlayed.length,
     },
   };
 }
@@ -410,6 +428,8 @@ export interface RestoreReport {
   practiceDays?: PracticeMergeReport | null;
   /** Null when the vision records could not be written. */
   visionRecords?: VisionMergeReport | null;
+  /** Null when the games played against the engine could not be written. */
+  playedGames?: PlayedMergeReport | null;
   /** Settings written: the ones the browser did not have yet (the settings chosen here are not overwritten). */
   preferencesApplied: number;
 }
@@ -431,22 +451,33 @@ export async function restoreBackup(
   storage: WritableStorage | undefined = defaultStorage(),
   { mode = 'import', silent }: RestoreOptions = {}
 ): Promise<RestoreReport> {
-  const [games, cards, studies, puzzles, woodpecker, puzzleHistory, gameNotes, practiceDays, visionRecords] =
-    await Promise.all([
-      mode === 'sync'
-        ? mergeGames(backup.games, undefined, backup.deletions, { silent })
-        : mergeGames(backup.games, undefined, [], { silent, override: true }),
-      mergeCards(backup.cards),
-      mode === 'sync'
-        ? mergeStudies(backup.studies, backup.studyDeletions, { silent })
-        : mergeStudies(backup.studies, [], { silent, override: true }),
-      mergePuzzleEntries(backup.puzzles),
-      mergeWoodpecker(backup.woodpecker, backup.woodpeckerArchive),
-      mergePuzzleHistory(backup.puzzleHistory, { mode }),
-      mergeNotes(backup.gameNotes, { silent }),
-      mergePracticeDays(backup.practiceDays, { silent }),
-      mergeVisionRecords(backup.visionRecords, { silent }),
-    ]);
+  const [
+    games,
+    cards,
+    studies,
+    puzzles,
+    woodpecker,
+    puzzleHistory,
+    gameNotes,
+    practiceDays,
+    visionRecords,
+    playedGames,
+  ] = await Promise.all([
+    mode === 'sync'
+      ? mergeGames(backup.games, undefined, backup.deletions, { silent })
+      : mergeGames(backup.games, undefined, [], { silent, override: true }),
+    mergeCards(backup.cards),
+    mode === 'sync'
+      ? mergeStudies(backup.studies, backup.studyDeletions, { silent })
+      : mergeStudies(backup.studies, [], { silent, override: true }),
+    mergePuzzleEntries(backup.puzzles),
+    mergeWoodpecker(backup.woodpecker, backup.woodpeckerArchive),
+    mergePuzzleHistory(backup.puzzleHistory, { mode }),
+    mergeNotes(backup.gameNotes, { silent }),
+    mergePracticeDays(backup.practiceDays, { silent }),
+    mergeVisionRecords(backup.visionRecords, { silent }),
+    mergePlayedGames(backup.playedGames, { silent }),
+  ]);
   let preferencesApplied = 0;
   for (const key of PREFERENCE_KEYS) {
     const value = backup.preferences[key];
@@ -470,6 +501,7 @@ export async function restoreBackup(
     gameNotes,
     practiceDays,
     visionRecords,
+    playedGames,
     preferencesApplied,
   };
 }

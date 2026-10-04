@@ -4,18 +4,26 @@ import { chooseOpening } from './openingBook';
 import type { GameAnalysisOutput } from './stockfishEngine';
 import { parsePgnHeaders } from '../utils/pgnParser';
 
-/** Picks the side the user played from the PGN player names, falling back to `fallback`. */
+/** Whether a player name is the engine of "Jouer contre Stockfish" ("Stockfish (Club)"). */
+const isEngineName = (name: string): boolean => /^stockfish \(/i.test(name.trim());
+
+/**
+ * Picks the side the user played from the PGN player names, falling back to `fallback`. In a game against the engine
+ * the player is the side that is not "Stockfish (…)", whatever their pseudo.
+ */
 export function detectUserColor(
   headers: { white?: string; black?: string },
   userPseudo: string,
   fallback: PlayerColor
 ): PlayerColor {
-  if (!userPseudo) return fallback;
   const white = (headers.white || '').toLowerCase();
   const black = (headers.black || '').toLowerCase();
   const pseudo = userPseudo.toLowerCase();
-  if (black.includes(pseudo) && !white.includes(pseudo)) return 'b';
-  if (white.includes(pseudo)) return 'w';
+  if (pseudo) {
+    if (black.includes(pseudo) && !white.includes(pseudo)) return 'b';
+    if (white.includes(pseudo)) return 'w';
+  }
+  if (isEngineName(white) !== isEngineName(black)) return isEngineName(white) ? 'b' : 'w';
   return fallback;
 }
 

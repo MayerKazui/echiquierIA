@@ -93,7 +93,7 @@ describe('GameHistory with a long history', () => {
   it('describes the real limits of the history', async () => {
     render(<GameHistory currentPgn="" onOpen={() => {}} onClose={() => {}} />);
     expect(screen.getByText(/Vos 500 dernières parties analysées/)).toBeTruthy();
-    expect(screen.getByText(/Les 50 plus récentes/)).toBeTruthy();
+    expect(screen.getByText(/Les 50 analyses les plus récentes/)).toBeTruthy();
     await screen.findAllByRole('listitem');
   });
 });
