@@ -243,6 +243,28 @@ describe('an endgame', () => {
     expect((await loadCards()).size).toBe(0);
   });
 
+  it('puts the piece on its square at once, while the engine is still checking the move', async () => {
+    const played = after(MATE1, 'f7e7');
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    evaluatePosition.mockImplementation(async (fen) => {
+      if (at(fen) === played) await held;
+      return fakeEvaluation(fen);
+    });
+    const user = await play('Finale mat1');
+    await screen.findByText(/Idée de la finale mat1/);
+    await waitFor(() => expect(screen.queryByText(/Le moteur prépare/)).toBeNull());
+    await user.click(cell('f7'));
+    await user.click(cell('e7'));
+    expect(await screen.findByText(/Le moteur vérifie votre coup/)).toBeTruthy();
+    expect(cell('f7').getAttribute('aria-label')).not.toMatch(/roi/i);
+    expect(cell('e7').getAttribute('aria-label')).toMatch(/roi/i);
+    release();
+    expect(await screen.findByText(/Le moteur répond/)).toBeTruthy();
+  });
+
   it('gives the solution on request, which fails the position', async () => {
     verdicts[at(MATE1)] = { bestMoveUci: 'g1g7', bestMoveSan: 'Qg7#' };
     const user = await play('Finale mat1');

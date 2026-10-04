@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Chess } from 'chess.js';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { useAnswerBoard, type Answer } from '../../hooks/useAnswerBoard';
 import { stockfishService } from '../../services/stockfishEngine';
@@ -125,6 +126,18 @@ export const TrainingExercise: React.FC<TrainingExerciseProps> = ({
     setAttempt((n) => n + 1);
   };
 
+  /** The piece goes to its square at once, while the engine checks and when the move is right; a wrong move goes back. */
+  const shownFen = useMemo(() => {
+    if (!answer || (verdict !== null && !isSuccess(verdict))) return position.fen;
+    try {
+      const chess = new Chess(position.fen);
+      chess.move({ from: answer.from, to: answer.to, promotion: answer.uci.length > 4 ? answer.uci[4] : undefined });
+      return chess.fen();
+    } catch {
+      return position.fen;
+    }
+  }, [answer, verdict, position.fen]);
+
   const side = position.color === 'w' ? 'Blancs' : 'Noirs';
   const isLast = index + 1 === total;
   const success = verdict !== null && isSuccess(verdict);
@@ -137,7 +150,7 @@ export const TrainingExercise: React.FC<TrainingExerciseProps> = ({
       <div className="w-full max-w-md mx-auto md:max-w-none md:mx-0">
         <ChessBoard
           key={attempt}
-          fen={position.fen}
+          fen={shownFen}
           isFlipped={position.color === 'b'}
           boardTheme={boardTheme}
           lastMove={answer ? { from: answer.from, to: answer.to, classification: success ? 'best' : 'mistake' } : null}
