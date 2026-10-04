@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
-import type { WorkerRequest, WorkerResponse } from './localLlm.protocol';
-import { LOCAL_MODEL, UNSUPPORTED_DEVICE } from './localLlm.protocol';
+import type { WorkerModel, WorkerRequest, WorkerResponse } from './localLlm.protocol';
+import { UNSUPPORTED_DEVICE } from './localLlm.protocol';
 
 /**
  * Runs the local language model off the page's thread. The library (and the model, downloaded once and kept in the
@@ -18,10 +18,10 @@ let generatorModel = '';
 const send = (message: WorkerResponse) => (self as unknown as Worker).postMessage(message);
 
 /**
- * The default model needs a GPU with 16-bit floats: on the processor its weights (1.8 GB) do not fit in the memory
- * WebAssembly can address. Another model, chosen by hand, may use the processor.
+ * A GPU with 16-bit floats when there is one. Otherwise the processor, for the models that have a file it can run
+ * (the others do not fit in the memory WebAssembly can address): without either, the device cannot run the model.
  */
-async function pickDevice(experiment: boolean): Promise<'webgpu' | 'wasm'> {
+async function pickDevice(allowProcessor: boolean): Promise<'webgpu' | 'wasm'> {
   try {
     const gpu = (
       navigator as unknown as {
@@ -33,13 +33,13 @@ async function pickDevice(experiment: boolean): Promise<'webgpu' | 'wasm'> {
   } catch {
     // no usable GPU
   }
-  if (experiment) return 'wasm';
+  if (allowProcessor) return 'wasm';
   throw new Error(UNSUPPORTED_DEVICE);
 }
 
-function load(model: string): Promise<Generator> {
-  if (generatorModel !== model) generator = null;
-  generatorModel = model;
+function load(model: WorkerModel): Promise<Generator> {
+  if (generatorModel !== model.repo) generator = null;
+  generatorModel = model.repo;
   generator ??= (async () => {
     const { pipeline, env } = await import('@huggingface/transformers');
     // The runtime of the model comes with the app (cached by the service worker, so that it works offline), not from a
@@ -50,12 +50,12 @@ function load(model: string): Promise<Generator> {
       wasm: new URL('../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.asyncify.wasm', import.meta.url)
         .href,
     };
-    const device = await pickDevice(model !== LOCAL_MODEL);
+    const device = await pickDevice(model.cpuDtype !== null);
     send({ type: 'device', device });
     // WebGPU runs 16-bit floats; the processor's runtime does better with the 4-bit weights as they are
-    const dtype = device === 'webgpu' ? 'q4f16' : 'q4';
+    const dtype = device === 'webgpu' ? model.gpuDtype : model.cpuDtype;
     const files = new Map<string, { loaded: number; total: number }>();
-    const made = await pipeline('text-generation', model, {
+    const made = await pipeline('text-generation', model.repo, {
       device,
       dtype,
       progress_callback: (info: { status: string; file?: string; loaded?: number; total?: number }) => {
@@ -82,7 +82,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const request = event.data;
   if (request.type !== 'generate') return;
   try {
-    const run = await load(request.model ?? LOCAL_MODEL);
+    const run = await load(request.model);
     const output = await run(request.messages, { max_new_tokens: request.maxNewTokens, do_sample: false });
     send({ type: 'result', id: request.id, text: output[0]?.generated_text.at(-1)?.content ?? '' });
   } catch (error) {

@@ -4,6 +4,7 @@ import { COACH_DEPTHS, deepAnalyseMove, type CoachDepth } from '../services/deep
 import { generateLocally, isLocalModelSupported, isUnsupportedDevice, type LocalDevice } from '../services/localLlm';
 import { applyRewrite, buildRewriteMessages, isGroundedIn, parseRewrite, sourceText } from '../utils/coachRewrite';
 import { coachParts, composeExplanation, type DeepAnalysis } from '../utils/moveCoach';
+import { DEFAULT_LOCAL_MODEL, resolveLocalModel } from '../services/localLlm.protocol';
 import { oneOf, usePersistentState } from './usePersistentState';
 
 type Explanation = NonNullable<MoveAnalysis['aiExplanation']>;
@@ -29,6 +30,9 @@ export function useCoach(move: MoveAnalysis | null, onUpdate: (ply: number, expl
   const [modelRaw, setModelRaw] = usePersistentState<string>('chess_coach_model', 'false', (raw) =>
     raw === 'true' ? 'true' : 'false'
   );
+  // The id of the model: one of the catalogue, or a repository set by hand (see `resolveLocalModel`)
+  const [modelId, setModelId] = usePersistentState<string>('chess_coach_model_id', DEFAULT_LOCAL_MODEL, (raw) => raw);
+  const model = resolveLocalModel(modelId);
   const depth = Number(depthRaw) as CoachDepth;
   const useModel = modelRaw === 'true' && isLocalModelSupported();
   const [status, setStatus] = useState<CoachStatus>({ phase: 'idle' });
@@ -76,7 +80,8 @@ export function useCoach(move: MoveAnalysis | null, onUpdate: (ply: number, expl
     let device: LocalDevice | null = null;
     setStatus({ phase: 'model', percent: null, device });
     try {
-      const text = await generateLocally(buildRewriteMessages(parts), {
+      const text = await generateLocally(buildRewriteMessages(parts, { noThink: model.noThink }), {
+        model,
         signal,
         onDevice: (found) => {
           device = found;
@@ -108,13 +113,15 @@ export function useCoach(move: MoveAnalysis | null, onUpdate: (ply: number, expl
     } finally {
       if (!signal.aborted) setStatus({ phase: 'idle' });
     }
-  }, [move, depth, useModel, onUpdate]);
+  }, [move, depth, useModel, model, onUpdate]);
 
   return {
     depth,
     setDepth: (value: CoachDepth) => setDepthRaw(String(value)),
     useModel: modelRaw === 'true',
     setUseModel: (value: boolean) => setModelRaw(String(value)),
+    modelId: model.id,
+    setModelId,
     modelSupported: isLocalModelSupported(),
     status,
     note: note && note.ply === ply ? note.value : null,
