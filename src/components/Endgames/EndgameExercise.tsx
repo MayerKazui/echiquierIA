@@ -115,6 +115,8 @@ export const EndgameExercise: React.FC<EndgameExerciseProps> = ({
   const [run, setRun] = useState<EndgameRun | null>(null);
   const [hasFailed, setHasFailed] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  /** The position right after the player's move, shown while the engine judges it: the piece does not wait. */
+  const [played, setPlayed] = useState<{ fen: string; from: string; to: string } | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [end, setEnd] = useState<EndgameEnd | null>(null);
   /** Times the position was started again. */
@@ -165,10 +167,18 @@ export const EndgameExercise: React.FC<EndgameExerciseProps> = ({
       const own = controller();
       const before = run;
       setIsChecking(true);
+      try {
+        const chess = new Chess(before.fen);
+        chess.move({ from: given.from, to: given.to, promotion: given.uci.length > 4 ? given.uci[4] : undefined });
+        setPlayed({ fen: chess.fen(), from: given.from, to: given.to });
+      } catch {
+        // not legal: the engine will say so
+      }
       playMove(before, given.uci, evaluateWithEngine, own.signal).then(
         (step) => {
           if (own.signal.aborted) return;
           setIsChecking(false);
+          setPlayed(null);
           if (!step) return;
           setFeedback({ kind: 'move', step, bestSan: before.evaluation.bestMoveSan });
           if (!isGoodMove(step.verdict)) {
@@ -184,6 +194,7 @@ export const EndgameExercise: React.FC<EndgameExerciseProps> = ({
         () => {
           if (own.signal.aborted) return;
           setIsChecking(false);
+          setPlayed(null);
           setLoadError(true);
         }
       );
@@ -211,6 +222,7 @@ export const EndgameExercise: React.FC<EndgameExerciseProps> = ({
     setFeedback(null);
     setEnd(null);
     setIsChecking(false);
+    setPlayed(null);
     setAttempt((n) => n + 1);
   };
 
@@ -219,6 +231,7 @@ export const EndgameExercise: React.FC<EndgameExerciseProps> = ({
   const moves = useMemo(() => (run ? movesText(run) : ''), [run]);
 
   const lastMove = (() => {
+    if (played) return { from: played.from, to: played.to };
     if (feedback?.kind === 'move') {
       const { step } = feedback;
       if (!isGoodMove(step.verdict)) {
@@ -248,7 +261,7 @@ export const EndgameExercise: React.FC<EndgameExerciseProps> = ({
       <div className="w-full max-w-md mx-auto md:max-w-none md:mx-0">
         <ChessBoard
           key={`${attempt}-${takebacks}`}
-          fen={run?.fen ?? endgame.fen}
+          fen={played?.fen ?? run?.fen ?? endgame.fen}
           isFlipped={color === 'b'}
           boardTheme={boardTheme}
           lastMove={lastMove}
