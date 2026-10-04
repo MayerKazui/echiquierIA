@@ -1,5 +1,5 @@
 import { Chess } from 'chess.js';
-import { ELO_BANDS, movetextOf, type ReferenceGame } from './reference';
+import { ELO_BANDS, movetextOf, type GameResult, type ReferenceGame } from './reference';
 
 /**
  * Collects reference games from chess.com's public API: for the games its "Game Review" analysed, the PGN and the
@@ -37,8 +37,15 @@ interface ApiGame {
   rules: string;
   time_class: string;
   accuracies?: { white: number; black: number };
-  white: { rating: number };
-  black: { rating: number };
+  white: { rating: number; result?: string };
+  black: { rating: number; result?: string };
+}
+
+/** chess.com says "win" for the winner and a reason ("checkmated", "resigned", "timeout", "agreed"…) for the other. */
+function resultOf(game: Pick<ApiGame, 'white' | 'black'>): GameResult | undefined {
+  if (game.white.result === 'win') return '1-0';
+  if (game.black.result === 'win') return '0-1';
+  return game.white.result && game.black.result ? '1/2-1/2' : undefined;
 }
 
 /** A usable game: standard chess from the starting position, reviewed, neither tiny nor endless. */
@@ -56,6 +63,7 @@ function toReference(game: ApiGame): ReferenceGame | null {
       blackElo: game.black.rating,
       accuracies: game.accuracies,
       pgn: movetextOf(game.pgn),
+      result: resultOf(game),
     };
   } catch {
     return null;
@@ -116,4 +124,104 @@ export async function fetchReferenceGames({ perBand, known, log }: FetchOptions)
     }
   }
   return byBand.flat();
+}
+
+interface CallbackGame {
+  game?: { colorOfWinner?: string; isFinished?: boolean };
+}
+
+/**
+ * The result of a game already in the reference file, from the page data chess.com uses itself (the public archives
+ * need the player's name, which the file does not keep). Null when the game cannot be found or is not finished.
+ */
+export async function fetchResult(url: string): Promise<GameResult | null> {
+  const [, kind, id] = /\/game\/(live|daily)\/(\d+)/.exec(url) ?? [];
+  if (!id) return null;
+  const data = await getJson<CallbackGame>(`https://www.chess.com/callback/${kind}/game/${id}`);
+  if (!data?.game?.isFinished) return null;
+  const { colorOfWinner } = data.game;
+  return colorOfWinner === 'white' ? '1-0' : colorOfWinner === 'black' ? '0-1' : '1/2-1/2';
+}
+
+/** One game of a followed player, from their side: the colour they had, how it ended, the first moves (SAN). */
+export type SampleGame = [color: 'w' | 'b', result: GameResult, line: string];
+
+export interface PlayerSample {
+  /** The rating in the player's latest game. The name is not kept: the sample is about openings, not about people. */
+  rating: number;
+  /** Oldest first. */
+  games: SampleGame[];
+}
+
+/** Plies of a game that are kept: what the opening index looks at. */
+const SAMPLE_PLIES = 35;
+
+interface ArchiveGame extends ApiGame {
+  end_time: number;
+  white: { rating: number; result?: string; username: string };
+  black: { rating: number; result?: string; username: string };
+}
+
+function toSampleGame(game: ArchiveGame, player: string): SampleGame | null {
+  const result = resultOf(game);
+  if (game.rules !== 'chess' || !game.pgn || !result || /\[(SetUp|FEN) /.test(game.pgn)) return null;
+  try {
+    const chess = new Chess();
+    chess.loadPgn(game.pgn);
+    const sans = chess.history();
+    if (sans.length < 10) return null;
+    return [game.white.username.toLowerCase() === player ? 'w' : 'b', result, sans.slice(0, SAMPLE_PLIES).join(' ')];
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Draws players who play a lot and reads their last months of games (standard chess, all time controls), to see how
+ * well the games already played tell the next one. One player after the other, a pause between requests.
+ */
+export async function fetchPlayerSamples({
+  players,
+  perPlayer,
+  minRating = 0,
+  titled = false,
+  log,
+}: {
+  players: number;
+  perPlayer: number;
+  /** Players whose latest rating is lower are left out (the country lists are mostly beginners). */
+  minRating?: number;
+  /** Draws from the lists of titled players instead of the country lists. */
+  titled?: boolean;
+  log: (message: string) => void;
+}): Promise<PlayerSample[]> {
+  const pool = await playersOf(
+    titled ? TITLES.map((title) => `${API}/titled/${title}`) : COUNTRIES.map((code) => `${API}/country/${code}/players`)
+  );
+  const samples: PlayerSample[] = [];
+  for (let drawn = 0; samples.length < players && drawn < MAX_PLAYERS; drawn++) {
+    const player = pool.pop()?.toLowerCase();
+    if (!player) break;
+    const archives = (await getJson<{ archives: string[] }>(`${API}/player/${player}/games/archives`))?.archives ?? [];
+    const games: Array<{ at: number; sample: SampleGame; rating: number }> = [];
+    for (const month of archives.slice(-3).reverse()) {
+      for (const game of (await getJson<{ games: ArchiveGame[] }>(month))?.games ?? []) {
+        const sample = toSampleGame(game, player);
+        if (!sample) continue;
+        const rating = (sample[0] === 'w' ? game.white : game.black).rating;
+        games.push({ at: game.end_time, sample, rating });
+      }
+      if (games.length >= perPlayer) break;
+    }
+    if (games.length < perPlayer) continue;
+    // The newest games, oldest first
+    const kept = games
+      .sort((a, b) => b.at - a.at)
+      .slice(0, perPlayer)
+      .reverse();
+    if (kept.at(-1)!.rating < minRating) continue;
+    samples.push({ rating: kept.at(-1)!.rating, games: kept.map((g) => g.sample) });
+    log(`player ${samples.length}/${players}: ${kept.length} games, ${kept.at(-1)!.rating} Elo`);
+  }
+  return samples;
 }

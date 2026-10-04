@@ -43,21 +43,22 @@ Sans clé Gemini, l'application fonctionne : les explications de l'entraîneur I
 
 ## Commandes
 
-| Commande                 | Rôle                                                                                  |
-| ------------------------ | ------------------------------------------------------------------------------------- |
-| `bun run dev`            | Serveur de développement (Express + Vite, rechargement à chaud)                       |
-| `bun run build`          | Construit l'interface (`dist/`) et compile le serveur en `server.js`                  |
-| `bun run start`          | Sert `dist/` en production (`NODE_ENV=production`, via tsx) : lancer `build` avant    |
-| `bun run test`           | Tests unitaires et de composants (Vitest)                                             |
-| `bun run test:e2e`       | Tests de bout en bout (Playwright) : construit l'application et la teste en vrai      |
-| `bun run lint`           | ESLint                                                                                |
-| `bun run typecheck`      | `tsc --noEmit` (mode `strict`)                                                        |
-| `bun run format`         | Formate avec Prettier (`format:check` pour seulement vérifier)                        |
-| `bun run check`          | lint + typecheck + format + tests, comme la CI                                        |
-| `bun run build:openings` | Régénère `public/openings.json` depuis `src/data/openings/*.tsv`                      |
-| `bun run build:puzzles`  | Régénère `public/puzzles/` depuis la base de puzzles Lichess (307 Mo)                 |
-| `bun run calibrate`      | Écart de la précision avec chess.com sur les parties de référence (`fetch`, `record`) |
-| `bun run faultstats`     | Erreurs de référence par type et thème (`faultstats theme:fork` : exemples)           |
+| Commande                 | Rôle                                                                                   |
+| ------------------------ | -------------------------------------------------------------------------------------- |
+| `bun run dev`            | Serveur de développement (Express + Vite, rechargement à chaud)                        |
+| `bun run build`          | Construit l'interface (`dist/`) et compile le serveur en `server.js`                   |
+| `bun run start`          | Sert `dist/` en production (`NODE_ENV=production`, via tsx) : lancer `build` avant     |
+| `bun run test`           | Tests unitaires et de composants (Vitest)                                              |
+| `bun run test:e2e`       | Tests de bout en bout (Playwright) : construit l'application et la teste en vrai       |
+| `bun run lint`           | ESLint                                                                                 |
+| `bun run typecheck`      | `tsc --noEmit` (mode `strict`)                                                         |
+| `bun run format`         | Formate avec Prettier (`format:check` pour seulement vérifier)                         |
+| `bun run check`          | lint + typecheck + format + tests, comme la CI                                         |
+| `bun run build:openings` | Régénère `public/openings.json` depuis `src/data/openings/*.tsv`                       |
+| `bun run build:puzzles`  | Régénère `public/puzzles/` depuis la base de puzzles Lichess (307 Mo)                  |
+| `bun run calibrate`      | Écart de la précision avec chess.com sur les parties de référence (`fetch`, `record`)  |
+| `bun run thresholds`     | Seuils posés à la main, mesurés sur de vraies parties (`accuracy`, `endgames`, `prep`) |
+| `bun run faultstats`     | Erreurs de référence par type et thème (`faultstats theme:fork` : exemples)            |
 
 La CI (GitHub Actions) exécute lint, typecheck, format, tests et build à chaque pull request, et dans un second job les tests de bout en bout.
 

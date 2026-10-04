@@ -118,10 +118,14 @@ export function findExit(result: GameAnalysisResult, color: 'w' | 'b'): Exit | n
  * move outside the book. The moves of the book are left out, as in the profile: they are always "best" and would
  * flatter an opening that is mostly theory.
  */
-function movesAfterTheory(moves: readonly MoveAnalysis[], color: 'w' | 'b'): MoveAnalysis[] {
+export function movesAfterTheory(
+  moves: readonly MoveAnalysis[],
+  color: 'w' | 'b',
+  plies = ACCURACY_PLIES
+): MoveAnalysis[] {
   const first = moves.findIndex((m) => m.classification !== 'book');
   if (first < 0) return [];
-  return moves.slice(first, first + ACCURACY_PLIES).filter((m) => m.color === color && m.classification !== 'book');
+  return moves.slice(first, first + plies).filter((m) => m.color === color && m.classification !== 'book');
 }
 
 const accuracyOf = (moves: readonly MoveAnalysis[]): number | null =>

@@ -24,6 +24,8 @@ export type RecordedEvaluation = [
   second: [cp: number, mate: number | null, uci: string] | null,
 ];
 
+export type GameResult = '1-0' | '0-1' | '1/2-1/2';
+
 export interface ReferenceGame {
   /** The game on chess.com, where its accuracy comes from. */
   url: string;
@@ -34,6 +36,8 @@ export interface ReferenceGame {
   accuracies: { white: number; black: number };
   /** The moves, in English SAN, without headers or comments. */
   pgn: string;
+  /** How the game ended; absent for the games recorded before it was kept (`bun run calibrate results` fills it). */
+  result?: GameResult;
   /** One per position, the starting one first: `plies + 1` entries. Absent until the game was recorded. */
   evals?: RecordedEvaluation[];
 }
@@ -75,7 +79,7 @@ export function movetextOf(pgn: string): string {
   return sans.map((san, i) => (i % 2 === 0 ? `${i / 2 + 1}. ${san}` : san)).join(' ');
 }
 
-function toEvaluation([cp, mate, bestUci, bestSan, second]: RecordedEvaluation): EngineEvaluation {
+export function toEvaluation([cp, mate, bestUci, bestSan, second]: RecordedEvaluation): EngineEvaluation {
   return {
     cp,
     mate,

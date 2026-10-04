@@ -5,6 +5,7 @@
  *
  *   bun run calibrate                       gap with chess.com, from the recorded evaluations (instant, no engine)
  *   bun run calibrate fetch [perBand]      adds reference games from chess.com (default: 12 per Elo band)
+ *   bun run calibrate results              adds the result of the games that lack it (the thresholds use it)
  *   bun run calibrate record [--depth N] [--all]
  *                                           evaluates the games that have no evaluations (all of them with --all) with
  *                                           Stockfish, at depth N (default 12, the app's default)
@@ -15,7 +16,7 @@
 import { performance } from 'node:perf_hooks';
 import { ensureOpeningBookLoaded } from '../src/services/openingBook';
 import { loadOpeningsFromDisk } from '../src/test/openings';
-import { fetchReferenceGames } from './calibration/chesscom';
+import { fetchReferenceGames, fetchResult } from './calibration/chesscom';
 import { createNodeStockfishService } from './calibration/nodeEngine';
 import {
   gapOf,
@@ -75,6 +76,22 @@ async function fetchGames(reference: Reference, perBand: number): Promise<void> 
   console.log(`${added.length} games added (${reference.games.length} in the file): now \`bun run calibrate record\`.`);
 }
 
+async function fillResults(reference: Reference): Promise<void> {
+  const todo = reference.games.filter((game) => !game.result);
+  let found = 0;
+  for (const game of todo) {
+    const result = await fetchResult(game.url);
+    if (result) {
+      game.result = result;
+      found++;
+    }
+  }
+  saveReference(reference);
+  console.log(
+    `${found} results added, ${todo.length - found} not found (${reference.games.length} games in the file).`
+  );
+}
+
 async function record(reference: Reference, depth: number, all: boolean): Promise<void> {
   const todo = reference.games.filter((game) => all || !game.evals || reference.depth !== depth);
   if (todo.length === 0) {
@@ -110,9 +127,10 @@ const option = (name: string) => {
 
 if (command === 'report') await report(reference);
 else if (command === 'fetch') await fetchGames(reference, Number(args[0]) || PER_BAND);
+else if (command === 'results') await fillResults(reference);
 else if (command === 'record')
   await record(reference, Number(option('--depth')) || DEFAULT_DEPTH, args.includes('--all'));
 else {
-  console.error(`Unknown command "${command}": report, fetch or record.`);
+  console.error(`Unknown command "${command}": report, fetch, results or record.`);
   process.exitCode = 1;
 }
