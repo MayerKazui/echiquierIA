@@ -58,4 +58,38 @@ test.describe('import et analyse', () => {
     await openFromMenu(page, /Mes parties/);
     await expect(page.getByText('Paul Morphy – Duke Karl / Count Isouard')).toBeVisible();
   });
+
+  test("l'entraîneur explique un coup sans rien demander au réseau", async ({ page }) => {
+    const apiCalls: string[] = [];
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname.startsWith('/api/')) apiCalls.push(request.url());
+    });
+    await page.goto('/');
+    await analyzeSample(page, OPERA);
+
+    await page.getByRole('button', { name: 'Expliquer ce coup' }).click();
+    await expect(page.getByText('Concept clé : Théorie de l’ouverture', { exact: true })).toBeVisible();
+    await expect(page.getByText(/e4 est un coup de théorie \(Partie du pion roi\)/)).toBeVisible();
+    await expect(page.getByText(/Plan (suggéré|de redressement)/)).toBeVisible();
+    expect(apiCalls).toEqual([]);
+  });
+
+  test("l'entraîneur cherche plus profond sur une erreur et dit la réponse de l'adversaire", async ({ page }) => {
+    await page.goto('/');
+    await analyzeSample(page, OPERA);
+
+    await page.getByText('Réglages de l’entraîneur').click();
+    await page.getByLabel('Profondeur de l’analyse').selectOption('14');
+    // La première erreur de la partie
+    await page.getByRole('button', { name: 'Erreur suivante' }).click();
+    await page.getByRole('button', { name: 'Expliquer ce coup' }).click();
+
+    await expect(page.getByText(/À la profondeur 14, pour les (Blancs|Noirs)/)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText(/Réponse la plus forte après/)).toBeVisible();
+    await expect(page.getByTestId('coach-source')).toContainText('profondeur 14');
+    // Le choix est gardé pour la prochaine fois
+    await page.reload();
+    await page.getByText('Réglages de l’entraîneur').click();
+    await expect(page.getByLabel('Profondeur de l’analyse')).toHaveValue('14');
+  });
 });

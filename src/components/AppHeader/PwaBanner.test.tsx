@@ -15,7 +15,7 @@ describe('PwaBanner', () => {
     const notice = screen.getByRole('status').textContent;
     expect(notice).toContain('Hors ligne');
     expect(notice).toContain("l'analyse, vos parties et l'entraînement fonctionnent");
-    expect(notice).toContain("L'import de parties et le coach IA demandent une connexion");
+    expect(notice).toContain("L'import de parties demande une connexion");
   });
 
   it('offers the new version, which is applied on request', async () => {

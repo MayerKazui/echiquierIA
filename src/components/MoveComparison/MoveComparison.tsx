@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import { MoveAnalysis } from '../../types/chess';
 import { formatPvToFrench, frenchifyMoveText, toFrenchSan } from '../../utils/chessNotation';
-import { apiUrl } from '../../utils/siteUrl';
+import { useCoach } from '../../hooks/useCoach';
+import { CoachSettings } from './CoachSettings';
 import { TacticalThreat } from '../../utils/tacticalThreats';
 import { toFrenchOpeningName } from '../../utils/openingNames';
 
@@ -48,7 +49,6 @@ interface MoveComparisonProps {
   isPreviewingAlternative: boolean;
   onTogglePreviewAlternative: () => void;
   onUpdateAiExplanation: (ply: number, explanation: NonNullable<MoveAnalysis['aiExplanation']>) => void;
-  sanHistory: string[];
   userColor?: 'w' | 'b';
   openingName?: string;
   eco?: string;
@@ -58,8 +58,8 @@ interface MoveComparisonProps {
   onSelectThreatsMode?: (mode: 'suggestion' | 'played') => void;
   showThreats?: boolean;
   onToggleShowThreats?: () => void;
-  /** The AI coach cannot be asked while the analysis runs (the moves shown are still changing). */
-  isAiDisabled?: boolean;
+  /** The coach cannot be asked while the analysis runs (the moves shown are still changing). */
+  isCoachDisabled?: boolean;
 }
 
 export const MoveComparison: React.FC<MoveComparisonProps> = ({
@@ -67,8 +67,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
   isPreviewingAlternative,
   onTogglePreviewAlternative,
   onUpdateAiExplanation,
-  isAiDisabled = false,
-  sanHistory,
+  isCoachDisabled = false,
   userColor,
   openingName,
   tacticalThreatsSuggestion = [],
@@ -78,7 +77,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
   showThreats = true,
   onToggleShowThreats,
 }) => {
-  const [loadingAi, setLoadingAi] = useState(false);
+  const coach = useCoach(currentMove, onUpdateAiExplanation);
 
   if (!currentMove) {
     return (
@@ -158,92 +157,6 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
     if (mate !== null) return `M${Math.abs(mate)}`;
     const pawns = (cp / 100).toFixed(1);
     return cp > 0 ? `+${pawns}` : pawns;
-  };
-
-  // Client-side fallback explanation generator if backend or network fails
-  const generateLocalMoveExplanation = (move: MoveAnalysis, badgeLabel: string, isWhiteMove: boolean) => {
-    const isGood = ['best', 'brilliant', 'great', 'excellent', 'good', 'book'].includes(move.classification);
-    const targetMove = isGood ? move.san : move.bestMoveSan || move.san;
-    const isCapture = targetMove.includes('x');
-    const isCheck = targetMove.includes('+');
-
-    let pieceName = 'le pion';
-    if (targetMove.startsWith('N')) pieceName = 'le Cavalier';
-    else if (targetMove.startsWith('B')) pieceName = 'le Fou';
-    else if (targetMove.startsWith('R')) pieceName = 'la Tour';
-    else if (targetMove.startsWith('Q')) pieceName = 'la Dame';
-    else if (targetMove.startsWith('K')) pieceName = 'le Roi';
-    else if (targetMove.includes('O-O')) pieceName = 'le Roi et la Tour (Roque)';
-
-    const concept = isCapture
-      ? 'Prise & Simplification active'
-      : isCheck
-        ? 'Attaque directe & Initiative'
-        : 'Harmonie & Développement';
-
-    const whyPlayedIsBad = isGood
-      ? ''
-      : `En jouant ${toFrenchSan(move.san)}, les ${
-          isWhiteMove ? 'Blancs' : 'Noirs'
-        } concèdent un temps précieux ou concèdent un désavantage tactique que l'adversaire peut exploiter.`;
-
-    const whyBestIsBetter = isGood
-      ? `Le coup joué ${toFrenchSan(move.san)} (${badgeLabel}) est optimal : il coordonne parfaitement les pièces et maintient l'initiative dans cette position.`
-      : `Le coup recommandé ${toFrenchSan(move.bestMoveSan) || 'alternatif'} active directement ${pieceName} pour maintenir la pression tactique et le contrôle des cases centrales.`;
-
-    const plan = `1. Continuer le développement actif de ${pieceName}.\n2. Sécuriser les pièces maîtresses et contester les colonnes ouvertes.\n3. Augmenter la pression sur les points faibles du camp adverse.`;
-
-    return { concept, whyPlayedIsBad, whyBestIsBetter, plan };
-  };
-
-  // Request pedagogical commentary from Gemini 3.8 Flash (with resilient fallback)
-  const handleFetchAiExplanation = async () => {
-    setLoadingAi(true);
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-      try {
-        const response = await fetch(apiUrl('/api/coach/explain'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
-            fen: currentMove.fenBefore,
-            movePlayed: { san: currentMove.san, uci: currentMove.uci },
-            moveBest: { san: currentMove.bestMoveSan, uci: currentMove.bestMoveUci },
-            evalPlayed: formatEval(currentMove.evalAfter, currentMove.mateAfter),
-            evalBest: formatEval(currentMove.evalBefore, currentMove.mateBefore),
-            classificationKey: currentMove.classification,
-            classification: badge.label,
-            pv: currentMove.pv.slice(0, 5).join(' '),
-            playerColor: isWhite ? 'white' : 'black',
-            moveNumber: currentMove.moveNumber,
-            sanHistory: sanHistory.slice(0, currentMove.ply + 1),
-          }),
-        });
-
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-          const res = await response.json();
-          if (res.success && res.data) {
-            onUpdateAiExplanation(currentMove.ply, res.data);
-            return;
-          }
-        }
-      } catch (networkErr) {
-        console.warn('Backend call to /api/coach/explain failed or timed out, using local fallback:', networkErr);
-      }
-
-      // Local fallback explanation
-      const fallback = generateLocalMoveExplanation(currentMove, badge.label, isWhite);
-      onUpdateAiExplanation(currentMove.ply, fallback);
-    } catch (err) {
-      console.error('Failed to get AI coach explanation:', err);
-    } finally {
-      setLoadingAi(false);
-    }
   };
 
   const isAlternativeAvailable = Boolean(
@@ -620,7 +533,7 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
         </div>
       )}
 
-      {/* Pedagogical AI Coach Section */}
+      {/* Pedagogical coach section */}
       <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5 sm:p-4 flex flex-col gap-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2">
@@ -628,40 +541,49 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
               <BrainCircuit className="w-4 h-4" />
             </div>
             <span className="text-xs uppercase tracking-wider font-semibold text-slate-200">
-              Entraîneur Pédagogique IA
+              Entraîneur pédagogique
             </span>
           </div>
 
-          {!currentMove.aiExplanation && (
+          {coach.status.phase === 'idle' ? (
             <button
-              onClick={handleFetchAiExplanation}
-              disabled={loadingAi || isAiDisabled}
-              aria-busy={loadingAi}
-              title={isAiDisabled ? "Disponible quand l'analyse est terminée" : undefined}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium transition-colors shadow-sm cursor-pointer w-full sm:w-auto"
+              onClick={coach.explain}
+              disabled={isCoachDisabled}
+              title={isCoachDisabled ? "Disponible quand l'analyse est terminée" : undefined}
+              className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg disabled:opacity-50 text-xs font-medium transition-colors shadow-sm cursor-pointer w-full sm:w-auto ${
+                currentMove.aiExplanation
+                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                  : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+              }`}
             >
-              {loadingAi ? (
-                <>
-                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Analyse du plan en cours...</span>
-                </>
-              ) : (
-                <>
-                  <Lightbulb className="w-3.5 h-3.5" />
-                  <span>Expliquer le plan tactique</span>
-                </>
-              )}
+              <Lightbulb className="w-3.5 h-3.5" />
+              <span>{currentMove.aiExplanation ? 'Refaire avec ces réglages' : 'Expliquer ce coup'}</span>
             </button>
+          ) : (
+            <span aria-busy="true" className="inline-flex items-center gap-2 text-xs text-slate-300">
+              <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              {coach.status.phase === 'engine'
+                ? `Analyse à la profondeur ${coach.status.depth}…`
+                : coach.status.percent !== null && coach.status.percent < 100
+                  ? `Téléchargement du modèle… ${coach.status.percent} %`
+                  : `Rédaction par l’IA locale${coach.status.device === 'wasm' ? ' (processeur : patience)' : ''}…`}
+            </span>
           )}
         </div>
 
+        <CoachSettings
+          depth={coach.depth}
+          onDepthChange={coach.setDepth}
+          useModel={coach.useModel}
+          onUseModelChange={coach.setUseModel}
+          modelSupported={coach.modelSupported}
+        />
+
         {/* Announces the state of the explanation to screen readers */}
         <div role="status" className="sr-only">
-          {loadingAi
-            ? 'Analyse du plan en cours'
-            : currentMove.aiExplanation
-              ? `Explication disponible. Concept clé : ${frenchifyMoveText(currentMove.aiExplanation.concept)}`
-              : ''}
+          {currentMove.aiExplanation
+            ? `Explication disponible. Concept clé : ${frenchifyMoveText(currentMove.aiExplanation.concept)}`
+            : ''}
         </div>
 
         {/* AI Pedagogical Feedback Display */}
@@ -727,6 +649,20 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
                 </div>
               </div>
             )}
+
+            <p className="text-[11px] text-slate-400" data-testid="coach-source">
+              {currentMove.aiExplanation.source === 'model'
+                ? 'Phrases écrites par l’IA locale (expérimental) ; les coups, les chiffres et le plan viennent du moteur et des règles.'
+                : currentMove.aiExplanation.depth
+                  ? `Écrit par les règles de l’entraîneur, à partir d’une analyse à la profondeur ${currentMove.aiExplanation.depth}.`
+                  : 'Écrit par les règles de l’entraîneur, à partir de l’analyse de la partie.'}
+              {coach.note === 'rejected' &&
+                ' Le texte de l’IA locale ne collait pas aux faits : le texte des règles est conservé.'}
+              {coach.note === 'unsupported' &&
+                ' Cet appareil n’a pas de carte graphique compatible (WebGPU avec calcul en demi-précision) : l’IA locale ne peut pas y tourner, le texte des règles est conservé.'}
+              {coach.note === 'failed' &&
+                ' L’IA locale n’a pas pu répondre (téléchargement ou mémoire) : le texte des règles est conservé.'}
+            </p>
           </div>
         ) : null}
       </div>

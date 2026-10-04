@@ -51,6 +51,18 @@ describe('describeBuild', () => {
     expect((await describeBuild(dist)).version).not.toBe(config.version);
   });
 
+  it('leaves the runtime of the local language model to be cached when used', async () => {
+    await write('assets/ort-wasm-simd-threaded.asyncify-CxOG5pUO.wasm', 'wasm');
+    await write('assets/localLlm.worker-Cf0tFivF.js', 'worker');
+    await write('assets/index-abc.js', 'app');
+    const config = await describeBuild(dist);
+    const all = [...config.critical, ...config.optional];
+    expect(all).toContain('assets/index-abc.js');
+    expect(all.some((file) => file.includes('ort-wasm') || file.includes('localLlm'))).toBe(false);
+    await write('assets/ort-wasm-simd-threaded.asyncify-CxOG5pUO.wasm', 'other wasm');
+    expect((await describeBuild(dist)).version).not.toBe(config.version);
+  });
+
   it('leaves out the worker itself and the source maps', async () => {
     await write('sw.js', 'old worker');
     await write('assets/index-abc.js.map', '{}');

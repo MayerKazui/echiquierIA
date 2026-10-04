@@ -23,10 +23,11 @@
     "build:puzzles": "tsx scripts/build-puzzles.ts",
     "calibrate": "tsx scripts/calibrate.ts",
     "thresholds": "tsx scripts/thresholds.ts",
-    "faultstats": "tsx scripts/faultStats.ts"
+    "faultstats": "tsx scripts/faultStats.ts",
+    "bench:coach-model": "tsx scripts/benchCoachModel.ts"
   },
   "dependencies": {
-    "@google/genai": "^2.4.0",
+    "@huggingface/transformers": "^4.3.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
     "chess.js": "^1.4.0",

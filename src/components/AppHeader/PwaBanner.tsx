@@ -22,8 +22,8 @@ export const PwaBanner: React.FC<PwaBannerProps> = ({ isOnline, updateReady, onU
         >
           <WifiOff className="w-4 h-4 shrink-0 text-slate-400" aria-hidden="true" />
           <span>
-            Hors ligne : l&apos;analyse, vos parties et l&apos;entraînement fonctionnent. L&apos;import de parties et le
-            coach IA demandent une connexion.
+            Hors ligne : l&apos;analyse, vos parties et l&apos;entraînement fonctionnent. L&apos;import de parties
+            demande une connexion.
           </span>
         </div>
       )}
