@@ -973,8 +973,8 @@ describe('backup of the vision records', () => {
     await recordVisionRun('blind:long', 4, 2000);
     const backup = await createBackup(0, fakeStorage());
     expect(backup.visionRecords).toEqual([
-      { key: 'blind:long', best: 4, bestAt: 2000, runs: 1 },
-      { key: 'coordinates:white', best: 22, bestAt: 1000, runs: 1 },
+      { key: 'blind:long', best: 4, bestAt: 2000, runs: 1, history: [{ at: 2000, score: 4 }] },
+      { key: 'coordinates:white', best: 22, bestAt: 1000, runs: 1, history: [{ at: 1000, score: 22 }] },
     ]);
     const parsed = parseBackup(serializeBackup(backup));
     expect(parsed.ok && parsed.backup.visionRecords).toEqual(backup.visionRecords);
@@ -1022,8 +1022,45 @@ describe('backup of the vision records', () => {
     );
     expect(report.visionRecords).toEqual({ added: 1, replaced: 0 });
     expect(await exportVisionRecords()).toEqual([
-      { key: 'coordinates:white', best: 20, bestAt: 1000, runs: 1 },
+      { key: 'coordinates:white', best: 20, bestAt: 1000, runs: 1, history: [{ at: 1000, score: 20 }] },
       { key: 'lines:long', best: 5, bestAt: 6, runs: 3 },
     ]);
+  });
+
+  it('keeps the rounds of both sides when restoring, and counts the record as changed for them alone', async () => {
+    await recordVisionRun('coordinates:white', 20, 1000);
+    const backup = await sampleBackup();
+    const incoming = [{ key: 'coordinates:white', best: 15, bestAt: 500, runs: 2, history: [{ at: 500, score: 15 }] }];
+    const report = await restoreBackup({ ...backup, visionRecords: incoming }, fakeStorage(), {
+      mode: 'sync',
+      silent: true,
+    });
+    expect(report.visionRecords).toEqual({ added: 0, replaced: 1 });
+    expect(await exportVisionRecords()).toEqual([
+      {
+        key: 'coordinates:white',
+        best: 20,
+        bestAt: 1000,
+        runs: 2,
+        history: [
+          { at: 500, score: 15 },
+          { at: 1000, score: 20 },
+        ],
+      },
+    ]);
+    // The same copy again changes nothing
+    const again = await restoreBackup({ ...backup, visionRecords: incoming }, fakeStorage(), {
+      mode: 'sync',
+      silent: true,
+    });
+    expect(again.visionRecords).toEqual({ added: 0, replaced: 0 });
+  });
+
+  it('keeps the rounds of a record in the file, and drops a record whose rounds are not valid', () => {
+    const good = { key: 'game:club', best: 2, bestAt: 5, runs: 1, history: [{ at: 5, score: 2 }] };
+    const bad = { key: 'game:expert', best: 2, bestAt: 5, runs: 1, history: [{ at: 5, score: 'win' }] };
+    const parsed = parseBackup(JSON.stringify({ app: BACKUP_APP, format: 9, visionRecords: [good, bad] }));
+    expect(parsed.ok && parsed.backup.visionRecords).toEqual([good]);
+    expect(parsed.ok && parsed.rejected.notes).toBe(1);
   });
 });

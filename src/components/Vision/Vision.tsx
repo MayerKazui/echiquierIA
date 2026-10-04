@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { Eye, X } from 'lucide-react';
+import { useOwnVisionGames } from '../../hooks/useOwnVisionGames';
 import { useVisionRecords } from '../../hooks/useVisionRecords';
 import { VISION_MODE_LABELS, type Random, type VisionMode } from '../../utils/vision';
 import type { BoardTheme } from '../../types/ui';
 import { BlindDrill } from './BlindDrill';
+import { BlindGame } from './BlindGame';
 import { CoordinatesDrill } from './CoordinatesDrill';
 import { LinesDrill } from './LinesDrill';
+import { ProgressPanel } from './ProgressPanel';
+import type { GameSource, GameSourceId } from './shared';
 
 interface VisionProps {
   onClose: () => void;
@@ -16,22 +20,55 @@ interface VisionProps {
   random?: Random;
 }
 
-const MODES: VisionMode[] = ['coordinates', 'blind', 'lines'];
+type View = VisionMode | 'progress';
 
-const MODE_HINTS: Record<VisionMode, string> = {
-  coordinates: 'Trouver une case par son nom, sans coordonnées',
+const VIEWS: View[] = ['coordinates', 'blind', 'lines', 'game', 'progress'];
+
+const VIEW_LABELS: Record<View, string> = { ...VISION_MODE_LABELS, progress: 'Progression' };
+
+const VIEW_HINTS: Record<View, string> = {
+  coordinates: 'Trouver une case par son nom, nommer une case éclairée, dire sa couleur',
   blind: 'Suivre une partie sans voir les pièces',
   lines: 'Calculer une ligne sans la jouer',
+  game: 'Jouer une partie complète contre Stockfish sans voir les pièces',
+  progress: 'L’évolution de vos scores, exercice par exercice',
 };
 
+const SOURCE_KEY = 'chess_vision_source';
+
+/** The games of the reading exercises chosen last time (a convenience: storage may be unavailable). */
+function savedSource(): GameSourceId {
+  try {
+    return localStorage.getItem(SOURCE_KEY) === 'own' ? 'own' : 'reserve';
+  } catch {
+    return 'reserve';
+  }
+}
+
 /**
- * "Vision": three short exercises to see the board without moving the pieces: the names of the squares, a game
- * followed blind, a line calculated in the head. Everything runs in the browser, without a network, and the best
- * score of each level is kept (and travels in the backup).
+ * "Vision": short exercises to see the board without moving the pieces: the names of the squares, a game followed
+ * blind, a line calculated in the head, a whole game played blindfold. Everything runs in the browser, without a
+ * network (the engine of the blind game is the one of the application), and the best score of each level and the
+ * latest rounds are kept (and travel in the backup).
  */
 export const Vision: React.FC<VisionProps> = ({ onClose, boardTheme, initialMode = 'coordinates', random }) => {
-  const [mode, setMode] = useState<VisionMode>(initialMode);
+  const [view, setView] = useState<View>(initialMode);
+  const [sourceId, setSourceId] = useState<GameSourceId>(savedSource);
   const { records, finish } = useVisionRecords();
+  // The history is only read once someone asks for their own games, on either reading exercise
+  const own = useOwnVisionGames(sourceId === 'own');
+  const source: GameSource = {
+    id: sourceId,
+    own,
+    onChange: (id) => {
+      setSourceId(id);
+      try {
+        localStorage.setItem(SOURCE_KEY, id);
+      } catch {
+        // Not kept for next time
+      }
+    },
+  };
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-2xl flex flex-col gap-4 w-full max-w-5xl mx-auto max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)]">
@@ -63,26 +100,26 @@ export const Vision: React.FC<VisionProps> = ({ onClose, boardTheme, initialMode
         className="overflow-y-auto min-h-0 pr-1 flex flex-col gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded-lg"
       >
         <div role="group" aria-label="Exercice" className="flex flex-wrap gap-2">
-          {MODES.map((value) => (
+          {VIEWS.map((value) => (
             <button
               key={value}
               type="button"
-              aria-pressed={mode === value}
-              title={MODE_HINTS[value]}
-              onClick={() => setMode(value)}
+              aria-pressed={view === value}
+              title={VIEW_HINTS[value]}
+              onClick={() => setView(value)}
               className={`px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
-                mode === value
+                view === value
                   ? 'bg-indigo-600/30 border-indigo-500 text-white'
                   : 'bg-slate-900/90 border-slate-800 text-slate-300 hover:bg-slate-800/80'
               }`}
             >
-              {VISION_MODE_LABELS[value]}
+              {VIEW_LABELS[value]}
             </button>
           ))}
         </div>
 
         {/* A key per exercise: switching starts the other one afresh */}
-        {mode === 'coordinates' && (
+        {view === 'coordinates' && (
           <CoordinatesDrill
             key="coordinates"
             records={records}
@@ -91,12 +128,30 @@ export const Vision: React.FC<VisionProps> = ({ onClose, boardTheme, initialMode
             random={random}
           />
         )}
-        {mode === 'blind' && (
-          <BlindDrill key="blind" records={records} finish={finish} boardTheme={boardTheme} random={random} />
+        {view === 'blind' && (
+          <BlindDrill
+            key="blind"
+            records={records}
+            finish={finish}
+            boardTheme={boardTheme}
+            random={random}
+            source={source}
+          />
         )}
-        {mode === 'lines' && (
-          <LinesDrill key="lines" records={records} finish={finish} boardTheme={boardTheme} random={random} />
+        {view === 'lines' && (
+          <LinesDrill
+            key="lines"
+            records={records}
+            finish={finish}
+            boardTheme={boardTheme}
+            random={random}
+            source={source}
+          />
         )}
+        {view === 'game' && (
+          <BlindGame key="game" records={records} finish={finish} boardTheme={boardTheme} random={random} />
+        )}
+        {view === 'progress' && <ProgressPanel records={records} />}
       </div>
     </div>
   );

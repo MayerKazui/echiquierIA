@@ -1,15 +1,17 @@
 import { Chess, type Color, type PieceSymbol } from 'chess.js';
 import type { VisionGame } from '../data/visionGames';
 import { pieceName } from './accessibility';
-import { formatPvToFrench, numberedFrenchMove } from './chessNotation';
+import { formatPvToFrench, numberedFrenchMove, toEnglishSan } from './chessNotation';
+import { PLAY_LEVELS } from './playLevels';
+import type { PlayOutcome } from './playGame';
 
 /**
- * Vision training: the pure part. Three exercises (find a square by its name, follow a game without seeing the
- * pieces, calculate a line without playing it), their records, and the questions they ask, built from real games and
- * checked with chess.js so that every answer is the one the rules give.
+ * Vision training: the pure part. Four exercises (find a square by its name, follow a game without seeing the
+ * pieces, calculate a line without playing it, play a whole game blindfold), their records, and the questions they
+ * ask, built from real games and checked with chess.js so that every answer is the one the rules give.
  */
 
-export type VisionMode = 'coordinates' | 'blind' | 'lines';
+export type VisionMode = 'coordinates' | 'blind' | 'lines' | 'game';
 export type Random = () => number;
 
 /** Length of a round of "Coordonnées". */
@@ -27,8 +29,10 @@ export interface VisionLevel {
 
 export const VISION_LEVELS: Record<VisionMode, VisionLevel[]> = {
   coordinates: [
-    { id: 'white', label: 'Côté des Blancs', hint: 'a1 en bas à gauche' },
-    { id: 'black', label: 'Côté des Noirs', hint: 'h8 en bas à gauche' },
+    { id: 'white', label: 'Côté des Blancs', hint: 'Cliquer la case demandée, a1 en bas à gauche' },
+    { id: 'black', label: 'Côté des Noirs', hint: 'Cliquer la case demandée, h8 en bas à gauche' },
+    { id: 'name', label: 'Nommer la case', hint: 'Une case est éclairée : dire son nom' },
+    { id: 'color', label: 'Couleur de la case', hint: 'Dire si la case demandée est claire ou foncée' },
   ],
   blind: [
     { id: 'short', label: 'Courte', hint: '6 demi-coups', plies: 6 },
@@ -40,17 +44,29 @@ export const VISION_LEVELS: Record<VisionMode, VisionLevel[]> = {
     { id: 'medium', label: 'Moyennes', hint: '4 demi-coups', plies: 4 },
     { id: 'long', label: 'Longues', hint: '6 demi-coups', plies: 6 },
   ],
+  // One level per strength of the engine
+  game: PLAY_LEVELS.map((level) => ({ id: level.id, label: level.label, hint: level.detail })),
 };
 
 export const VISION_MODE_LABELS: Record<VisionMode, string> = {
   coordinates: 'Coordonnées',
   blind: 'Mode aveugle',
   lines: 'Calcul de lignes',
+  game: 'Partie à l’aveugle',
 };
 
 /* ---------------------------------------------------------------- records */
 
-/** The best score of one exercise at one level, and how many rounds were played there. */
+/** One finished round: when, and the score. */
+export interface RunEntry {
+  at: number;
+  score: number;
+}
+
+/** Rounds kept per level for the progress curve: the most recent ones. */
+export const MAX_HISTORY = 60;
+
+/** The best score of one exercise at one level, how many rounds were played there, and the latest rounds. */
 export interface VisionRecord {
   /** `mode:level`, e.g. `coordinates:white`. */
   key: string;
@@ -58,17 +74,32 @@ export interface VisionRecord {
   /** When the best score was made. */
   bestAt: number;
   runs: number;
+  /** The latest rounds, oldest first (absent for records made before the progress curve existed). */
+  history?: RunEntry[];
 }
 
-const RECORD_KEY = /^(coordinates|blind|lines):[a-z]{1,20}$/;
+const RECORD_KEY = /^(coordinates|blind|lines|game):[a-z]{1,20}$/;
 const MAX_SCORE = 1000;
 const MAX_RUNS = 1_000_000;
 
 export const recordKey = (mode: VisionMode, level: string): string => `${mode}:${level}`;
 
+const isRunEntry = (value: unknown): value is RunEntry => {
+  if (typeof value !== 'object' || value === null) return false;
+  const { at, score } = value as RunEntry;
+  return (
+    typeof at === 'number' &&
+    Number.isFinite(at) &&
+    at >= 0 &&
+    Number.isInteger(score) &&
+    score >= 0 &&
+    score <= MAX_SCORE
+  );
+};
+
 export const isVisionRecord = (value: unknown): value is VisionRecord => {
   if (typeof value !== 'object' || value === null) return false;
-  const { key, best, bestAt, runs } = value as VisionRecord;
+  const { key, best, bestAt, runs, history } = value as VisionRecord;
   return (
     typeof key === 'string' &&
     RECORD_KEY.test(key) &&
@@ -80,7 +111,8 @@ export const isVisionRecord = (value: unknown): value is VisionRecord => {
     bestAt >= 0 &&
     Number.isInteger(runs) &&
     runs >= 1 &&
-    runs <= MAX_RUNS
+    runs <= MAX_RUNS &&
+    (history === undefined || (Array.isArray(history) && history.length <= MAX_HISTORY && history.every(isRunEntry)))
   );
 };
 
@@ -91,6 +123,9 @@ export interface RunOutcome {
   /** Whether this round beat the best score (a score of 0 never does). */
   isRecord: boolean;
 }
+
+/** The latest rounds, oldest first, at most `MAX_HISTORY`. */
+const trimmed = (history: readonly RunEntry[]): RunEntry[] => history.slice(-MAX_HISTORY);
 
 /** The record after one more round with `score`. */
 export function applyRun(existing: VisionRecord | undefined, key: string, score: number, now: number): RunOutcome {
@@ -103,17 +138,49 @@ export function applyRun(existing: VisionRecord | undefined, key: string, score:
       best: Math.max(existing?.best ?? 0, score),
       bestAt: isRecord || !existing ? now : existing.bestAt,
       runs: (existing?.runs ?? 0) + 1,
+      history: trimmed([...(existing?.history ?? []), { at: now, score }]),
     },
   };
 }
 
+/** Two lists of rounds as one: the same round (same moment, same score) seen on both sides counts once. */
+function mergeHistories(
+  a: readonly RunEntry[] | undefined,
+  b: readonly RunEntry[] | undefined
+): RunEntry[] | undefined {
+  if (!a && !b) return undefined;
+  const seen = new Map<string, RunEntry>();
+  for (const entry of [...(a ?? []), ...(b ?? [])]) seen.set(`${entry.at}:${entry.score}`, entry);
+  return trimmed([...seen.values()].sort((x, y) => x.at - y.at));
+}
+
 /**
  * Two copies of the same record (this browser's and a backup's): the larger best score wins. The number of rounds
- * is the larger count, not the sum: the same rounds seen twice must not be added up.
+ * is the larger count, not the sum: the same rounds seen twice must not be added up. The rounds of both are kept.
  */
 export function mergeRecords(a: VisionRecord, b: VisionRecord): VisionRecord {
   const bestAt = a.best === b.best ? Math.min(a.bestAt, b.bestAt) : a.best > b.best ? a.bestAt : b.bestAt;
-  return { key: a.key, best: Math.max(a.best, b.best), bestAt, runs: Math.max(a.runs, b.runs) };
+  const history = mergeHistories(a.history, b.history);
+  return {
+    key: a.key,
+    best: Math.max(a.best, b.best),
+    bestAt,
+    runs: Math.max(a.runs, b.runs),
+    ...(history ? { history } : {}),
+  };
+}
+
+/** Whether two copies of a record say the same thing. */
+export function sameRecord(a: VisionRecord, b: VisionRecord): boolean {
+  const ha = a.history ?? [];
+  const hb = b.history ?? [];
+  return (
+    a.best === b.best &&
+    a.bestAt === b.bestAt &&
+    a.runs === b.runs &&
+    ha.length === hb.length &&
+    ha.every((entry, i) => entry.at === hb[i].at && entry.score === hb[i].score)
+  );
 }
 
 /* ---------------------------------------------------------------- random */
@@ -139,6 +206,15 @@ export const SQUARES: string[] = [...FILES].flatMap((file) => [1, 2, 3, 4, 5, 6,
 export function nextTarget(previous: string | null, random: Random): string {
   return pick(previous === null ? SQUARES : SQUARES.filter((square) => square !== previous), random);
 }
+
+/**
+ * How a level of "Coordonnées" asks: `find` (a name is given, click the square), `name` (a square is lit, say its
+ * name) or `color` (a name is given, say whether the square is light or dark).
+ */
+export type CoordinatesKind = 'find' | 'name' | 'color';
+
+export const coordinatesKind = (level: string): CoordinatesKind =>
+  level === 'name' ? 'name' : level === 'color' ? 'color' : 'find';
 
 /** Whether a square is light (a1 is dark). */
 export const isLightSquare = (square: string): boolean => (square.charCodeAt(0) - 97 + Number(square[1])) % 2 === 0;
@@ -424,4 +500,127 @@ export function makeLineRound(games: readonly VisionGame[], plies: number, rando
     questions.push(question);
   }
   return questions;
+}
+
+/* ---------------------------------------------------------- own games */
+
+/** The least a game of the player's must hold to be worth reading: shorter ones are abandons and test games. */
+const MIN_OWN_GAME_PLIES = 8;
+/** How many of the player's games are checked move by move for one round: enough variety, little work. */
+const OWN_GAMES_SAMPLE = 30;
+
+/** What the exercises need of a game the player analysed (the stored games have more). */
+export interface OwnGame {
+  id: string;
+  /** English SAN, from the standard initial position. */
+  moves: readonly string[];
+  white?: string;
+  black?: string;
+  date?: string;
+}
+
+/** Whether the moves are playable one after the other from the initial position. */
+function isPlayable(moves: readonly string[]): boolean {
+  const chess = new Chess();
+  try {
+    for (const san of moves) chess.move(san);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const gameTitle = (game: OwnGame): string => {
+  const players = `${game.white || '?'} – ${game.black || '?'}`;
+  const date = game.date && /^\d{4}\.\d{2}\.\d{2}$/.test(game.date) ? game.date.replace(/\./g, '-') : null;
+  return date ? `${players}, ${date} (une de vos parties)` : `${players} (une de vos parties)`;
+};
+
+/**
+ * Some of the player's own games as exercise material, at least `minPlies` long: a random handful, each checked once
+ * move by move (a stored game with a strange start would otherwise fail in the middle of a round). Empty when the
+ * player has no game long enough.
+ */
+export function ownVisionGames(games: readonly OwnGame[], minPlies: number, random: Random): VisionGame[] {
+  const long = games.filter((game) => game.moves.length >= Math.max(minPlies, MIN_OWN_GAME_PLIES));
+  const picked: VisionGame[] = [];
+  for (const game of shuffled(long, random)) {
+    if (picked.length >= OWN_GAMES_SAMPLE) break;
+    if (!isPlayable(game.moves)) continue;
+    picked.push({ id: `own:${game.id}`, name: gameTitle(game), moves: [...game.moves] });
+  }
+  return picked;
+}
+
+/* ------------------------------------------------------------ blind game */
+
+export type BlindGameResult = 'win' | 'draw' | 'loss';
+
+/** The score kept for a game played blindfold: a win 2, a draw 1, a loss (or an abandon) 0. */
+export const BLIND_GAME_SCORES: Record<BlindGameResult, number> = { win: 2, draw: 1, loss: 0 };
+
+export const BLIND_GAME_RESULT_LABELS: Record<BlindGameResult, string> = {
+  win: 'Victoire',
+  draw: 'Nulle',
+  loss: 'Défaite',
+};
+
+/** How a finished game went for the player. */
+export function blindGameResult(outcome: PlayOutcome, userColor: Color): BlindGameResult {
+  if (outcome.kind === 'draw') return 'draw';
+  return outcome.winner === userColor ? 'win' : 'loss';
+}
+
+/** The result a score stands for (the inverse of `BLIND_GAME_SCORES`). */
+export const blindGameResultOf = (score: number): BlindGameResult =>
+  score >= 2 ? 'win' : score === 1 ? 'draw' : 'loss';
+
+const UCI_MOVE = /^([a-h][1-8])-?([a-h][1-8])([qrbn])?$/i;
+
+/**
+ * A move typed by the player, as the rules read it, or null when it is not legal in `fen`. Accepted: English SAN
+ * (`Nf3`, `exd5`, `O-O`, `0-0`), French SAN (`Cf3`, `Fb5`, `Dxe4`, `Rg1` for the king) and coordinates (`g1f3`,
+ * `e7-e8q`). Check signs and a missing `x` do not matter. English is read first: `Re2` is a rook move when a rook can
+ * go there and the king's otherwise.
+ */
+export function parseTypedMove(fen: string, text: string): { uci: string; san: string } | null {
+  const typed = text
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/^0-0-0/, 'O-O-O')
+    .replace(/^0-0/, 'O-O');
+  if (typed === '') return null;
+  const chess = new Chess(fen);
+  const attempt = (play: () => ReturnType<Chess['move']>) => {
+    try {
+      const move = play();
+      return { uci: `${move.from}${move.to}${move.promotion ?? ''}`, san: move.san };
+    } catch {
+      return null;
+    }
+  };
+  const coordinates = UCI_MOVE.exec(typed);
+  if (coordinates) {
+    const [, from, to, promotion] = coordinates;
+    return attempt(() =>
+      chess.move({ from: from.toLowerCase(), to: to.toLowerCase(), promotion: promotion?.toLowerCase() })
+    );
+  }
+  return (
+    attempt(() => chess.move(typed, { strict: false })) ??
+    attempt(() => chess.move(toEnglishSan(typed), { strict: false }))
+  );
+}
+
+/* ---------------------------------------------------------- progress */
+
+/** The rounds of an exercise at one level, oldest first. */
+export const roundsOf = (records: ReadonlyMap<string, VisionRecord> | null, key: string): RunEntry[] =>
+  records?.get(key)?.history ?? [];
+
+/** The average score of the last `size` rounds of a list, null when there are fewer than that. */
+export function recentAverage(rounds: readonly RunEntry[], size: number): number | null {
+  if (rounds.length < size) return null;
+  const last = rounds.slice(-size);
+  return last.reduce((sum, round) => sum + round.score, 0) / size;
 }

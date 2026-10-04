@@ -4,9 +4,8 @@ import { Flag, RotateCcw, Undo2 } from 'lucide-react';
 import { useAnswerBoard, type Answer } from '../../hooks/useAnswerBoard';
 import { usePlayGame } from '../../hooks/usePlayGame';
 import type { BoardTheme, PlayerColor } from '../../types/ui';
-import { numberedFrenchMove } from '../../utils/chessNotation';
 import type { PlayLevel } from '../../utils/playLevels';
-import { gamePgn, type DrawReason, type PlayOutcome, type PlayStart } from '../../utils/playGame';
+import { gamePgn, movesText, outcomeText, type PlayStart } from '../../utils/playGame';
 import { ChessBoard } from '../ChessBoard/ChessBoard';
 import { PRIMARY, SECONDARY } from '../Openings/shared';
 
@@ -21,35 +20,6 @@ interface PlayGameProps {
   /** Offered once there are moves, when the game can be analysed (see `gamePgn`). */
   onAnalyze?: (pgn: string) => void;
   onNewGame: () => void;
-}
-
-const DRAW_TEXT: Record<DrawReason, string> = {
-  stalemate: 'Nulle par pat.',
-  material: 'Nulle : le matériel est insuffisant pour mater.',
-  repetition: 'Nulle par triple répétition.',
-  fifty: 'Nulle par la règle des 50 coups.',
-};
-
-export function outcomeText(outcome: PlayOutcome, userColor: PlayerColor): string {
-  if (outcome.kind === 'draw') return DRAW_TEXT[outcome.reason];
-  const youWon = outcome.winner === userColor;
-  if (outcome.kind === 'resigned') return youWon ? 'Stockfish abandonne.' : 'Vous avez abandonné.';
-  return youWon ? 'Échec et mat : vous avez gagné !' : 'Échec et mat : Stockfish gagne.';
-}
-
-/** The moves with their numbers, from the move number of the start position: "12.Cf3 12…Cc6 13.d4". */
-function movesText(startFen: string, sans: string[]): string {
-  const [, turn, , , , fullmove] = startFen.split(' ');
-  let number = Number(fullmove) || 1;
-  let isWhite = turn !== 'b';
-  return sans
-    .map((san) => {
-      const text = numberedFrenchMove(number, isWhite, san);
-      if (!isWhite) number += 1;
-      isWhite = !isWhite;
-      return text;
-    })
-    .join(' ');
 }
 
 /** One game against the engine: the player moves on the board, Stockfish answers at the chosen level. */

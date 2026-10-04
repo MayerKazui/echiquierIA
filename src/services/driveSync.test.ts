@@ -619,7 +619,7 @@ describe('syncWithDrive, vision records', () => {
     await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
     const expected = [
       { key: 'blind:long', best: 3, bestAt: 600, runs: 1 },
-      { key: 'coordinates:white', best: 20, bestAt: 500, runs: 4 },
+      { key: 'coordinates:white', best: 20, bestAt: 500, runs: 4, history: [{ at: 1000, score: 12 }] },
     ];
     expect(await exportVisionRecords()).toEqual(expected);
     const sent = parseBackup(await unpackText(drive.files.get('file-1') as Uint8Array));
@@ -632,6 +632,8 @@ describe('syncWithDrive, vision records', () => {
     const report = await syncWithDrive({ tokens: fakeTokens(), fetchFn: drive.fetchFn });
     expect(report.sent).not.toBeNull();
     const parsed = parseBackup(await unpackText(drive.files.get('file-2') as Uint8Array));
-    expect(parsed.ok && parsed.backup.visionRecords).toEqual([{ key: 'lines:short', best: 4, bestAt: 1000, runs: 1 }]);
+    expect(parsed.ok && parsed.backup.visionRecords).toEqual([
+      { key: 'lines:short', best: 4, bestAt: 1000, runs: 1, history: [{ at: 1000, score: 4 }] },
+    ]);
   });
 });

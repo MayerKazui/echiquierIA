@@ -1,4 +1,11 @@
-import { applyRun, isVisionRecord, mergeRecords, type RunOutcome, type VisionRecord } from '../utils/vision';
+import {
+  applyRun,
+  isVisionRecord,
+  mergeRecords,
+  sameRecord,
+  type RunOutcome,
+  type VisionRecord,
+} from '../utils/vision';
 import { recordPractice } from './practiceStore';
 
 /**
@@ -141,7 +148,7 @@ export async function mergeVisionRecords(
             return;
           }
           const merged = mergeRecords(existing, record);
-          if (merged.best !== existing.best || merged.runs !== existing.runs || merged.bestAt !== existing.bestAt) {
+          if (!sameRecord(merged, existing)) {
             store.put(merged);
             report.replaced += 1;
           }

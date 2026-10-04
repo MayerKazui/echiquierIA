@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react';
 import { CheckCircle2, XCircle } from 'lucide-react';
-import { VISION_GAMES } from '../../data/visionGames';
 import {
   QUESTIONS_PER_ROUND,
   VISION_LEVELS,
@@ -18,13 +17,23 @@ import {
 import type { BoardTheme } from '../../types/ui';
 import { PRIMARY, SECONDARY } from '../Openings/shared';
 import { VisionBoard, type SquareMark } from './VisionBoard';
-import { AnswerGrid, LevelPicker, ResultPanel, type VisionRecords } from './shared';
+import {
+  AnswerGrid,
+  LevelPicker,
+  ResultPanel,
+  SourcePicker,
+  gamesFor,
+  type GameSource,
+  type VisionRecords,
+} from './shared';
 
 interface LinesDrillProps {
   records: VisionRecords;
   finish: (key: string, score: number) => Promise<RunOutcome>;
   boardTheme?: BoardTheme;
   random?: Random;
+  /** Which games the stretches are taken from: the reserve of famous ones, or the player's own. */
+  source: GameSource;
 }
 
 /** The answer of a "where" question when the piece was taken (the other answers are squares or piece codes). */
@@ -81,15 +90,24 @@ function givenText(q: LineQuestion, given: string): string {
 }
 
 /** "Calcul de lignes": a stretch of a real game is written out; the player works out where things end up. */
-export const LinesDrill: React.FC<LinesDrillProps> = ({ records, finish, boardTheme, random = Math.random }) => {
+export const LinesDrill: React.FC<LinesDrillProps> = ({
+  records,
+  finish,
+  boardTheme,
+  random = Math.random,
+  source,
+}) => {
   const [phase, setPhase] = useState<Phase>({ kind: 'setup' });
   const [outcome, setOutcome] = useState<RunOutcome | null>(null);
+  const [isFallback, setIsFallback] = useState(false);
   const roundId = useRef(0);
 
   const start = (level: string) => {
     const plies = VISION_LEVELS.lines.find((l) => l.id === level)?.plies ?? 2;
-    const questions = makeLineRound(VISION_GAMES, plies, random);
+    const { games, isFallback: usesReserve } = gamesFor(source, plies, random);
+    const questions = makeLineRound(games, plies, random);
     if (questions.length === 0) return;
+    setIsFallback(usesReserve);
     roundId.current += 1;
     setOutcome(null);
     setPhase({ kind: 'ask', level, questions, index: 0, answers: [], selected: null, given: null });
@@ -124,11 +142,17 @@ export const LinesDrill: React.FC<LinesDrillProps> = ({ records, finish, boardTh
       {phase.kind === 'setup' && (
         <>
           <p className="text-xs text-slate-400">
-            Un bout de vraie partie s’écrit sous l’échiquier : vous ne le jouez pas, vous le calculez. Puis on vous
-            demande où une pièce a fini, ou ce que contient une case. L’échiquier montre ensuite la position atteinte.
-            Série de {QUESTIONS_PER_ROUND} questions.
+            Un bout de vraie partie (célèbre, ou une des vôtres) s’écrit sous l’échiquier : vous ne le jouez pas, vous
+            le calculez. Puis on vous demande où une pièce a fini, ou ce que contient une case. L’échiquier montre
+            ensuite la position atteinte. Série de {QUESTIONS_PER_ROUND} questions.
           </p>
-          <LevelPicker mode="lines" records={records} onStart={start} />
+          <SourcePicker source={source} isFallback={isFallback} />
+          <LevelPicker
+            mode="lines"
+            records={records}
+            onStart={start}
+            isDisabled={source.id === 'own' && source.own.status !== 'ready'}
+          />
         </>
       )}
 

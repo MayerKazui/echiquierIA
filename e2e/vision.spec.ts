@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { violations } from './support/axe';
-import { openFromMenu } from './support/app';
+import { analyzeSample, openFromMenu, waitForGameSaved } from './support/app';
 
 /** The records the vision exercises keep in the browser. */
 const storedRecords = (page: Page) =>
@@ -132,6 +132,92 @@ test.describe("l'entraînement de la vision", () => {
     await expect(dialog.getByText(/^Score : \d\/5$/)).toBeVisible();
     expect(await violations(page)).toEqual([]);
     await expect.poll(() => storedRecords(page)).toEqual([expect.objectContaining({ key: 'lines:medium', runs: 1 })]);
+    expect(errors).toEqual([]);
+  });
+
+  test('Coordonnées : nommer la case éclairée, et dire la couleur d’une case', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto('/');
+    await openFromMenu(page, /Coordonnées/);
+    const dialog = page.getByRole('dialog', { name: 'Vision' });
+
+    await dialog.getByRole('button', { name: /^Commencer : Nommer la case/ }).click();
+    const lit = dialog.locator('[aria-label="case, case demandée"]');
+    await expect(lit).toHaveCount(1);
+    expect(await violations(page)).toEqual([]);
+    const square = (await lit.getAttribute('data-square'))!;
+    await page.keyboard.press(square[0]);
+    await page.keyboard.press(square[1]);
+    await expect(dialog.getByText(/1 bonne réponse · 0 erreur/)).toBeVisible();
+
+    await dialog.getByRole('button', { name: 'Fermer' }).click();
+    await openFromMenu(page, /Coordonnées/);
+    await dialog.getByRole('button', { name: /^Commencer : Couleur de la case/ }).click();
+    await expect(dialog.getByRole('grid')).toHaveCount(0);
+    expect(await violations(page)).toEqual([]);
+    await dialog.getByRole('button', { name: 'Claire' }).click();
+    await expect(dialog.getByText(/1 (bonne réponse|erreur)/)).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test('Partie à l’aveugle : on tape ses coups sur un échiquier vide, le vrai moteur répond, la progression suit', async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto('/');
+    await openFromMenu(page, /Partie à l’aveugle/);
+    const dialog = page.getByRole('dialog', { name: 'Vision' });
+    await expect(dialog.getByRole('button', { name: 'Partie à l’aveugle', pressed: true })).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+
+    await dialog.getByRole('button', { name: /^Commencer : Débutant/ }).click();
+    const pieces = dialog.locator('[role="gridcell"] svg[viewBox="0 0 45 45"]');
+    await expect(pieces).toHaveCount(0);
+    await dialog.getByLabel('Votre coup').fill('e4');
+    await dialog.getByLabel('Votre coup').press('Enter');
+    await expect(dialog.getByRole('status').first()).toContainText('Stockfish a joué', { timeout: 30_000 });
+    await expect(pieces).toHaveCount(0);
+    expect(await violations(page)).toEqual([]);
+
+    // Un coup illégal est refusé sans pénalité
+    await dialog.getByLabel('Votre coup').fill('e9');
+    await dialog.getByLabel('Votre coup').press('Enter');
+    await expect(dialog.getByRole('alert')).toContainText('n’est pas un coup légal');
+
+    await dialog.getByRole('button', { name: 'Abandonner' }).click();
+    await expect(dialog.getByText('Résultat : Défaite')).toBeVisible();
+    await expect(pieces.first()).toBeVisible();
+    await expect.poll(() => storedRecords(page)).toEqual([expect.objectContaining({ key: 'game:debutant', runs: 1 })]);
+
+    await dialog.getByRole('button', { name: 'Progression' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Partie à l’aveugle · Débutant' })).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
+  test('Mode aveugle : on peut lire une de ses propres parties analysées', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto('/');
+    await analyzeSample(page, /Partie de l'Opéra/);
+    await waitForGameSaved(page);
+
+    await openFromMenu(page, /Mode aveugle/);
+    const dialog = page.getByRole('dialog', { name: 'Vision' });
+    await dialog.getByRole('radio', { name: 'Mes parties analysées' }).check();
+    await expect(dialog.getByText(/1 partie dans votre historique/)).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+    await dialog.getByRole('button', { name: /^Commencer : Courte/ }).click();
+    for (let i = 0; i < 6; i++) {
+      await dialog.getByRole('button', { name: i < 5 ? 'Coup suivant' : 'Terminé : poser les questions' }).click();
+    }
+    for (let i = 1; i <= 5; i++) {
+      await dialog.getByRole('button', { name: 'Case vide' }).click();
+      await dialog.getByRole('button', { name: i < 5 ? 'Question suivante' : 'Voir le résultat' }).click();
+    }
+    await expect(dialog.getByText(/Partie lue : .*\(une de vos parties\)/)).toBeVisible();
     expect(errors).toEqual([]);
   });
 
