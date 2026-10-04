@@ -56,7 +56,7 @@ describe('Vision', () => {
 
   it('says there is no score yet, then the record once there is one', async () => {
     renderVision();
-    expect((await screen.findAllByText('Pas encore de score')).length).toBe(2);
+    expect((await screen.findAllByText('Pas encore de score')).length).toBe(4);
   });
 });
 
@@ -92,7 +92,13 @@ describe('Coordonnées', () => {
     // Further ticks of the countdown must not note the round again
     await new Promise((resolve) => setTimeout(resolve, 350));
     expect(await exportVisionRecords()).toEqual([
-      { key: 'coordinates:white', best: 1, bestAt: expect.any(Number), runs: 1 },
+      {
+        key: 'coordinates:white',
+        best: 1,
+        bestAt: expect.any(Number),
+        runs: 1,
+        history: [{ at: expect.any(Number), score: 1 }],
+      },
     ]);
 
     // Another round: the board no longer answers once time is up, and a better score is a record
@@ -123,7 +129,7 @@ describe('Coordonnées', () => {
     expect(await screen.findByText('Votre record à ce niveau : 2.')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Changer de niveau' }));
     expect(await screen.findByText(/Record : 2 · 2 parties/)).toBeTruthy();
-    expect(screen.getAllByText('Pas encore de score')).toHaveLength(1); // the Black side
+    expect(screen.getAllByText('Pas encore de score')).toHaveLength(3); // the other levels
     target = await start(user, 'Côté des Noirs');
     expect(target()).toMatch(/^[a-h][1-8]$/);
   });
@@ -200,7 +206,15 @@ describe('Mode aveugle', () => {
     // The pieces come back, to check
     expect(pieceCount()).toBe(Object.values(contentsOf(round.fen)).filter((c) => c !== EMPTY).length);
     expect(screen.getByText(new RegExp(`Partie lue : ${round.game.name.slice(0, 12)}`))).toBeTruthy();
-    expect(await exportVisionRecords()).toEqual([{ key: 'blind:short', best: 5, bestAt: expect.any(Number), runs: 1 }]);
+    expect(await exportVisionRecords()).toEqual([
+      {
+        key: 'blind:short',
+        best: 5,
+        bestAt: expect.any(Number),
+        runs: 1,
+        history: [{ at: expect.any(Number), score: 5 }],
+      },
+    ]);
   });
 
   it('says what a missed square held, and scores only the right answers', async () => {
@@ -319,7 +333,13 @@ describe('Calcul de lignes', () => {
     expect(within(list).getAllByRole('listitem')).toHaveLength(questions.length);
     expect(screen.getAllByLabelText('Raté')).toHaveLength(plan.filter((p) => !p).length);
     expect(await exportVisionRecords()).toEqual([
-      { key: 'lines:short', best: score, bestAt: expect.any(Number), runs: 1 },
+      {
+        key: 'lines:short',
+        best: score,
+        bestAt: expect.any(Number),
+        runs: 1,
+        history: [{ at: expect.any(Number), score }],
+      },
     ]);
   });
 });

@@ -22,6 +22,8 @@ interface VisionBoardProps {
   marks?: Record<string, SquareMark>;
   /** Given, the squares can be clicked (and reached with the arrow keys). */
   onSquareClick?: (square: string) => void;
+  /** An exercise that asks for the name of a square must not say it: the squares are then only "case". */
+  hideNames?: boolean;
 }
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
@@ -56,6 +58,7 @@ export const VisionBoard: React.FC<VisionBoardProps> = ({
   contents = null,
   marks,
   onSquareClick,
+  hideNames = false,
 }) => {
   const isFlipped = orientation === 'b';
   const files = isFlipped ? [...FILES].reverse() : FILES;
@@ -104,7 +107,11 @@ export const VisionBoard: React.FC<VisionBoardProps> = ({
               const piece = code && code !== EMPTY ? { color: code[0] as 'w' | 'b', type: code[1] } : null;
               const mark = marks?.[square];
               const { squareBg, coordTextColor } = getSquareStyle(boardTheme, isLightSquare(square), false);
-              const name = [square, contents ? contentLabel(code ?? EMPTY) : null, mark ? MARK_TEXT[mark] : null]
+              const name = [
+                hideNames ? 'case' : square,
+                contents ? contentLabel(code ?? EMPTY) : null,
+                mark ? MARK_TEXT[mark] : null,
+              ]
                 .filter(Boolean)
                 .join(', ');
               return (

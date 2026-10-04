@@ -38,7 +38,12 @@ describe('buildNavigation', () => {
       'Finales de pions',
       'Finales de tours',
     ]);
-    expect(labels(sections, 'vision')).toEqual(['Coordonnées', 'Mode aveugle', 'Calcul de lignes']);
+    expect(labels(sections, 'vision')).toEqual([
+      'Coordonnées',
+      'Mode aveugle',
+      'Calcul de lignes',
+      'Partie à l’aveugle',
+    ]);
   });
 
   it('offers the free analysis of a position next to the game against Stockfish', () => {
@@ -78,6 +83,7 @@ describe('buildNavigation', () => {
     select('endgames-all');
     select('vision-blind');
     select('vision-lines');
+    select('vision-game');
     select('analysis');
     expect(a.onOpenPuzzles).toHaveBeenNthCalledWith(1, 'woodpecker');
     expect(a.onOpenPuzzles).toHaveBeenNthCalledWith(2, 'stats');
@@ -86,6 +92,7 @@ describe('buildNavigation', () => {
     expect(a.onOpenEndgames).toHaveBeenNthCalledWith(2, null);
     expect(a.onOpenVision).toHaveBeenNthCalledWith(1, 'blind');
     expect(a.onOpenVision).toHaveBeenNthCalledWith(2, 'lines');
+    expect(a.onOpenVision).toHaveBeenNthCalledWith(3, 'game');
     expect(a.onOpenAnalysis).toHaveBeenCalledTimes(1);
   });
 

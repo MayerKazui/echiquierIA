@@ -17,8 +17,18 @@ describe('visionStore', () => {
     expect(await recordVisionRun(key, 21, 3000)).toMatchObject({ isRecord: true, previousBest: 14 });
     expect(await recordVisionRun('blind:long', 3, 4000)).toMatchObject({ isRecord: true });
     expect(await exportVisionRecords()).toEqual([
-      { key: 'blind:long', best: 3, bestAt: 4000, runs: 1 },
-      { key, best: 21, bestAt: 3000, runs: 3 },
+      { key: 'blind:long', best: 3, bestAt: 4000, runs: 1, history: [{ at: 4000, score: 3 }] },
+      {
+        key,
+        best: 21,
+        bestAt: 3000,
+        runs: 3,
+        history: [
+          { at: 1000, score: 14 },
+          { at: 2000, score: 9 },
+          { at: 3000, score: 21 },
+        ],
+      },
     ]);
   });
 
@@ -55,7 +65,16 @@ describe('visionStore', () => {
     ]);
     expect(report).toEqual({ added: 1, replaced: 1 });
     expect(await exportVisionRecords()).toEqual([
-      { key, best: 15, bestAt: 5000, runs: 2 },
+      {
+        key,
+        best: 15,
+        bestAt: 5000,
+        runs: 2,
+        history: [
+          { at: 1000, score: 12 },
+          { at: 2000, score: 8 },
+        ],
+      },
       { key: 'lines:long', best: 4, bestAt: 3000, runs: 2 },
     ]);
   });

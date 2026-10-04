@@ -8,7 +8,17 @@ import {
   QUESTIONS_PER_ROUND,
   SQUARES,
   VISION_LEVELS,
+  BLIND_GAME_SCORES,
+  MAX_HISTORY,
   applyRun,
+  blindGameResult,
+  blindGameResultOf,
+  coordinatesKind,
+  ownVisionGames,
+  parseTypedMove,
+  recentAverage,
+  roundsOf,
+  sameRecord,
   contentDefinite,
   contentLabel,
   contentWithArticle,
@@ -57,16 +67,45 @@ describe('records', () => {
     expect(first).toEqual({
       previousBest: null,
       isRecord: true,
-      record: { key, best: 18, bestAt: 1000, runs: 1 },
+      record: { key, best: 18, bestAt: 1000, runs: 1, history: [{ at: 1000, score: 18 }] },
     });
     const worse = applyRun(first.record, key, 12, 2000);
     expect(worse.isRecord).toBe(false);
-    expect(worse.record).toEqual({ key, best: 18, bestAt: 1000, runs: 2 });
+    expect(worse.record).toEqual({
+      key,
+      best: 18,
+      bestAt: 1000,
+      runs: 2,
+      history: [
+        { at: 1000, score: 18 },
+        { at: 2000, score: 12 },
+      ],
+    });
     const tie = applyRun(worse.record, key, 18, 3000);
     expect(tie.isRecord).toBe(false);
     expect(tie.record.bestAt).toBe(1000);
     const better = applyRun(tie.record, key, 19, 4000);
     expect(better).toMatchObject({ previousBest: 18, isRecord: true, record: { best: 19, bestAt: 4000, runs: 4 } });
+  });
+
+  it('keeps the latest rounds only, oldest first', () => {
+    let record: VisionRecord | undefined;
+    for (let i = 0; i < MAX_HISTORY + 5; i++) record = applyRun(record, key, i % 7, 1000 + i).record;
+    expect(record!.runs).toBe(MAX_HISTORY + 5);
+    expect(record!.history).toHaveLength(MAX_HISTORY);
+    expect(record!.history![0].at).toBe(1005);
+    expect(record!.history![MAX_HISTORY - 1].at).toBe(1000 + MAX_HISTORY + 4);
+  });
+
+  it('starts the history of a record made before it existed', () => {
+    const old: VisionRecord = { key, best: 9, bestAt: 5, runs: 4 };
+    expect(applyRun(old, key, 3, 99).record).toEqual({
+      key,
+      best: 9,
+      bestAt: 5,
+      runs: 5,
+      history: [{ at: 99, score: 3 }],
+    });
   });
 
   it('never calls a score of 0 a record', () => {
@@ -81,9 +120,53 @@ describe('records', () => {
     expect(mergeRecords(a, { ...a, bestAt: 300 })).toEqual({ key, best: 10, bestAt: 300, runs: 7 });
   });
 
+  it('merges the rounds of two copies, the same round once, oldest first', () => {
+    const a: VisionRecord = {
+      key,
+      best: 10,
+      bestAt: 2,
+      runs: 2,
+      history: [
+        { at: 1, score: 4 },
+        { at: 2, score: 10 },
+      ],
+    };
+    const b: VisionRecord = {
+      key,
+      best: 10,
+      bestAt: 2,
+      runs: 3,
+      history: [
+        { at: 2, score: 10 },
+        { at: 3, score: 6 },
+      ],
+    };
+    const merged = mergeRecords(a, b);
+    expect(merged.history).toEqual([
+      { at: 1, score: 4 },
+      { at: 2, score: 10 },
+      { at: 3, score: 6 },
+    ]);
+    expect(merged.runs).toBe(3);
+    // A copy without rounds (an old backup) does not wipe the ones kept here
+    expect(mergeRecords(a, { key, best: 3, bestAt: 1, runs: 1 }).history).toEqual(a.history);
+    expect(mergeRecords({ ...a, history: undefined }, { ...b, history: undefined })).not.toHaveProperty('history');
+  });
+
+  it('tells two copies of a record apart by their rounds too', () => {
+    const a: VisionRecord = { key, best: 5, bestAt: 1, runs: 1, history: [{ at: 1, score: 5 }] };
+    expect(sameRecord(a, { ...a, history: [{ at: 1, score: 5 }] })).toBe(true);
+    expect(sameRecord(a, { ...a, history: [{ at: 1, score: 4 }] })).toBe(false);
+    expect(sameRecord(a, { ...a, history: undefined })).toBe(false);
+    expect(sameRecord({ ...a, history: undefined }, { ...a, history: [] })).toBe(true);
+  });
+
   it('recognises a record, and nothing else', () => {
     expect(isVisionRecord({ key: 'blind:long', best: 5, bestAt: 1, runs: 2 })).toBe(true);
     expect(isVisionRecord({ key: 'lines:short', best: 0, bestAt: 0, runs: 1 })).toBe(true);
+    expect(isVisionRecord({ key: 'game:club', best: 2, bestAt: 1, runs: 1, history: [{ at: 1, score: 2 }] })).toBe(
+      true
+    );
     for (const bad of [
       null,
       'x',
@@ -95,6 +178,10 @@ describe('records', () => {
       { key: 'blind:long', best: 5, bestAt: Infinity, runs: 2 },
       { key: 'blind:long', best: 5, bestAt: 1, runs: 0 },
       { key: 'blind:long', best: 5, bestAt: 1 },
+      { key: 'blind:long', best: 5, bestAt: 1, runs: 1, history: 'x' },
+      { key: 'blind:long', best: 5, bestAt: 1, runs: 1, history: [{ at: 1, score: -1 }] },
+      { key: 'blind:long', best: 5, bestAt: 1, runs: 1, history: [{ at: 'now', score: 1 }] },
+      { key: 'blind:long', best: 5, bestAt: 1, runs: 1, history: Array(MAX_HISTORY + 1).fill({ at: 1, score: 1 }) },
     ]) {
       expect(isVisionRecord(bad)).toBe(false);
     }
@@ -352,5 +439,131 @@ describe('line rounds', () => {
 
   it('are empty when no game is long enough', () => {
     expect(makeLineRound([{ id: 'x', name: 'Une partie très courte', moves: ['e4'] }], 4, seeded(1))).toEqual([]);
+  });
+});
+
+describe('the coordinates levels', () => {
+  it('ask three ways', () => {
+    expect(['white', 'black', 'name', 'color'].map(coordinatesKind)).toEqual(['find', 'find', 'name', 'color']);
+    expect(VISION_LEVELS.coordinates.map((level) => level.id)).toEqual(['white', 'black', 'name', 'color']);
+  });
+});
+
+describe('own games', () => {
+  const game = (id: string, moves: string[]) => ({ id, moves, white: 'Moi', black: 'Toi', date: '2026.10.01' });
+  const long = VISION_GAMES[0].moves;
+
+  it('become exercise material, with a title that says whose they are', () => {
+    const [made] = ownVisionGames([game('g1', long)], 6, seeded(1));
+    expect(made).toEqual({
+      id: 'own:g1',
+      name: 'Moi – Toi, 2026-10-01 (une de vos parties)',
+      moves: long,
+    });
+    // ... and work with the rounds like any other game
+    expect(makeBlindRound([made], 6, seeded(1))!.questions).toHaveLength(QUESTIONS_PER_ROUND);
+    expect(makeLineRound([made], 4, seeded(1)).length).toBeGreaterThan(0);
+  });
+
+  it('leave out games that are too short, or that cannot be replayed from the initial position', () => {
+    const games = [
+      game('short', ['e4', 'e5']),
+      game('broken', ['e4', 'e5', 'Nf3', 'Nf3', 'd4', 'd5', 'c4', 'c5']),
+      game('ok', long),
+    ];
+    expect(ownVisionGames(games, 6, seeded(2)).map((g) => g.id)).toEqual(['own:ok']);
+    expect(ownVisionGames([], 6, seeded(2))).toEqual([]);
+    expect(ownVisionGames([game('ok', long)], long.length + 1, seeded(2))).toEqual([]);
+  });
+
+  it('are a handful at most, drawn at random', () => {
+    const many = Array.from({ length: 80 }, (_, i) => game(`g${i}`, long));
+    const picked = ownVisionGames(many, 6, seeded(3));
+    expect(picked).toHaveLength(30);
+    expect(new Set(picked.map((g) => g.id)).size).toBe(30);
+  });
+
+  it('are titled without a date when the PGN has none, or a strange one', () => {
+    expect(ownVisionGames([{ id: 'a', moves: long }], 6, seeded(1))[0].name).toBe('? – ? (une de vos parties)');
+    expect(
+      ownVisionGames([{ id: 'a', moves: long, date: '????.??.??', white: 'A', black: 'B' }], 6, seeded(1))[0].name
+    ).toBe('A – B (une de vos parties)');
+  });
+});
+
+describe('typed moves', () => {
+  const move = (fen: string, text: string) => parseTypedMove(fen, text)?.uci ?? null;
+
+  it('are read in English, in French and as coordinates', () => {
+    for (const text of ['Nf3', 'Cf3', 'g1f3', 'g1-f3', ' nf3 '.trim().replace('n', 'N'), 'G1F3']) {
+      expect(move(START, text), text).toBe('g1f3');
+    }
+    expect(move(START, 'e4')).toBe('e2e4');
+    expect(parseTypedMove(START, 'Cf3')!.san).toBe('Nf3');
+  });
+
+  it('read a king and a rook the way the position allows', () => {
+    expect(move('4k3/8/8/8/8/8/8/4K2R w - - 0 1', 'Rd1')).toBe('e1d1'); // the rook is blocked: the French king
+    expect(move('4k3/8/8/8/8/8/8/R3K3 w - - 0 1', 'Rd1')).toBe('a1d1'); // a rook can go there: the English rook
+  });
+
+  it('read captures, check signs, promotion and castling', () => {
+    expect(move('rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2', 'exd5')).toBe('e4d5');
+    expect(move('rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2', 'ed5')).toBe('e4d5');
+    expect(move('4k3/P7/8/8/8/8/8/4K3 w - - 0 1', 'a8=D+')).toBe('a7a8q');
+    expect(move('4k3/P7/8/8/8/8/8/4K3 w - - 0 1', 'a7a8n')).toBe('a7a8n');
+    const castle = 'r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1';
+    expect(move(castle, 'O-O')).toBe('e1g1');
+    expect(move(castle, '0-0-0')).toBe('e1c1');
+  });
+
+  it('refuse what is not a legal move here, or not a move', () => {
+    for (const text of ['', '   ', 'e5', 'Nf6', 'Ke2', 'hello', 'a9', 'e2e5', 'O-O']) {
+      expect(parseTypedMove(START, text), text).toBeNull();
+    }
+  });
+});
+
+describe('the game played blindfold', () => {
+  it('scores a win 2, a draw 1, a loss 0, from the player side', () => {
+    expect(blindGameResult({ kind: 'checkmate', winner: 'w' }, 'w')).toBe('win');
+    expect(blindGameResult({ kind: 'checkmate', winner: 'w' }, 'b')).toBe('loss');
+    expect(blindGameResult({ kind: 'resigned', winner: 'b' }, 'w')).toBe('loss');
+    expect(blindGameResult({ kind: 'draw', reason: 'stalemate' }, 'b')).toBe('draw');
+    expect(Object.values(BLIND_GAME_SCORES)).toEqual([2, 1, 0]);
+    expect([2, 1, 0].map(blindGameResultOf)).toEqual(['win', 'draw', 'loss']);
+  });
+
+  it('has a level for each strength of the engine, with a valid record key', () => {
+    expect(VISION_LEVELS.game.map((level) => level.id)).toEqual([
+      'debutant',
+      'facile',
+      'club',
+      'confirme',
+      'expert',
+      'maitre',
+      'maximum',
+    ]);
+    for (const level of VISION_LEVELS.game) {
+      expect(isVisionRecord({ key: recordKey('game', level.id), best: 1, bestAt: 1, runs: 1 })).toBe(true);
+    }
+  });
+});
+
+describe('progress', () => {
+  const key = 'coordinates:white';
+  const rounds = (...scores: number[]) => scores.map((score, i) => ({ at: i, score }));
+
+  it('reads the rounds of a level, none when there are not any', () => {
+    const records = new Map([[key, { key, best: 3, bestAt: 1, runs: 1, history: rounds(3) }]]);
+    expect(roundsOf(records, key)).toEqual(rounds(3));
+    expect(roundsOf(records, 'blind:long')).toEqual([]);
+    expect(roundsOf(null, key)).toEqual([]);
+    expect(roundsOf(new Map([[key, { key, best: 3, bestAt: 1, runs: 1 }]]), key)).toEqual([]);
+  });
+
+  it('averages the latest rounds, once there are enough of them', () => {
+    expect(recentAverage(rounds(1, 2, 3, 4), 5)).toBeNull();
+    expect(recentAverage(rounds(9, 1, 2, 3, 4, 5), 5)).toBe(3);
   });
 });

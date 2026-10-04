@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react';
 import { CheckCircle2, XCircle } from 'lucide-react';
-import { VISION_GAMES } from '../../data/visionGames';
 import {
   QUESTIONS_PER_ROUND,
   VISION_LEVELS,
@@ -16,13 +15,23 @@ import {
 import type { BoardTheme } from '../../types/ui';
 import { PRIMARY } from '../Openings/shared';
 import { VisionBoard } from './VisionBoard';
-import { AnswerGrid, LevelPicker, ResultPanel, type VisionRecords } from './shared';
+import {
+  AnswerGrid,
+  LevelPicker,
+  ResultPanel,
+  SourcePicker,
+  gamesFor,
+  type GameSource,
+  type VisionRecords,
+} from './shared';
 
 interface BlindDrillProps {
   records: VisionRecords;
   finish: (key: string, score: number) => Promise<RunOutcome>;
   boardTheme?: BoardTheme;
   random?: Random;
+  /** Which games are read: the reserve of famous ones, or the player's own. */
+  source: GameSource;
 }
 
 type Phase =
@@ -33,17 +42,26 @@ type Phase =
   | { kind: 'result'; level: string; round: BlindRound; answers: string[] };
 
 /** "Mode aveugle": a game is read move by move on an empty board, then the player says what is on some squares. */
-export const BlindDrill: React.FC<BlindDrillProps> = ({ records, finish, boardTheme, random = Math.random }) => {
+export const BlindDrill: React.FC<BlindDrillProps> = ({
+  records,
+  finish,
+  boardTheme,
+  random = Math.random,
+  source,
+}) => {
   const [phase, setPhase] = useState<Phase>({ kind: 'setup' });
   const [keepList, setKeepList] = useState(false);
   // What noting the round gave: it comes back while the player is still reading the last answer
   const [outcome, setOutcome] = useState<RunOutcome | null>(null);
+  const [isFallback, setIsFallback] = useState(false);
   const roundId = useRef(0);
 
   const start = (level: string) => {
     const plies = VISION_LEVELS.blind.find((l) => l.id === level)?.plies ?? 6;
-    const round = makeBlindRound(VISION_GAMES, plies, random);
+    const { games, isFallback: usesReserve } = gamesFor(source, plies, random);
+    const round = makeBlindRound(games, plies, random);
     if (!round) return;
+    setIsFallback(usesReserve);
     roundId.current += 1;
     setOutcome(null);
     setPhase({ kind: 'announce', level, round, index: 0 });
@@ -85,9 +103,9 @@ export const BlindDrill: React.FC<BlindDrillProps> = ({ records, finish, boardTh
       {phase.kind === 'setup' && (
         <>
           <p className="text-xs text-slate-400">
-            Une vraie partie vous est lue coup par coup, sans une seule pièce à l’écran : à vous de les suivre dans
-            votre tête. Après le dernier coup, on vous demande ce que contiennent {QUESTIONS_PER_ROUND} cases. Les
-            pièces apparaissent à la fin, pour vérifier.
+            Une vraie partie (une partie célèbre, ou une des vôtres) vous est lue coup par coup, sans une seule pièce à
+            l’écran : à vous de les suivre dans votre tête. Après le dernier coup, on vous demande ce que contiennent{' '}
+            {QUESTIONS_PER_ROUND} cases. Les pièces apparaissent à la fin, pour vérifier.
           </p>
           <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer w-fit">
             <input
@@ -98,7 +116,13 @@ export const BlindDrill: React.FC<BlindDrillProps> = ({ records, finish, boardTh
             />
             Garder sous les yeux la liste des coups déjà lus (plus facile)
           </label>
-          <LevelPicker mode="blind" records={records} onStart={start} />
+          <SourcePicker source={source} isFallback={isFallback} />
+          <LevelPicker
+            mode="blind"
+            records={records}
+            onStart={start}
+            isDisabled={source.id === 'own' && source.own.status !== 'ready'}
+          />
         </>
       )}
 
