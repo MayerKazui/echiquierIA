@@ -12,7 +12,7 @@ import {
 } from '../../services/gameStore';
 import { clearNotesOf, loadNotes, writeNote } from '../../services/gameNoteStore';
 import { MAX_PLAYED_GAMES, deletePlayedGames, listPlayedGames } from '../../services/playedGameStore';
-import { engineName, helpText, playedLabel, type PlayedGame } from '../../utils/playedGames';
+import { engineName, helpText, playedLabel, timeControlText, type PlayedGame } from '../../utils/playedGames';
 import { movesText } from '../../utils/playGame';
 import { DataBackup } from '../Backup/DataBackup';
 import { toFrenchOpeningName } from '../../utils/openingNames';
@@ -353,6 +353,7 @@ function GameRow({
           </span>
           <span className="text-[11px] text-slate-400">
             {played.label}
+            {played.timeControl && ` · ${timeControlText(played.timeControl)}`}
             {helpText(played) && ` · ${helpText(played)}`}
           </span>
         </span>

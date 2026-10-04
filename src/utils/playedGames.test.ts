@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { extractGameClocks } from './clockUtils';
 import { replay, STANDARD_START_FEN } from './playGame';
 import {
   engineName,
@@ -9,6 +10,7 @@ import {
   makePlayedGame,
   playedLabel,
   playedOutcome,
+  timeControlText,
   type FinishedGame,
 } from './playedGames';
 
@@ -107,7 +109,8 @@ describe('the validity of a record', () => {
 
   it.each([
     ['an unknown result', { result: '2-0' }],
-    ['an unknown ending', { ending: 'timeout' }],
+    ['an unknown ending', { ending: 'adjourned' }],
+    ['a time control that is not text', { timeControl: 300 }],
     ['a side that is not one', { color: 'x' }],
     ['a negative count', { hints: -1 }],
     ['a moves list that is not text', { sans: [1, 2] }],
@@ -142,5 +145,70 @@ describe('the words of the history', () => {
     expect(helpText({ hints: 1, evals: 0 })).toBe('avec 1 indice');
     expect(helpText({ hints: 2, evals: 1 })).toBe('avec 2 indices et 1 évaluation');
     expect(helpText({ hints: 0, evals: 3 })).toBe('avec 3 évaluations');
+  });
+});
+
+describe('a game with a clock', () => {
+  const clocks = [295_000, 298_000, 290_400, 296_000];
+  const timed = (over: Partial<FinishedGame> = {}) =>
+    makePlayedGame(finished({ timeControl: { baseSeconds: 300, incrementSeconds: 3 }, clocks, ...over }));
+
+  it('keeps the time control, and writes it with the time left after each move in the PGN', () => {
+    const game = timed();
+    expect(game.timeControl).toBe('300+3');
+    expect(game.pgn).toContain('[TimeControl "300+3"]');
+    expect(game.pgn).toContain('[%clk 0:04:55]');
+    expect(isPlayedGame(game)).toBe(true);
+  });
+
+  it('is read back by the analysis: the thinking times come out of the clocks', () => {
+    const game = timed();
+    const history = replay(STANDARD_START_FEN, ['f2f3', 'e7e5', 'g2g4', 'd8h4']).moves.map((m, i) => ({
+      color: i % 2 === 0 ? ('w' as const) : ('b' as const),
+      after: m.fen,
+      san: m.san,
+    }));
+    const { moveClocks, hasClockData } = extractGameClocks(game.pgn, history);
+    expect(hasClockData).toBe(true);
+    // 300 s - 295 s + 3 s of increment = 8 s for White's first move; Black: 300 - 298 + 3 = 5 s
+    expect(moveClocks.map((m) => m.thinkTimeSeconds)).toEqual([8, 5, 8, 5]);
+    expect(moveClocks[0].clock).toBe('0:04:55');
+  });
+
+  it('writes the same PGN as the game offered for analysis, so that both have the same id', () => {
+    expect(timed().id).toBe(timed().id);
+    expect(timed().id).not.toBe(makePlayedGame(finished()).id);
+  });
+
+  it('keeps a game with its own position and a clock readable too', () => {
+    const fen = '4k3/8/8/8/8/8/4P3/4K3 w - - 0 1';
+    const { moves } = replay(fen, ['e2e4']);
+    const game = makePlayedGame(
+      finished({
+        startFen: fen,
+        prefix: undefined,
+        moves,
+        outcome: { kind: 'timeout', winner: 'w' },
+        timeControl: { baseSeconds: 60, incrementSeconds: 0 },
+        clocks: [59_000],
+      })
+    );
+    expect(game.analysable).toBe(false);
+    expect(game.pgn).toContain('[TimeControl "60"]');
+    expect(game.pgn).toContain('[%clk 0:00:59]');
+    expect(game.ending).toBe('timeout');
+    expect(isPlayedGame(game)).toBe(true);
+  });
+
+  it('tells its time control in a few words', () => {
+    expect(timeControlText('300+3')).toBe('pendule 5 min + 3 s');
+    expect(timeControlText('1/86400')).toBe('pendule 1/86400');
+  });
+
+  it('has no time control without a clock', () => {
+    const game = makePlayedGame(finished());
+    expect('timeControl' in game).toBe(false);
+    expect(game.pgn).not.toContain('TimeControl');
+    expect(game.pgn).not.toContain('%clk');
   });
 });

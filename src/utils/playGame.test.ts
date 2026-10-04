@@ -1,6 +1,16 @@
 import { Chess } from 'chess.js';
 import { describe, expect, it } from 'vitest';
-import { STANDARD_START_FEN, gamePgn, lengthAfterTakeback, replay, resultTag, ruleOutcome, validFen } from './playGame';
+import {
+  STANDARD_START_FEN,
+  flagOutcome,
+  gamePgn,
+  lengthAfterTakeback,
+  outcomeText,
+  replay,
+  resultTag,
+  ruleOutcome,
+  validFen,
+} from './playGame';
 
 describe('replay', () => {
   it('plays the moves and reports the position, the notation and no outcome', () => {
@@ -88,5 +98,38 @@ describe('gamePgn', () => {
     const fen = '8/8/4k3/8/8/4K3/8/7R w - - 0 1';
     expect(gamePgn({ startFen: fen, moves: [], outcome: null, ...names })).toBeNull();
     expect(gamePgn({ startFen: fen, prefix: ['e4'], moves: [], outcome: null, ...names })).toBeNull();
+  });
+});
+
+describe('flagOutcome', () => {
+  it('gives the game to the side that still has time', () => {
+    expect(flagOutcome(STANDARD_START_FEN, 'w')).toEqual({ kind: 'timeout', winner: 'b' });
+    expect(flagOutcome(STANDARD_START_FEN, 'b')).toEqual({ kind: 'timeout', winner: 'w' });
+  });
+
+  it('is a draw when the side with time could not mate: a bare king, a lone minor piece', () => {
+    expect(flagOutcome('8/8/4k3/8/8/4K3/8/8 w - - 0 1', 'w')).toEqual({ kind: 'draw', reason: 'timeout' });
+    expect(flagOutcome('8/8/4k3/8/8/4KB2/8/8 b - - 0 1', 'b')).toEqual({ kind: 'draw', reason: 'timeout' });
+    expect(flagOutcome('8/8/4kn2/8/8/4K3/8/8 w - - 0 1', 'w')).toEqual({ kind: 'draw', reason: 'timeout' });
+  });
+
+  it('is a win when it has mating material, whatever the side out of time has left', () => {
+    // A pawn can become a queen; two knights can mate with some help; the loser having a queen changes nothing
+    expect(flagOutcome('8/8/4k3/8/8/4K3/4P3/8 w - - 0 1', 'b')).toEqual({ kind: 'timeout', winner: 'w' });
+    expect(flagOutcome('8/8/4k3/8/8/3NKN2/8/8 b - - 0 1', 'b')).toEqual({ kind: 'timeout', winner: 'w' });
+    expect(flagOutcome('3qk3/8/8/8/8/8/8/4KB2 b - - 0 1', 'b')).toEqual({ kind: 'draw', reason: 'timeout' });
+  });
+});
+
+describe('the end of a game on time', () => {
+  it('is a result like any other', () => {
+    expect(resultTag({ kind: 'timeout', winner: 'w' })).toBe('1-0');
+    expect(resultTag({ kind: 'draw', reason: 'timeout' })).toBe('1/2-1/2');
+  });
+
+  it('is told from the side of the player', () => {
+    expect(outcomeText({ kind: 'timeout', winner: 'w' }, 'w')).toContain('vous avez gagné');
+    expect(outcomeText({ kind: 'timeout', winner: 'w' }, 'b')).toContain('Votre temps est écoulé');
+    expect(outcomeText({ kind: 'draw', reason: 'timeout' }, 'w')).toContain('Nulle');
   });
 });

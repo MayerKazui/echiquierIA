@@ -24,15 +24,44 @@ export interface PlaySession {
   /** Hints and evaluations asked for so far. */
   hints: number;
   evals: number;
+  /** The clock of the game, when it has one: its control, the time left to each side (ms) and the time after each move. */
+  clock?: SessionClock;
   /** Milliseconds since the epoch. */
   startedAt: number;
   updatedAt: number;
+}
+
+export interface SessionClock {
+  baseSeconds: number;
+  incrementSeconds: number;
+  w: number;
+  b: number;
+  /** The time left (ms) to the mover after each move: one per move. */
+  log: number[];
 }
 
 const isText = (value: unknown, max: number): value is string => typeof value === 'string' && value.length <= max;
 const isCount = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < 100_000;
 const isTime = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+
+const isDuration = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 86_400_000;
+
+function isSessionClock(value: unknown, moveCount: number): value is SessionClock {
+  if (typeof value !== 'object' || value === null) return false;
+  const c = value as Record<string, unknown>;
+  return (
+    isCount(c.baseSeconds) &&
+    c.baseSeconds > 0 &&
+    isCount(c.incrementSeconds) &&
+    isDuration(c.w) &&
+    isDuration(c.b) &&
+    Array.isArray(c.log) &&
+    c.log.length === moveCount &&
+    c.log.every(isDuration)
+  );
+}
 
 /** Whether the value is a game in progress the app wrote: well formed, and every move legal from its start. */
 export function isPlaySession(value: unknown): value is PlaySession {
@@ -54,6 +83,7 @@ export function isPlaySession(value: unknown): value is PlaySession {
   ) {
     return false;
   }
+  if (s.clock !== undefined && !isSessionClock(s.clock, s.moves.length)) return false;
   if (s.prefix !== undefined && (!Array.isArray(s.prefix) || !s.prefix.every((san) => isText(san, 12)))) return false;
   try {
     const state = replay(s.startFen, s.moves as string[]);

@@ -3,6 +3,15 @@ import { Swords, X } from 'lucide-react';
 import { oneOf, usePersistentState } from '../../hooks/usePersistentState';
 import { clearPlaySession, loadPlaySession, type PlaySession } from '../../services/playSessionStore';
 import type { BoardTheme, PlayerColor } from '../../types/ui';
+import {
+  BASE_MINUTES,
+  DEFAULT_BASE_MINUTES,
+  DEFAULT_INCREMENT_SECONDS,
+  INCREMENT_SECONDS,
+  timeControlLabel,
+  timeControlOf,
+  type TimeControl,
+} from '../../utils/playClock';
 import { DEFAULT_LEVEL_ID, PLAY_LEVELS, levelById, type PlayLevel } from '../../utils/playLevels';
 import { STANDARD_START_FEN, validFen, type PlayStart } from '../../utils/playGame';
 import { PRIMARY, SECONDARY } from '../Openings/shared';
@@ -25,6 +34,8 @@ interface Game {
   start: PlayStart;
   color: PlayerColor;
   level: PlayLevel;
+  /** The clock of the game, or null for a game without one. */
+  timeControl: TimeControl | null;
   /** The game in progress being resumed. */
   resume?: PlaySession;
 }
@@ -40,6 +51,9 @@ const LEGEND = 'text-xs font-semibold text-slate-200';
 const OPTION =
   'flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-200 cursor-pointer has-[:checked]:border-indigo-500/60 has-[:checked]:bg-indigo-500/10 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-indigo-400';
 
+const SELECT =
+  'rounded-md bg-slate-900 border border-slate-700 px-2 py-1.5 text-xs text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400';
+
 const turnOf = (fen: string): PlayerColor => (fen.split(' ')[1] === 'b' ? 'b' : 'w');
 
 /** "Jouer contre Stockfish": a position, a side, a level, then the game. */
@@ -48,6 +62,19 @@ export const PlayStockfish: React.FC<PlayStockfishProps> = ({ start, boardTheme,
     'chess_play_level',
     DEFAULT_LEVEL_ID,
     oneOf(PLAY_LEVELS.map((level) => level.id))
+  );
+  const [clockOn, setClockOn] = usePersistentState<boolean>('chess_play_clock', false, (raw) =>
+    raw === 'true' ? true : raw === 'false' ? false : undefined
+  );
+  const [minutes, setMinutes] = usePersistentState<number>(
+    'chess_play_clock_minutes',
+    DEFAULT_BASE_MINUTES,
+    oneOf(BASE_MINUTES)
+  );
+  const [increment, setIncrement] = usePersistentState<number>(
+    'chess_play_clock_increment',
+    DEFAULT_INCREMENT_SECONDS,
+    oneOf(INCREMENT_SECONDS)
   );
   const [position, setPosition] = useState<PositionChoice>(start ? 'origin' : 'standard');
   const [customFen, setCustomFen] = useState('');
@@ -66,6 +93,9 @@ export const PlayStockfish: React.FC<PlayStockfishProps> = ({ start, boardTheme,
       start: { fen: saved.startFen, label: saved.label, prefix: saved.prefix },
       color: saved.color,
       level: levelById(saved.levelId),
+      timeControl: saved.clock
+        ? { baseSeconds: saved.clock.baseSeconds, incrementSeconds: saved.clock.incrementSeconds }
+        : null,
       resume: saved,
     });
   };
@@ -89,6 +119,7 @@ export const PlayStockfish: React.FC<PlayStockfishProps> = ({ start, boardTheme,
       start: chosen,
       color: color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : color,
       level: levelById(levelId),
+      timeControl: clockOn ? timeControlOf(minutes, increment) : null,
     });
   };
 
@@ -131,6 +162,7 @@ export const PlayStockfish: React.FC<PlayStockfishProps> = ({ start, boardTheme,
             start={game.start}
             userColor={game.color}
             level={game.level}
+            timeControl={game.timeControl}
             boardTheme={boardTheme}
             resume={game.resume}
             userName={userName}
@@ -155,8 +187,9 @@ export const PlayStockfish: React.FC<PlayStockfishProps> = ({ start, boardTheme,
               >
                 <p className="text-xs text-indigo-100">
                   <span className="font-semibold">Une partie est en cours</span> : vous avez les{' '}
-                  {saved.color === 'w' ? 'Blancs' : 'Noirs'} contre Stockfish ({levelById(saved.levelId).label}),{' '}
-                  {saved.moves.length} demi-coup{saved.moves.length > 1 ? 's' : ''} joué
+                  {saved.color === 'w' ? 'Blancs' : 'Noirs'} contre Stockfish ({levelById(saved.levelId).label}
+                  {saved.clock && `, pendule ${timeControlLabel(saved.clock)}`}), {saved.moves.length} demi-coup
+                  {saved.moves.length > 1 ? 's' : ''} joué
                   {saved.moves.length > 1 ? 's' : ''}, dernier coup le {DATE_FORMAT.format(saved.updatedAt)}.
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -278,6 +311,49 @@ export const PlayStockfish: React.FC<PlayStockfishProps> = ({ start, boardTheme,
               <p className="text-[11px] text-slate-400">
                 Les valeurs sont celles du moteur, mesurées contre d&apos;autres moteurs : contre une personne, elles ne
                 sont qu&apos;un repère.
+              </p>
+            </fieldset>
+
+            <fieldset className="flex flex-col gap-2">
+              <legend className={`${LEGEND} mb-1`}>Pendule</legend>
+              <div className="grid grid-cols-2 gap-2">
+                <label className={OPTION}>
+                  <input type="radio" name={`${name}-clock`} checked={!clockOn} onChange={() => setClockOn(false)} />
+                  <span>Sans pendule</span>
+                </label>
+                <label className={OPTION}>
+                  <input type="radio" name={`${name}-clock`} checked={clockOn} onChange={() => setClockOn(true)} />
+                  <span>Avec pendule</span>
+                </label>
+              </div>
+              {clockOn && (
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex flex-col gap-1 text-xs text-slate-300">
+                    Temps de chaque camp
+                    <select value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} className={SELECT}>
+                      {BASE_MINUTES.map((m) => (
+                        <option key={m} value={m}>
+                          {m} minute{m > 1 ? 's' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs text-slate-300">
+                    Incrément par coup
+                    <select value={increment} onChange={(e) => setIncrement(Number(e.target.value))} className={SELECT}>
+                      {INCREMENT_SECONDS.map((s) => (
+                        <option key={s} value={s}>
+                          {s === 0 ? 'Aucun' : `${s} seconde${s > 1 ? 's' : ''}`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
+              <p className="text-[11px] text-slate-400">
+                {clockOn
+                  ? `Pendule de ${timeControlLabel(timeControlOf(minutes, increment))} : la partie est gardée avec les temps de chaque coup, ce qui nourrit le zeitnot de « Mon profil » une fois analysée.`
+                  : 'Sans pendule, on prend le temps qu’on veut ; avec elle, la partie entre dans le zeitnot de « Mon profil » une fois analysée.'}
               </p>
             </fieldset>
 

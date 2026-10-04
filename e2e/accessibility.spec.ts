@@ -56,8 +56,14 @@ test.describe('accessibilité (axe-core)', () => {
     await expect(page.getByRole('button', { name: 'Jouer', exact: true })).toBeVisible();
     expect(await violations(page)).toEqual([]);
 
+    // Avec pendule : les deux choix, puis les deux pendules de la partie
+    await page.getByRole('radio', { name: 'Avec pendule' }).check();
+    await expect(page.getByRole('combobox', { name: 'Temps de chaque camp' })).toBeVisible();
+    expect(await violations(page)).toEqual([]);
+
     await page.getByRole('button', { name: 'Jouer', exact: true }).click();
     await expect(page.getByRole('status').filter({ hasText: 'À vous de jouer' })).toBeVisible();
+    await expect(page.getByRole('timer')).toHaveCount(2);
     expect(await violations(page)).toEqual([]);
   });
 
