@@ -46,6 +46,15 @@ describe('ChessBoard shapes', () => {
     expect(cell('d4').querySelector('[style*="border-color"]')).not.toBeNull();
   });
 
+  it('stops the line of an arrow in the base of its head, so that it does not stick out of the tip', () => {
+    render(<ChessBoard fen={START} shapes={[{ from: 'e2', to: 'e4', color: '#10b981' }]} />);
+    const line = arrows('userArrowGreen')[0];
+    // e2 and e4 are 25 units apart on the 100 x 100 board (e4 at y = 56.25): the line stops before it
+    expect(Number(line.getAttribute('y1'))).toBeCloseTo(81.25);
+    expect(Number(line.getAttribute('y2'))).toBeGreaterThan(56.25 + 3);
+    expect(Number(line.getAttribute('y2'))).toBeLessThan(81.25 - 10);
+  });
+
   it('keeps the shapes it is given when the position changes, and shows its own drawings with them', () => {
     const shapes = [{ from: 'e2', to: 'e4', color: '#10b981' }];
     const { rerender } = render(<ChessBoard fen={START} shapes={shapes} />);

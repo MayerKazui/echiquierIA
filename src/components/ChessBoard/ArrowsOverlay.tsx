@@ -23,8 +23,15 @@ interface ArrowsOverlayProps {
 
 const ARROW_HEAD = 'M 0 1.5 L 9 5 L 0 8.5 z';
 
+/**
+ * Where the line of an arrow ends in its head (in the units of the head's 10x10 box, from its base): near the
+ * base, where the head is wide. Further in, the head is narrower than the line, which would stick out at its sides.
+ */
+const LINE_END_IN_HEAD = 1;
+
 interface MarkerSpec {
   id: string;
+  /** Where the line used to end in the head: the tip stays where it was, the line is shortened to `LINE_END_IN_HEAD`. */
   refX: number;
   size: number;
   path: string;
@@ -49,11 +56,18 @@ const USER_MARKER_BY_COLOR: Record<string, string> = {
 };
 const userMarker = (color: string) => USER_MARKER_BY_COLOR[color] ?? 'url(#userArrowGreen)';
 
-const Marker: React.FC<MarkerSpec> = ({ id, refX, size, path, fill }) => (
+/** Heads that do not depend on the props, by id (`refX`, `size`), to know how far each line is shortened. */
+const HEADS = new Map<string, Pick<MarkerSpec, 'refX' | 'size'>>([
+  ['playedArrow', { refX: 6, size: 4 }],
+  ['bestArrow', { refX: 6, size: 4.2 }],
+  ...STATIC_MARKERS.map((m): [string, Pick<MarkerSpec, 'refX' | 'size'>] => [m.id, { refX: m.refX, size: m.size }]),
+]);
+
+const Marker: React.FC<Omit<MarkerSpec, 'refX'>> = ({ id, size, path, fill }) => (
   <marker
     id={id}
     viewBox="0 0 10 10"
-    refX={refX}
+    refX={LINE_END_IN_HEAD}
     refY="5"
     markerWidth={size}
     markerHeight={size}
@@ -78,7 +92,13 @@ export const ArrowsOverlay: React.FC<ArrowsOverlayProps> = ({
 }) => {
   const line = (key: string | undefined, from: string, to: string, props: React.SVGProps<SVGLineElement>) => {
     const start = toPoint(from);
-    const end = toPoint(to);
+    const target = toPoint(to);
+    // The line stops in the base of its head (the head is as big as the stroke is wide), not at the tip
+    const head = HEADS.get(/#([^)]+)/.exec(props.markerEnd ?? '')?.[1] ?? '');
+    const length = Math.hypot(target.x - start.x, target.y - start.y);
+    const back = head ? ((head.refX - LINE_END_IN_HEAD) * head.size * Number(props.strokeWidth ?? 1)) / 10 : 0;
+    const ratio = length > back ? (length - back) / length : 1;
+    const end = { x: start.x + (target.x - start.x) * ratio, y: start.y + (target.y - start.y) * ratio };
     return <line key={key} x1={start.x} y1={start.y} x2={end.x} y2={end.y} strokeLinecap="round" {...props} />;
   };
 
@@ -91,8 +111,8 @@ export const ArrowsOverlay: React.FC<ArrowsOverlayProps> = ({
   return (
     <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full pointer-events-none z-20">
       <defs>
-        <Marker id="playedArrow" refX={6} size={4} path="M 0 1 L 10 5 L 0 9 z" fill={playedArrowColor} />
-        <Marker id="bestArrow" refX={6} size={4.2} path={ARROW_HEAD} fill={bestArrowColor} />
+        <Marker id="playedArrow" size={4} path="M 0 1 L 10 5 L 0 9 z" fill={playedArrowColor} />
+        <Marker id="bestArrow" size={4.2} path={ARROW_HEAD} fill={bestArrowColor} />
         {STATIC_MARKERS.map((marker) => (
           <Marker key={marker.id} {...marker} />
         ))}
