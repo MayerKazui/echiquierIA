@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { StockfishService } from '../../src/services/stockfishEngine';
 
 /** The build the app serves (see vite/stockfishPlugin.ts): lite, single-threaded, WebAssembly. */
-const ENGINE_FILE = resolve(import.meta.dirname, '../../node_modules/stockfish/bin/stockfish-19-lite-single.js');
+export const ENGINE_FILE = resolve(import.meta.dirname, '../../node_modules/stockfish/bin/stockfish-19-lite-single.js');
 
 type Listener = (event: { data: string }) => void;
 

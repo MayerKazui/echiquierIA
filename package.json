@@ -22,6 +22,7 @@
     "build:openings": "tsx scripts/build-openings.ts",
     "build:puzzles": "tsx scripts/build-puzzles.ts",
     "calibrate": "tsx scripts/calibrate.ts",
+    "thresholds": "tsx scripts/thresholds.ts",
     "faultstats": "tsx scripts/faultStats.ts"
   },
   "dependencies": {
