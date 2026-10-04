@@ -1,14 +1,17 @@
 import { Chess } from 'chess.js';
 import type { PlayerColor } from '../types/ui';
 import { numberedFrenchMove } from './chessNotation';
+import { clockComment, timeControlTag, type TimeControl } from './playClock';
 
 export const STANDARD_START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
-export type DrawReason = 'stalemate' | 'material' | 'repetition' | 'fifty';
+/** `timeout`: the time ran out for a side whose opponent could not have mated anyway. */
+export type DrawReason = 'stalemate' | 'material' | 'repetition' | 'fifty' | 'timeout';
 
 export type PlayOutcome =
   | { kind: 'checkmate'; winner: PlayerColor }
   | { kind: 'resigned'; winner: PlayerColor }
+  | { kind: 'timeout'; winner: PlayerColor }
   | { kind: 'draw'; reason: DrawReason };
 
 export interface PlayedMove {
@@ -33,6 +36,22 @@ export function ruleOutcome(chess: Chess): PlayOutcome | null {
   if (chess.isThreefoldRepetition()) return { kind: 'draw', reason: 'repetition' };
   if (chess.isDrawByFiftyMoves()) return { kind: 'draw', reason: 'fifty' };
   return null;
+}
+
+/**
+ * The outcome when `loser` runs out of time: a win for the other side, unless that side could not mate with what it has
+ * (a bare king, a lone minor piece): then a draw. Only the other side's pieces count, whatever the loser has left.
+ */
+export function flagOutcome(fen: string, loser: PlayerColor): PlayOutcome {
+  const chess = new Chess(fen);
+  for (const row of chess.board()) {
+    for (const piece of row) {
+      if (piece && piece.color === loser && piece.type !== 'k') chess.remove(piece.square);
+    }
+  }
+  return chess.isInsufficientMaterial()
+    ? { kind: 'draw', reason: 'timeout' }
+    : { kind: 'timeout', winner: loser === 'w' ? 'b' : 'w' };
 }
 
 /** Plays the moves (UCI) from a start position. The first one that is illegal ends the replay. */
@@ -93,8 +112,11 @@ export function gamePgn(options: {
   outcome: PlayOutcome | null;
   white: string;
   black: string;
+  /** The game had a clock: its control, and the time left (ms) to the mover after each move. */
+  timeControl?: TimeControl | null;
+  clocks?: readonly number[];
 }): string | null {
-  const { startFen, prefix, moves, outcome, white, black } = options;
+  const { startFen, prefix, moves, outcome, white, black, timeControl, clocks } = options;
   const isStandard = startFen.split(' ').slice(0, 4).join(' ') === STANDARD_START_FEN.split(' ').slice(0, 4).join(' ');
   if (!isStandard && !prefix) return null;
   const chess = new Chess();
@@ -103,15 +125,24 @@ export function gamePgn(options: {
     if (!isStandard && chess.fen().split(' ').slice(0, 4).join(' ') !== startFen.split(' ').slice(0, 4).join(' ')) {
       return null;
     }
-    for (const move of moves)
-      chess.move({ from: move.uci.slice(0, 2), to: move.uci.slice(2, 4), promotion: move.uci[4] });
+    playMoves(chess, moves, clocks);
   } catch {
     return null;
   }
   chess.setHeader('White', white);
   chess.setHeader('Black', black);
   chess.setHeader('Result', resultTag(outcome));
+  if (timeControl) chess.setHeader('TimeControl', timeControlTag(timeControl));
   return chess.pgn();
+}
+
+/** Plays the moves on the board, each with its `[%clk]` comment when the clock of the game is known. */
+export function playMoves(chess: Chess, moves: readonly PlayedMove[], clocks?: readonly number[]): void {
+  moves.forEach((move, i) => {
+    chess.move({ from: move.uci.slice(0, 2), to: move.uci.slice(2, 4), promotion: move.uci[4] });
+    const left = clocks?.[i];
+    if (left !== undefined) chess.setComment(clockComment(left));
+  });
 }
 
 /** What the setup screen and the game are given: a position to start from, and how to say where it comes from. */
@@ -128,6 +159,7 @@ const DRAW_TEXT: Record<DrawReason, string> = {
   material: 'Nulle : le matériel est insuffisant pour mater.',
   repetition: 'Nulle par triple répétition.',
   fifty: 'Nulle par la règle des 50 coups.',
+  timeout: 'Nulle : le temps est écoulé, mais l’adversaire n’avait plus de quoi mater.',
 };
 
 /** The end of a game, in a sentence, from the player's side. */
@@ -135,6 +167,11 @@ export function outcomeText(outcome: PlayOutcome, userColor: PlayerColor): strin
   if (outcome.kind === 'draw') return DRAW_TEXT[outcome.reason];
   const youWon = outcome.winner === userColor;
   if (outcome.kind === 'resigned') return youWon ? 'Stockfish abandonne.' : 'Vous avez abandonné.';
+  if (outcome.kind === 'timeout') {
+    return youWon
+      ? 'Le temps de Stockfish est écoulé : vous avez gagné !'
+      : 'Votre temps est écoulé : Stockfish gagne.';
+  }
   return youWon ? 'Échec et mat : vous avez gagné !' : 'Échec et mat : Stockfish gagne.';
 }
 

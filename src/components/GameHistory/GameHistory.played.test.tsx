@@ -31,6 +31,10 @@ const played = (at: number, moves: string[], over: Partial<Parameters<typeof mak
 };
 
 const E4 = played(3000, ['e2e4', 'e7e5']);
+const TIMED = played(2500, ['e2e4', 'e7e5'], {
+  timeControl: { baseSeconds: 300, incrementSeconds: 3 },
+  clocks: [299_000, 300_000],
+});
 const D4 = played(2000, ['d2d4', 'd7d5'], { level: { id: 'maitre', label: 'Maître', elo: 2600 }, hints: 2, evals: 1 });
 const CUSTOM_FEN = '4k3/8/8/8/8/8/4P3/4K3 w - - 0 1';
 const CUSTOM = played(1500, ['e2e4', 'e8d8'], { startFen: CUSTOM_FEN, prefix: undefined, label: 'Position choisie' });
@@ -75,6 +79,13 @@ describe('GameHistory with games played against the engine', () => {
     expect(within(second).getByText('Contre Stockfish · Maître')).toBeTruthy();
     expect(within(second).getByText(/avec 2 indices et 1 évaluation/)).toBeTruthy();
     expect(within(second).getByText(/2 demi-coups/)).toBeTruthy();
+  });
+
+  it('tells the time control of a game that had a clock', async () => {
+    await savePlayedGame(TIMED);
+    await renderHistory();
+    const [row] = await rows();
+    expect(within(row).getByText(/pendule 5 min \+ 3 s/)).toBeTruthy();
   });
 
   it('mixes them with the analysed games by date', async () => {

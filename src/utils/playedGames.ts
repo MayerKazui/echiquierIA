@@ -1,6 +1,7 @@
 import { Chess } from 'chess.js';
 import type { PlayerColor } from '../types/ui';
-import { gamePgn, resultTag, type PlayedMove, type PlayOutcome, type DrawReason } from './playGame';
+import { gamePgn, playMoves, resultTag, type PlayedMove, type PlayOutcome, type DrawReason } from './playGame';
+import { parseTimeControlTag, timeControlLabel, timeControlTag, type TimeControl } from './playClock';
 import { gameId } from '../services/gameStore';
 
 /**
@@ -27,10 +28,12 @@ export interface PlayedGame {
   userName: string;
   result: '1-0' | '0-1' | '1/2-1/2';
   /** How it ended. */
-  ending: 'checkmate' | 'resigned' | DrawReason;
+  ending: 'checkmate' | 'resigned' | 'timeout' | DrawReason;
   /** Hints and evaluations the player asked for during the game. */
   hints: number;
   evals: number;
+  /** The `TimeControl` tag ("300+3") when the game had a clock. */
+  timeControl?: string;
   /** Milliseconds since the epoch. */
   finishedAt: number;
   /** The last change here: the most recent copy wins when two are merged (see `playedGameStore`). */
@@ -48,7 +51,7 @@ export type PlayedRecord = PlayedGame | PlayedTombstone;
 
 export const isTombstone = (record: PlayedRecord): record is PlayedTombstone => 'deleted' in record;
 
-const ENDINGS = new Set(['checkmate', 'resigned', 'stalemate', 'material', 'repetition', 'fifty']);
+const ENDINGS = new Set(['checkmate', 'resigned', 'timeout', 'stalemate', 'material', 'repetition', 'fifty']);
 const RESULTS = new Set(['1-0', '0-1', '1/2-1/2']);
 /** A game longer than this is not one the app wrote. */
 const MAX_MOVES = 1000;
@@ -90,6 +93,7 @@ export function isPlayedGame(value: unknown): value is PlayedGame {
     ENDINGS.has(game.ending) &&
     isCount(game.hints) &&
     isCount(game.evals) &&
+    (game.timeControl === undefined || isText(game.timeControl, 20)) &&
     isTime(game.finishedAt) &&
     isTime(game.updatedAt)
   );
@@ -112,17 +116,20 @@ export interface FinishedGame {
   userName: string;
   hints: number;
   evals: number;
+  /** The clock of the game: its control, and the time left (ms) to the mover after each move. */
+  timeControl?: TimeControl | null;
+  clocks?: readonly number[];
   now: number;
 }
 
 /** A game with its position of its own, as a PGN with `SetUp` and `FEN` headers (what chess.js writes). */
 function pgnFromPosition(game: FinishedGame, white: string, black: string): string {
   const chess = new Chess(game.startFen);
-  for (const move of game.moves)
-    chess.move({ from: move.uci.slice(0, 2), to: move.uci.slice(2, 4), promotion: move.uci[4] });
+  playMoves(chess, game.moves, game.clocks);
   chess.setHeader('White', white);
   chess.setHeader('Black', black);
   chess.setHeader('Result', resultTag(game.outcome));
+  if (game.timeControl) chess.setHeader('TimeControl', timeControlTag(game.timeControl));
   return chess.pgn();
 }
 
@@ -139,6 +146,8 @@ export function makePlayedGame(game: FinishedGame): PlayedGame {
     outcome: game.outcome,
     white,
     black,
+    timeControl: game.timeControl,
+    clocks: game.clocks,
   });
   const pgn = analysablePgn ?? pgnFromPosition(game, white, black);
   const result = resultTag(game.outcome) as PlayedGame['result'];
@@ -158,6 +167,7 @@ export function makePlayedGame(game: FinishedGame): PlayedGame {
     ending: game.outcome.kind === 'draw' ? game.outcome.reason : game.outcome.kind,
     hints: game.hints,
     evals: game.evals,
+    ...(game.timeControl ? { timeControl: timeControlTag(game.timeControl) } : {}),
     finishedAt: game.now,
     updatedAt: game.now,
   };
@@ -179,4 +189,10 @@ export function helpText(game: Pick<PlayedGame, 'hints' | 'evals'>): string {
     game.evals > 0 ? `${game.evals} évaluation${game.evals > 1 ? 's' : ''}` : '',
   ].filter(Boolean);
   return parts.length === 0 ? '' : `avec ${parts.join(' et ')}`;
+}
+
+/** "pendule 5 min + 3 s", from the `TimeControl` tag a game keeps. */
+export function timeControlText(tag: string): string {
+  const control = parseTimeControlTag(tag);
+  return `pendule ${control ? timeControlLabel(control) : tag}`;
 }

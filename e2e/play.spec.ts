@@ -22,7 +22,8 @@ test('une partie contre Stockfish : on joue un coup, le vrai moteur répond, on 
   await expect(dialog.getByRole('status')).toContainText('À vous de jouer');
 
   await dialog.getByRole('button', { name: 'Abandonner' }).click();
-  await expect(dialog.getByRole('status')).toContainText('Vous avez abandonné.');
+  // Deux annonces peuvent coexister : le résultat, puis « gardée dans Mes parties »
+  await expect(dialog.getByRole('status').first()).toContainText('Vous avez abandonné.');
   await expect(dialog.getByRole('button', { name: 'Analyser la partie' })).toBeVisible();
 
   // Le dialogue tient dans la fenêtre
@@ -115,6 +116,53 @@ test('la partie en cours survit à la fermeture de la fenêtre, avec un indice e
   await expect(row).toContainText("Pas encore analysée : l'ouverture lance l'analyse.");
 
   // Elle s'ouvre comme n'importe quelle partie : l'analyse se lance
+  await row.getByRole('button', { name: /Ouvrir la partie/ }).click();
+  await expect(page.getByText(/Analyse terminée, \d+ demi-coups/).last()).toBeAttached({ timeout: 75_000 });
+  expect(errors).toEqual([]);
+});
+
+test('une partie avec pendule : les temps descendent, la partie reprise garde ses temps, et elle est gardée avec sa cadence', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  await page.goto('/');
+  await openFromMenu(page, /Jouer contre Stockfish/);
+  let dialog = page.getByRole('dialog');
+  await dialog.getByRole('radio', { name: /Facile/ }).check();
+  await dialog.getByRole('radio', { name: 'Avec pendule' }).check();
+  await dialog.getByRole('combobox', { name: 'Temps de chaque camp' }).selectOption({ label: '3 minutes' });
+  await dialog.getByRole('combobox', { name: 'Incrément par coup' }).selectOption({ label: '2 secondes' });
+  await dialog.getByRole('button', { name: 'Jouer' }).click();
+
+  const yours = () => dialog.getByRole('timer', { name: 'Pendule de votre camp' });
+  const engines = () => dialog.getByRole('timer', { name: 'Pendule de Stockfish' });
+  await expect(yours()).toContainText('3:00');
+  await expect(yours()).not.toContainText(/^Vous3:00$/, { timeout: 5000 }); // la pendule descend
+
+  await dialog.locator('[data-square="e2"]').click();
+  await dialog.locator('[data-square="e4"]').click();
+  await expect(dialog.getByText(/1\.e4 1…/)).toBeVisible({ timeout: 30_000 });
+  // L'incrément est rendu après le coup : chacun a plus de 2 min 55 s, et le camp qui a joué n'est pas sous 3 min - 5 s
+  await expect(yours()).toContainText(/2:5\d|3:0\d/);
+  await expect(engines()).toContainText(/2:5\d|3:0\d/);
+
+  // On ferme la fenêtre : la partie reprend avec ses temps
+  await dialog.getByRole('button', { name: 'Fermer' }).click();
+  await openFromMenu(page, /Jouer contre Stockfish/);
+  dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('region', { name: 'Partie en cours' })).toContainText('pendule 3 min + 2 s');
+  await dialog.getByRole('button', { name: 'Reprendre la partie' }).click();
+  await expect(yours()).toContainText(/2:5\d|3:0\d/);
+
+  // La partie abandonnée est gardée avec sa cadence, et s'analyse avec ses temps
+  await dialog.getByRole('button', { name: 'Abandonner' }).click();
+  await dialog.getByRole('button', { name: 'Fermer' }).click();
+  await openFromMenu(page, /Mes parties/);
+  const row = page.getByRole('dialog').getByRole('listitem').first();
+  await expect(row).toContainText('Contre Stockfish · Facile');
+  await expect(row).toContainText('pendule 3 min + 2 s');
   await row.getByRole('button', { name: /Ouvrir la partie/ }).click();
   await expect(page.getByText(/Analyse terminée, \d+ demi-coups/).last()).toBeAttached({ timeout: 75_000 });
   expect(errors).toEqual([]);

@@ -63,6 +63,22 @@ describe('playSessionStore', () => {
     expect(isPlaySession(session({ startFen: fen, prefix: undefined, moves: ['e2e4'] }))).toBe(true);
   });
 
+  it('keeps the clock of the game, with one time per move', () => {
+    const clock = { baseSeconds: 300, incrementSeconds: 3, w: 290_000, b: 285_000, log: [295_000, 298_000] };
+    savePlaySession(session({ clock }));
+    expect(loadPlaySession()?.clock).toEqual(clock);
+  });
+
+  it.each([
+    ['times that do not match the moves', { log: [295_000] }],
+    ['a time that is not a number', { log: [295_000, 'vite'] }],
+    ['a negative time', { w: -1 }],
+    ['a base time of nothing', { baseSeconds: 0 }],
+  ])('refuses a clock with %s', (_name, over) => {
+    const clock = { baseSeconds: 300, incrementSeconds: 3, w: 290_000, b: 285_000, log: [295_000, 298_000], ...over };
+    expect(isPlaySession(session({ clock: clock as PlaySession['clock'] }))).toBe(false);
+  });
+
   it('does not throw when the storage is refused', () => {
     const setItem = Storage.prototype.setItem;
     Storage.prototype.setItem = () => {

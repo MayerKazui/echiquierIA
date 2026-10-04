@@ -6,6 +6,8 @@ export interface ChooseMoveRequest {
   startFen: string;
   moves: readonly string[];
   level: PlayLevel;
+  /** Thinking time (ms) when it is shorter than the level's own: a clock leaves the engine less time. */
+  moveTimeMs?: number;
   /** Aborting it stops the search; the promise rejects with an AbortError. */
   signal?: AbortSignal;
 }
@@ -94,8 +96,9 @@ export class EnginePlayer {
   }
 
   /** The engine's move (UCI) in the position reached by `moves` from `startFen`, at the level asked for. */
-  public chooseMove({ startFen, moves, level, signal }: ChooseMoveRequest): Promise<string> {
+  public chooseMove({ startFen, moves, level, moveTimeMs, signal }: ChooseMoveRequest): Promise<string> {
     if (signal?.aborted) return Promise.reject(abortError());
+    const thinkMs = Math.min(level.moveTimeMs, moveTimeMs ?? level.moveTimeMs);
     let worker: Worker;
     try {
       worker = this.ensureWorker();
@@ -129,13 +132,13 @@ export class EnginePlayer {
       signal?.addEventListener('abort', onAbort, { once: true });
       const timer = setTimeout(() => {
         if (this.current === entry) this.reset(new EngineUnavailableError('The engine did not answer'));
-      }, level.moveTimeMs + ANSWER_GRACE_MS);
+      }, thinkMs + ANSWER_GRACE_MS);
 
       try {
         for (const command of levelCommands(level)) worker.postMessage(command);
         worker.postMessage('isready');
         worker.postMessage(`position fen ${startFen}${moves.length > 0 ? ` moves ${moves.join(' ')}` : ''}`);
-        worker.postMessage(`go movetime ${level.moveTimeMs}`);
+        worker.postMessage(`go movetime ${thinkMs}`);
       } catch {
         this.reset(new EngineUnavailableError());
       }

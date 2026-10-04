@@ -7,6 +7,7 @@ import { usePlayGame } from '../../hooks/usePlayGame';
 import { clearPlaySession, savePlaySession, type PlaySession } from '../../services/playSessionStore';
 import { deletePlayedGames, savePlayedGame } from '../../services/playedGameStore';
 import type { BoardTheme, PlayerColor } from '../../types/ui';
+import { timeControlLabel, type TimeControl } from '../../utils/playClock';
 import type { PlayLevel } from '../../utils/playLevels';
 import { engineName, makePlayedGame } from '../../utils/playedGames';
 import { gamePgn, movesText, outcomeText, type PlayStart } from '../../utils/playGame';
@@ -15,6 +16,7 @@ import { arrowOf, lineMoves } from '../../utils/positionAnalysis';
 import { ChessBoard } from '../ChessBoard/ChessBoard';
 import type { BoardShape } from '../ChessBoard/useBoardDrawing';
 import { PRIMARY, SECONDARY } from '../Openings/shared';
+import { PlayClocks } from './PlayClocks';
 
 const HINT_COLOR = '#f59e0b';
 const MOVE_COLOR = '#10b981';
@@ -24,6 +26,8 @@ interface PlayGameProps {
   start: PlayStart;
   userColor: PlayerColor;
   level: PlayLevel;
+  /** The clock of the game (each side's time and the increment per move); without it, no clock. */
+  timeControl?: TimeControl | null;
   boardTheme?: BoardTheme;
   /** A game in progress being resumed: its moves, and the help already asked for. */
   resume?: PlaySession;
@@ -39,13 +43,22 @@ export const PlayGame: React.FC<PlayGameProps> = ({
   start,
   userColor,
   level,
+  timeControl,
   boardTheme,
   resume,
   userName,
   onAnalyze,
   onNewGame,
 }) => {
-  const game = usePlayGame({ startFen: start.fen, userColor, level, initialMoves: resume?.moves });
+  const game = usePlayGame({
+    startFen: start.fen,
+    userColor,
+    level,
+    initialMoves: resume?.moves,
+    timeControl,
+    initialClock: resume?.clock,
+  });
+  const clockLog = game.timing?.log;
   const isOpen = !game.isOver && !game.isEngineTurn && !game.engineFailed;
 
   // Help the player asked for: how many times (kept with the game), and what is shown for this position
@@ -87,10 +100,21 @@ export const PlayGame: React.FC<PlayGameProps> = ({
       moves: game.uciMoves,
       hints,
       evals,
+      ...(timeControl && game.timing
+        ? {
+            clock: {
+              baseSeconds: timeControl.baseSeconds,
+              incrementSeconds: timeControl.incrementSeconds,
+              w: game.timing.clock.w,
+              b: game.timing.clock.b,
+              log: game.timing.log,
+            },
+          }
+        : {}),
       startedAt,
       updatedAt: Date.now(),
     });
-  }, [game.isOver, game.uciMoves, start, userColor, level.id, hints, evals, startedAt]);
+  }, [game.isOver, game.uciMoves, game.timing, timeControl, start, userColor, level.id, hints, evals, startedAt]);
 
   // A finished game is kept in "Mes parties"; one that is taken back after its end is no longer finished
   useEffect(() => {
@@ -107,6 +131,8 @@ export const PlayGame: React.FC<PlayGameProps> = ({
         userName: userName ?? '',
         hints,
         evals,
+        timeControl,
+        clocks: clockLog,
         now: Date.now(),
       });
       finishedId.current = record.id;
@@ -118,7 +144,7 @@ export const PlayGame: React.FC<PlayGameProps> = ({
       setKeeping('idle');
       void deletePlayedGames([id]);
     }
-  }, [game.isOver, game.outcome, game.moves, start, userColor, level, userName, hints, evals]);
+  }, [game.isOver, game.outcome, game.moves, start, userColor, level, userName, hints, evals, timeControl, clockLog]);
 
   const onAnswer = useCallback((answer: Answer) => game.play(answer.uci), [game]);
   const board = useAnswerBoard(game.fen, isOpen, onAnswer);
@@ -136,8 +162,10 @@ export const PlayGame: React.FC<PlayGameProps> = ({
             outcome: game.outcome,
             white: userColor === 'w' ? userName || 'Moi' : engineName(level.label),
             black: userColor === 'b' ? userName || 'Moi' : engineName(level.label),
+            timeControl,
+            clocks: clockLog,
           }),
-    [game.moves, game.outcome, start, userColor, userName, level.label]
+    [game.moves, game.outcome, start, userColor, userName, level.label, timeControl, clockLog]
   );
 
   const hintMove = best.line ? arrowOf(best.line) : null;
@@ -184,8 +212,20 @@ export const PlayGame: React.FC<PlayGameProps> = ({
           </h3>
           <p className="text-xs text-slate-400 mt-1">
             Vous jouez les {userColor === 'w' ? 'Blancs' : 'Noirs'}. {start.label}.
+            {timeControl && ` Pendule : ${timeControlLabel(timeControl)}.`}
           </p>
         </div>
+
+        {game.timing && (
+          <PlayClocks
+            timing={game.timing}
+            turn={game.turn}
+            running={game.clockRunning}
+            userColor={userColor}
+            isOver={game.isOver}
+            flagged={game.flagged}
+          />
+        )}
 
         <div role="status" aria-live="polite" className="min-h-6 flex flex-col gap-2">
           {status && (
