@@ -60,7 +60,7 @@ const DEEP = {
 };
 
 const GOOD_ANSWER = [
-  'PROBLEME: Avec Rd2, les Blancs laissent passer une tactique : Cc7+ était une fourchette.',
+  'PROBLEME: Rd2 laisse passer une tactique : Cc7+ était une fourchette.',
   'SOLUTION: Cc7+ était le bon coup : le Cavalier en c7 attaque en même temps le Roi en e8 et la Tour en a8.',
 ].join('\n');
 
@@ -155,6 +155,30 @@ describe('useCoach', () => {
     await waitFor(() => expect(result.current.note).toBe('unsupported'));
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it('uses the recommended model by default and tells it not to reason first when it would', async () => {
+    generateLocally.mockResolvedValue(GOOD_ANSWER);
+    const { result } = setup();
+    expect(result.current.modelId).toBe('qwen3-1.7b');
+    act(() => result.current.setUseModel(true));
+    await act(() => result.current.explain());
+    const [messages, options] = generateLocally.mock.calls[0];
+    expect(options.model.repo).toBe('onnx-community/Qwen3-1.7B-ONNX');
+    expect(messages.at(-1).content).toContain('/no_think');
+  });
+
+  it('runs the model that was chosen, and remembers the choice', async () => {
+    generateLocally.mockResolvedValue(GOOD_ANSWER);
+    const first = setup();
+    act(() => first.result.current.setModelId('qwen2.5-1.5b'));
+    act(() => first.result.current.setUseModel(true));
+    await act(() => first.result.current.explain());
+    const [messages, options] = generateLocally.mock.calls[0];
+    expect(options.model.repo).toBe('onnx-community/Qwen2.5-1.5B-Instruct');
+    expect(messages.at(-1).content).not.toContain('/no_think');
+    first.unmount();
+    expect(setup().result.current.modelId).toBe('qwen2.5-1.5b');
   });
 
   it('does not use the model unless asked to', async () => {

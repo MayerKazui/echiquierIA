@@ -37,7 +37,7 @@ const EXAMPLE_BAD = {
     'Le meilleur coup : Ce5+ amène une fourchette : le Cavalier en e5 attaque en même temps le Roi en g8 et la Dame en d7.',
   ],
   answer: [
-    'PROBLEME: Avec Rg1, les Noirs laissent passer une tactique : Ce5+ était une fourchette.',
+    'PROBLEME: Rg1 laisse passer une tactique : Ce5+ était une fourchette.',
     'SOLUTION: Ce5+ était le bon coup : le Cavalier en e5 attaque en même temps le Roi en g8 et la Dame en d7.',
   ].join('\n'),
 };
@@ -59,8 +59,21 @@ const formatOf = (isGood: boolean) =>
 const asUser = (facts: string[], isGood: boolean) =>
   `FAITS :\n${facts.join('\n')}\n\nFormat de la réponse :\n${formatOf(isGood)}`;
 
-/** The messages to send to the model for an explanation; a good move (no `problem`) needs no criticism. */
-export function buildRewriteMessages(parts: CoachParts): ChatMessage[] {
+/** The soft switch that tells the Qwen3 models not to think out loud before answering. */
+export const NO_THINK = '/no_think';
+
+/** The reasoning some models write before their answer (`<think>…</think>`), which is not part of it. */
+export const withoutThinking = (text: string): string =>
+  text
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/^[\s\S]*<\/think>/i, '')
+    .trim();
+
+/**
+ * The messages to send to the model for an explanation; a good move (no `problem`) needs no criticism. With `noThink`
+ * the question carries the switch of the models that would otherwise reason at length first.
+ */
+export function buildRewriteMessages(parts: CoachParts, { noThink = false } = {}): ChatMessage[] {
   const isGood = !parts.problem;
   const lines = [`Idée de la position : ${parts.concept}`];
   if (!isGood) lines.push(`Ce qui ne va pas : ${parts.problem}`);
@@ -71,13 +84,13 @@ export function buildRewriteMessages(parts: CoachParts): ChatMessage[] {
     { role: 'system', content: SYSTEM },
     { role: 'user', content: asUser(example.facts, isGood) },
     { role: 'assistant', content: example.answer },
-    { role: 'user', content: asUser(lines, isGood) },
+    { role: 'user', content: `${asUser(lines, isGood)}${noThink ? `\n${NO_THINK}` : ''}` },
   ];
 }
 
 /** The answer of the model split into its boxes; null when it did not follow the format. */
 export function parseRewrite(answer: string, isGood: boolean): Rewrite | null {
-  const text = answer.replace(/\r/g, '').trim();
+  const text = withoutThinking(answer).replace(/\r/g, '').trim();
   const field = (label: string): string | null => {
     const match = new RegExp(`${label}\\s*:\\s*([\\s\\S]*?)(?=\\n\\s*(?:PROBLEME|SOLUTION|BON)\\s*:|$)`, 'i').exec(
       text
@@ -103,6 +116,8 @@ const PIECE_ON_SQUARE =
   /(?<![\p{L}\p{N}])(Cavalier|Dame|Tour|Fou|Roi|pion)\s+(?:en\s+)?([a-h][1-8])(?![\p{L}\p{N}])/giu;
 // What the code says about the score: the model has no business with it
 const SCORE_WORDS = /évalu\p{L}*|score|pourcent\p{L}*|%|avantage|désavantage/giu;
+// Which side a sentence is about: only the facts know (a model once wrote "les Noirs" for a move of White)
+const SIDE_WORDS = /(?<![\p{L}\p{N}])(?:blancs|noirs)(?![\p{L}\p{N}])/giu;
 
 /** The moves and squares a text mentions, without the signs that do not change the move. */
 function movesIn(text: string): Set<string> {
@@ -129,7 +144,8 @@ const piecesOnSquares = (text: string): Set<string> =>
  * - every move and square it mentions appears in the source;
  * - every number does too;
  * - every "piece on a square" ("le Cavalier en c7") is one the source places there;
- * - it does not talk about the score, which the code writes (unless the source itself does).
+ * - it does not talk about the score, which the code writes (unless the source itself does);
+ * - it does not name a side ("les Blancs", "les Noirs") that the source does not.
  * It cannot tell a correct sentence from a wrong one built with the same words ("le pion prend le Fou" for "le Fou
  * prend le pion"), which is why the model only rephrases and the numbers and lines are not its to write.
  */
@@ -138,6 +154,9 @@ export function isGroundedIn(answer: string, source: string): boolean {
   const scoreWords = (text: string) => new Set([...text.matchAll(SCORE_WORDS)].map((match) => match[0].toLowerCase()));
   const allowedScoreWords = scoreWords(source);
   for (const word of scoreWords(answer)) if (!allowedScoreWords.has(word)) return false;
+  const sideWords = (text: string) => new Set([...text.matchAll(SIDE_WORDS)].map((match) => match[0].toLowerCase()));
+  const allowedSides = sideWords(source);
+  for (const side of sideWords(answer)) if (!allowedSides.has(side)) return false;
   const allowed = movesIn(source);
   const allowedSquares = squaresOf(allowed);
   for (const move of movesIn(answer)) {

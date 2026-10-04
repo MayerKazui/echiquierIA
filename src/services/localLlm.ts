@@ -1,5 +1,10 @@
 import type { ChatMessage } from '../utils/coachRewrite';
-import { UNSUPPORTED_DEVICE, type WorkerRequest, type WorkerResponse } from './localLlm.protocol';
+import {
+  UNSUPPORTED_DEVICE,
+  type LocalModelPreset,
+  type WorkerRequest,
+  type WorkerResponse,
+} from './localLlm.protocol';
 
 /**
  * The local model, seen from the page: a worker that downloads the model the first time and writes texts after that.
@@ -17,15 +22,6 @@ export type LocalDevice = 'webgpu' | 'wasm';
 /** Whether this browser may be able to run the model: a worker and WebGPU (the device is checked when it is asked). */
 export function isLocalModelSupported(): boolean {
   return typeof Worker !== 'undefined' && typeof navigator !== 'undefined' && 'gpu' in navigator;
-}
-
-/** A model to try instead of the default one, set by hand: `localStorage.chess_coach_model_id = "org/model"`. */
-function experimentalModel(): string | undefined {
-  try {
-    return localStorage.getItem('chess_coach_model_id') ?? undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 /** Whether an error from the model means that this device cannot run it (as opposed to a failure on the way). */
@@ -62,15 +58,28 @@ function ensureWorker(): Worker {
   return worker;
 }
 
+/**
+ * Stops the worker and with it the model it holds in memory (the next text starts a new one). Used when a model is
+ * deleted, so that it is not still taking the memory it was just taken out of the cache for.
+ */
+export function releaseLocalModel(): void {
+  worker?.terminate();
+  worker = null;
+  const error = new DOMException('Aborted', 'AbortError');
+  for (const entry of pending.values()) entry.reject(error);
+  pending.clear();
+}
+
 /** Asks the local model for a text. The first call downloads the model (`progress` follows it). */
 export function generateLocally(
   messages: ChatMessage[],
   options: {
+    model: LocalModelPreset;
     maxNewTokens?: number;
     signal?: AbortSignal;
     onProgress?: (progress: LocalProgress) => void;
     onDevice?: (device: LocalDevice) => void;
-  } = {}
+  }
 ): Promise<string> {
   if (options.signal?.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
   onProgress = options.onProgress ?? null;
@@ -91,7 +100,7 @@ export function generateLocally(
       id,
       messages,
       maxNewTokens: options.maxNewTokens ?? 260,
-      model: experimentalModel(),
+      model: { repo: options.model.repo, gpuDtype: options.model.gpuDtype, cpuDtype: options.model.cpuDtype },
     };
     ensureWorker().postMessage(request);
   });

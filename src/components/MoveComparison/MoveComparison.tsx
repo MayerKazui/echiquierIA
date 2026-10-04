@@ -576,7 +576,10 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
           onDepthChange={coach.setDepth}
           useModel={coach.useModel}
           onUseModelChange={coach.setUseModel}
+          modelId={coach.modelId}
+          onModelIdChange={coach.setModelId}
           modelSupported={coach.modelSupported}
+          refreshKey={coach.status.phase}
         />
 
         {/* Announces the state of the explanation to screen readers */}

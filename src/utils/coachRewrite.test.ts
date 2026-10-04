@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { applyRewrite, buildRewriteMessages, isGroundedIn, parseRewrite, sourceText } from './coachRewrite';
+import {
+  NO_THINK,
+  applyRewrite,
+  buildRewriteMessages,
+  isGroundedIn,
+  parseRewrite,
+  sourceText,
+  withoutThinking,
+} from './coachRewrite';
 import type { CoachParts } from './moveCoach';
 
 const BAD: CoachParts = {
@@ -29,6 +37,29 @@ describe('buildRewriteMessages', () => {
     expect(messages.map((message) => message.role)).toEqual(['system', 'user', 'assistant', 'user']);
     expect(messages[3].content).toContain('BON:');
     expect(messages[3].content).not.toContain('PROBLEME:');
+  });
+});
+
+describe('models that reason first', () => {
+  it('asks them not to, only when told to', () => {
+    expect(buildRewriteMessages(BAD, { noThink: true }).at(-1)!.content).toContain(NO_THINK);
+    expect(buildRewriteMessages(BAD).at(-1)!.content).not.toContain(NO_THINK);
+  });
+
+  it('drops the reasoning before the answer, empty or not', () => {
+    expect(withoutThinking('<think>\n\n</think>\n\nBON: une phrase.')).toBe('BON: une phrase.');
+    expect(withoutThinking('<think>je réfléchis</think>BON: une phrase.')).toBe('BON: une phrase.');
+    expect(withoutThinking('je réfléchis encore</think>BON: une phrase.')).toBe('BON: une phrase.');
+    expect(withoutThinking('BON: rien à retirer.')).toBe('BON: rien à retirer.');
+  });
+
+  it('reads an answer that starts with an empty reasoning block', () => {
+    const answer =
+      '<think>\n\n</think>\n\nPROBLEME: Rd2 laisse passer une tactique.\nSOLUTION: Cc7+ était le bon coup, une fourchette.';
+    expect(parseRewrite(answer, false)).toEqual({
+      problem: 'Rd2 laisse passer une tactique.',
+      idea: 'Cc7+ était le bon coup, une fourchette.',
+    });
   });
 });
 
@@ -64,10 +95,7 @@ describe('isGroundedIn', () => {
 
   it('accepts a rephrasing that uses only the moves, squares and pieces of the source', () => {
     expect(
-      isGroundedIn(
-        'Avec Rd2, les Blancs laissent passer Cc7+ : le Cavalier en c7 attaque le Roi en e8 et la Tour en a8.',
-        source
-      )
+      isGroundedIn('Rd2 laisse passer Cc7+ : le Cavalier en c7 attaque le Roi en e8 et la Tour en a8.', source)
     ).toBe(true);
   });
 
@@ -86,6 +114,14 @@ describe('isGroundedIn', () => {
 
   it('rejects a number that is not in the source', () => {
     expect(isGroundedIn('Cc7+ gagnait trois pièces en 4 coups.', source)).toBe(false);
+  });
+
+  it('rejects a side that the source does not name, and accepts the one it does', () => {
+    // What a model did on a real run: "les Noirs" for a move of White
+    expect(isGroundedIn('Avec Rd2, les Noirs laissent passer Cc7+.', source)).toBe(false);
+    const named = { ...BAD, problem: 'Avec Rf1, les Blancs laissent passer un mat forcé.' };
+    expect(isGroundedIn('Les Blancs laissent passer un mat avec Rf1.', sourceText(named))).toBe(true);
+    expect(isGroundedIn('Les Noirs laissent passer un mat avec Rf1.', sourceText(named))).toBe(false);
   });
 
   it('rejects a piece put on a square where the source does not put it', () => {

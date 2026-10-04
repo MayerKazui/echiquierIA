@@ -5,6 +5,7 @@
  * correct sentence from a wrong one.
  *
  *   bun run bench:coach-model onnx-community/Qwen2.5-1.5B-Instruct q4
+ *   NO_THINK=1 bun run bench:coach-model onnx-community/Qwen3-1.7B-ONNX q4   (models that reason first)
  *
  * Runs on the processor with onnxruntime-node (faster than the browser's WebAssembly); the model is downloaded on the first run.
  */
@@ -122,7 +123,10 @@ for (const [name, move] of cases) {
   const parts = coachParts(move);
   const isGood = !parts.problem;
   const t = Date.now();
-  const out = await gen(buildRewriteMessages(parts), { max_new_tokens: 220, do_sample: false });
+  const out = await gen(buildRewriteMessages(parts, { noThink: process.env.NO_THINK === '1' }), {
+    max_new_tokens: 220,
+    do_sample: false,
+  });
   const ms = Date.now() - t;
   totalMs += ms;
   const answer = (out as unknown as Array<{ generated_text: Array<{ content: string }> }>)[0].generated_text.at(
