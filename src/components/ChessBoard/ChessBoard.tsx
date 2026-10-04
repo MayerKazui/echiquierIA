@@ -38,6 +38,8 @@ interface ChessBoardProps {
   promotion?: PendingPromotion | null;
   onPromote?: (piece: PromotionPiece) => void;
   onCancelPromotion?: () => void;
+  /** Pieces cannot be dragged (a position being edited: the squares are clicked instead). */
+  isDragDisabled?: boolean;
   className?: string;
 }
 
@@ -84,6 +86,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
   promotion = null,
   onPromote,
   onCancelPromotion,
+  isDragDisabled = false,
   className,
 }) => {
   const effectiveHeatmapMode: HeatmapMode = heatmapMode ?? (showHeatmap ? 'both' : 'none');
@@ -93,7 +96,12 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
     try {
       return new Chess(fen);
     } catch {
-      return new Chess();
+      try {
+        // A position being edited (no king yet, an empty board) is still drawn as it is
+        return new Chess(fen, { skipValidation: true });
+      } catch {
+        return new Chess();
+      }
     }
   }, [fen]);
 
@@ -218,7 +226,7 @@ export const ChessBoard: React.FC<ChessBoardProps> = ({
 
   // Drag and drop with pointer events (mouse and finger): the piece follows the pointer
   const { drag, ghostRef, consumeClick, pieceHandlers } = usePieceDrag({
-    canDrag: (_from, piece) => piece.color === chess.turn(),
+    canDrag: (_from, piece) => !isDragDisabled && piece.color === chess.turn(),
     // Pressing the piece that is already selected must keep it selected (a second click would unselect it)
     onDragStart: (from) => {
       if (from !== selectedSquare) onSquareClick?.(from);

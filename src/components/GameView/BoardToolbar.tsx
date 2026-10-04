@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileDown, Shield, Swords, Target } from 'lucide-react';
+import { FileDown, ScanSearch, Shield, Swords, Target } from 'lucide-react';
 import { BoardTheme, HeatmapMode } from '../../types/ui';
 
 interface BoardToolbarProps {
@@ -12,6 +12,8 @@ interface BoardToolbarProps {
   onBoardThemeChange: (theme: BoardTheme) => void;
   /** Starts a game against Stockfish from the position on the board. */
   onPlay?: () => void;
+  /** Opens the free analysis (the engine's best lines, live) on the position of the board. */
+  onAnalyze?: () => void;
   /** Opens the export of the game as an annotated PGN: given only when the analysis is complete. */
   onExport?: () => void;
 }
@@ -94,6 +96,7 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
   boardTheme,
   onBoardThemeChange,
   onPlay,
+  onAnalyze,
   onExport,
 }) => (
   // One scrollable row on a phone, a wrapping bar from `sm` up
@@ -129,6 +132,17 @@ export const BoardToolbar: React.FC<BoardToolbarProps> = ({
         >
           <Swords className="w-3 h-3 text-indigo-400" aria-hidden="true" />
           <span>Jouer ici</span>
+        </button>
+      )}
+
+      {onAnalyze && (
+        <button
+          onClick={onAnalyze}
+          className="flex items-center gap-1 px-2 py-1.5 sm:py-1 rounded-md font-medium border bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 transition-colors cursor-pointer shrink-0"
+          title="Analyse libre : les meilleures lignes de Stockfish en direct sur cette position"
+        >
+          <ScanSearch className="w-3 h-3 text-indigo-400" aria-hidden="true" />
+          <span>Analyser ici</span>
         </button>
       )}
 

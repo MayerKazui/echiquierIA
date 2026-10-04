@@ -20,6 +20,7 @@ const loaders = {
   studies: () => import('./components/Studies/Studies'),
   puzzles: () => import('./components/Puzzles/Puzzles'),
   play: () => import('./components/Play/PlayStockfish'),
+  analysis: () => import('./components/Analysis/PositionAnalysis'),
 };
 
 export const ChessBoard = lazy(() => loaders.board().then((m) => ({ default: m.ChessBoard })));
@@ -36,6 +37,7 @@ export const Plan = lazy(() => loaders.plan().then((m) => ({ default: m.Plan }))
 export const Studies = lazy(() => loaders.studies().then((m) => ({ default: m.Studies })));
 export const Puzzles = lazy(() => loaders.puzzles().then((m) => ({ default: m.Puzzles })));
 export const PlayStockfish = lazy(() => loaders.play().then((m) => ({ default: m.PlayStockfish })));
+export const PositionAnalysis = lazy(() => loaders.analysis().then((m) => ({ default: m.PositionAnalysis })));
 
 /** Starts downloading every lazy view (the browser keeps them: a later render is instant). */
 export function prefetchViews(): void {

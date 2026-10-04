@@ -15,6 +15,7 @@ import {
   Library,
   Puzzle,
   Route,
+  ScanSearch,
   Swords,
   Target,
   Timer,
@@ -68,6 +69,7 @@ export interface NavigationActions {
   onOpenVision: (mode: VisionMode) => void;
   onOpenStudies: () => void;
   onOpenPlay: () => void;
+  onOpenAnalysis: () => void;
 }
 
 const ICON = 'w-4 h-4';
@@ -242,6 +244,13 @@ export function buildNavigation(actions: NavigationActions): NavSection[] {
           hint: 'Une partie à la force réglable, depuis le début ou une position',
           icon: <Swords className={ICON} />,
           onSelect: actions.onOpenPlay,
+        },
+        {
+          id: 'analysis',
+          label: 'Analyser une position',
+          hint: 'Les meilleures lignes de Stockfish en direct, sur une FEN ou une position posée à la main',
+          icon: <ScanSearch className={ICON} />,
+          onSelect: actions.onOpenAnalysis,
         },
         {
           id: 'studies',

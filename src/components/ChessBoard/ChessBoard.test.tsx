@@ -8,6 +8,55 @@ const START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 const cell = (square: string) => document.querySelector(`[data-square="${square}"]`) as HTMLElement;
 
+describe('ChessBoard with a position being edited', () => {
+  const piecesOn = () => screen.getAllByRole('gridcell').filter((c) => !c.getAttribute('aria-label')?.endsWith('vide'));
+
+  it('draws a position without kings as it is, not as the usual start', () => {
+    render(<ChessBoard fen="8/8/8/3q4/8/8/8/R7 w - - 0 1" />);
+    expect(piecesOn().map((c) => c.getAttribute('aria-label'))).toEqual(['d5, dame noire', 'a1, tour blanche']);
+  });
+
+  it('draws an empty board', () => {
+    render(<ChessBoard fen="8/8/8/8/8/8/8/8 w - - 0 1" />);
+    expect(piecesOn()).toHaveLength(0);
+  });
+
+  it('still falls back on the usual start for what is not a position at all', () => {
+    render(<ChessBoard fen="nonsense" />);
+    expect(piecesOn()).toHaveLength(32);
+  });
+
+  it('does not let a piece be dragged when dragging is disabled', () => {
+    document.elementFromPoint = vi.fn(() => cell('e4'));
+    const onSquareClick = vi.fn();
+    const onPieceMove = vi.fn();
+    const props = { fen: START, onSquareClick, onPieceMove };
+    const drag = () => {
+      const piece = cell('e2').querySelector('[data-color]') as HTMLElement;
+      fireEvent.pointerDown(piece, { button: 0, isPrimary: true, pointerId: 1, clientX: 10, clientY: 10 });
+      fireEvent.pointerMove(piece, { isPrimary: true, pointerId: 1, clientX: 80, clientY: 10 });
+      fireEvent.pointerUp(piece, { isPrimary: true, pointerId: 1, clientX: 80, clientY: 10 });
+    };
+    const { rerender } = render(<ChessBoard {...props} isDragDisabled />);
+    drag();
+    expect(onSquareClick).not.toHaveBeenCalled();
+    expect(onPieceMove).not.toHaveBeenCalled();
+
+    // The same gesture drags the piece when dragging is on
+    rerender(<ChessBoard {...props} />);
+    drag();
+    expect(onPieceMove).toHaveBeenCalledWith('e2', 'e4');
+  });
+
+  it('still passes the clicks on when dragging is disabled', async () => {
+    const user = userEvent.setup();
+    const onSquareClick = vi.fn();
+    render(<ChessBoard fen={START} isDragDisabled onSquareClick={onSquareClick} />);
+    await user.click(cell('e2'));
+    expect(onSquareClick).toHaveBeenCalledWith('e2');
+  });
+});
+
 describe('ChessBoard accessibility', () => {
   it('is a labelled grid of 8 rows and 64 cells', () => {
     render(<ChessBoard fen={START} />);

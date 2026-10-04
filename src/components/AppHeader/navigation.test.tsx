@@ -15,6 +15,7 @@ const actions = (over: Partial<NavigationActions> = {}): NavigationActions => ({
   onOpenVision: vi.fn(),
   onOpenStudies: vi.fn(),
   onOpenPlay: vi.fn(),
+  onOpenAnalysis: vi.fn(),
   ...over,
 });
 
@@ -38,6 +39,14 @@ describe('buildNavigation', () => {
       'Finales de tours',
     ]);
     expect(labels(sections, 'vision')).toEqual(['Coordonnées', 'Mode aveugle', 'Calcul de lignes']);
+  });
+
+  it('offers the free analysis of a position next to the game against Stockfish', () => {
+    expect(labels(buildNavigation(actions()), 'play')).toEqual([
+      'Jouer contre Stockfish',
+      'Analyser une position',
+      'Études',
+    ]);
   });
 
   it('puts "À réviser aujourd\'hui" first, with what waits there, and opens it', () => {
@@ -69,6 +78,7 @@ describe('buildNavigation', () => {
     select('endgames-all');
     select('vision-blind');
     select('vision-lines');
+    select('analysis');
     expect(a.onOpenPuzzles).toHaveBeenNthCalledWith(1, 'woodpecker');
     expect(a.onOpenPuzzles).toHaveBeenNthCalledWith(2, 'stats');
     expect(a.onOpenOpenings).toHaveBeenCalledWith('opponent');
@@ -76,6 +86,7 @@ describe('buildNavigation', () => {
     expect(a.onOpenEndgames).toHaveBeenNthCalledWith(2, null);
     expect(a.onOpenVision).toHaveBeenNthCalledWith(1, 'blind');
     expect(a.onOpenVision).toHaveBeenNthCalledWith(2, 'lines');
+    expect(a.onOpenAnalysis).toHaveBeenCalledTimes(1);
   });
 
   it('shows the sound as a switch, and the install entry only where the browser offers it', () => {
