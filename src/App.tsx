@@ -39,6 +39,7 @@ import {
   Openings,
   Plan,
   PlayStockfish,
+  PositionAnalysis,
   Puzzles,
   Studies,
   Training,
@@ -107,6 +108,9 @@ export default function App() {
   /** The game against Stockfish: open or not, and the position it starts from (none: the usual start). */
   const [isPlayOpen, setIsPlayOpen] = useState(false);
   const [playStart, setPlayStart] = useState<PlayStart | undefined>();
+  /** The free analysis of a position: open or not, and the FEN it opens on (none: the usual start). */
+  const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
+  const [analysisFen, setAnalysisFen] = useState<string | undefined>();
   // Where the plan sends the player: the themes of the training, a position of the opening explorer
   const [trainingFilter, setTrainingFilter] = useState<TrainingFilter | undefined>();
   // ... and the themes of the puzzles to start with
@@ -313,6 +317,12 @@ export default function App() {
     setIsPlayOpen(true);
   }, []);
 
+  /** Opens "Analyser une position", on a FEN (the board's) or on the usual start. */
+  const openAnalysis = useCallback((fen?: string) => {
+    setAnalysisFen(fen);
+    setIsAnalysisOpen(true);
+  }, []);
+
   const { summary: dueSummary, refresh: refreshDue } = useDueReviews();
 
   /** Opens the place where one stock of reviews is done. */
@@ -467,6 +477,7 @@ export default function App() {
         boardTheme={boardTheme}
         onBoardThemeChange={setBoardTheme}
         onPlay={playFromBoard}
+        onAnalyze={() => openAnalysis(activeBoardFen)}
         // The export needs the finished analysis: the moves are still changing before
         onExport={
           isAnalyzing || !finalResult
@@ -683,6 +694,7 @@ export default function App() {
     },
     onOpenStudies: () => setIsStudiesOpen(true),
     onOpenPlay: () => openPlay(),
+    onOpenAnalysis: () => openAnalysis(),
   });
 
   return (
@@ -961,6 +973,18 @@ export default function App() {
               }}
               onClose={() => setIsPlayOpen(false)}
             />
+          </Suspense>
+        </Modal>
+      )}
+
+      {isAnalysisOpen && (
+        <Modal
+          title="Analyser une position"
+          onClose={() => setIsAnalysisOpen(false)}
+          className="w-full max-w-[min(96vw,84rem)]"
+        >
+          <Suspense fallback={null}>
+            <PositionAnalysis start={analysisFen} boardTheme={boardTheme} onClose={() => setIsAnalysisOpen(false)} />
           </Suspense>
         </Modal>
       )}
