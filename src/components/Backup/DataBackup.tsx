@@ -30,7 +30,7 @@ const plural = (count: number, one: string, many: string) => `${count} ${count >
 /** What a restore did, in a sentence. */
 export function describeRestore(
   report: RestoreReport,
-  rejected: { games: number; cards: number; studies: number; puzzles: number }
+  rejected: { games: number; cards: number; studies: number; puzzles: number; notes?: number }
 ): string {
   const parts: string[] = [];
   if (report.games) {
@@ -96,12 +96,18 @@ export function describeRestore(
   } else if (report.puzzleHistory === null) {
     parts.push("L'historique des puzzles n'a pas pu être écrit dans ce navigateur.");
   }
+  if (report.gameNotes && report.gameNotes.added + report.gameNotes.replaced > 0) {
+    const { added, replaced } = report.gameNotes;
+    parts.push(`Notes des parties : ${plural(added + replaced, 'note restaurée', 'notes restaurées')}.`);
+  } else if (report.gameNotes === null) {
+    parts.push("Les notes des parties n'ont pas pu être écrites dans ce navigateur.");
+  }
   if (report.preferencesApplied > 0) {
     parts.push(
       `${plural(report.preferencesApplied, 'réglage restauré', 'réglages restaurés')} (rechargez la page pour les appliquer).`
     );
   }
-  const unreadable = rejected.games + rejected.cards + rejected.studies + rejected.puzzles;
+  const unreadable = rejected.games + rejected.cards + rejected.studies + rejected.puzzles + (rejected.notes ?? 0);
   if (unreadable > 0) {
     parts.push(`${plural(unreadable, 'élément illisible ignoré', 'éléments illisibles ignorés')}.`);
   }

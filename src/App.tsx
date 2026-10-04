@@ -50,6 +50,8 @@ import type { PlayStart } from './utils/playGame';
 import { LiveRegion, useAnnouncer } from './components/a11y/LiveRegion';
 import { Modal } from './components/a11y/Modal';
 import { GameHistory } from './components/GameHistory/GameHistory';
+import { ExportPgn } from './components/GameView/ExportPgn';
+import type { AnnotatedPgnSource } from './utils/annotatedPgn';
 
 import { EvaluationBar } from './components/EvaluationBar/EvaluationBar';
 import { PgnInput } from './components/PgnInput/PgnInput';
@@ -80,6 +82,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('board');
   const [isPgnModalOpen, setIsPgnModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  /** The game being exported as an annotated PGN: the one on screen, or one picked in the history. */
+  const [exportSource, setExportSource] = useState<AnnotatedPgnSource | null>(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isTrainingOpen, setIsTrainingOpen] = useState(false);
   const [isOpeningsOpen, setIsOpeningsOpen] = useState(false);
@@ -133,6 +137,7 @@ export default function App() {
     isRestoring,
     progress,
     result: finalResult,
+    depth: analysisDepth,
     partial,
     analyze,
     cancel: cancelAnalysis,
@@ -404,6 +409,12 @@ export default function App() {
         boardTheme={boardTheme}
         onBoardThemeChange={setBoardTheme}
         onPlay={playFromBoard}
+        // The export needs the finished analysis: the moves are still changing before
+        onExport={
+          isAnalyzing || !finalResult
+            ? undefined
+            : () => setExportSource({ pgn, result: finalResult, depth: analysisDepth })
+        }
       />
 
       {heatmapMode !== 'none' && boardHeatmapData && (
@@ -699,11 +710,25 @@ export default function App() {
           <GameHistory
             currentPgn={pgn}
             onClose={() => setIsHistoryOpen(false)}
+            onExport={(game) => {
+              setIsHistoryOpen(false);
+              setExportSource({ pgn: game.pgn, result: game.result, depth: game.depth });
+            }}
             onOpen={(game) => {
               setIsHistoryOpen(false);
               void runAnalysis(game.pgn, game.depth);
             }}
           />
+        </Modal>
+      )}
+
+      {exportSource && (
+        <Modal
+          title="Exporter la partie en PGN annoté"
+          onClose={() => setExportSource(null)}
+          className="w-full max-w-lg"
+        >
+          <ExportPgn game={exportSource} onClose={() => setExportSource(null)} />
         </Modal>
       )}
 

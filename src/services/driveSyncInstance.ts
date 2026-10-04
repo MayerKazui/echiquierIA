@@ -1,16 +1,19 @@
 import { onGamesChanged } from './gameStore';
 import { onStudiesChanged } from './studyStore';
+import { onNotesChanged } from './gameNoteStore';
 import { createTokenProvider, googleClientId, loadGoogleIdentity, type TokenProvider } from './googleAuth';
 import { syncWithDrive } from './driveSync';
 import { createDriveSyncManager, type DriveSyncManager } from './driveSyncManager';
 
-/** Subscribes to every change of what the sync carries (the games and the studies); returns the unsubscription. */
+/** Subscribes to every change of what the sync carries (the games, their notes and the studies); returns the unsubscription. */
 export function onLocalDataChanged(listener: () => void): () => void {
   const offGames = onGamesChanged(listener);
   const offStudies = onStudiesChanged(listener);
+  const offNotes = onNotesChanged(listener);
   return () => {
     offGames();
     offStudies();
+    offNotes();
   };
 }
 
