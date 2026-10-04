@@ -242,7 +242,7 @@ test.describe("l'entraînement de la vision", () => {
     await dialog.getByRole('button', { name: 'Fermer' }).click();
     expect(outside).toEqual([]);
 
-    // La sauvegarde (format 9) porte le record, et le rend à un navigateur vierge
+    // La sauvegarde (format 10) porte le record, et le rend à un navigateur vierge
     await openFromMenu(page, /Mes parties/);
     const downloading = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Exporter mes données' }).click();
@@ -251,7 +251,7 @@ test.describe("l'entraînement de la vision", () => {
       format: number;
       visionRecords: Array<{ key: string; best: number; runs: number }>;
     };
-    expect(backup.format).toBe(9);
+    expect(backup.format).toBe(10);
     expect(backup.visionRecords).toEqual([expect.objectContaining({ key: 'blind:short', runs: 1 })]);
     const { best } = backup.visionRecords[0];
 
