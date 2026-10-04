@@ -18,8 +18,11 @@ import type { SwConfig } from '../src/pwa/swCore';
 
 /** The heavy files: cached when possible, never a reason to fail the installation. */
 const OPTIONAL = [/^stockfish-[\w.-]+\.(js|wasm)$/, /^openings\.json$/];
-/** Cached when used, not before. */
-const ON_DEMAND = /^puzzles\//;
+/**
+ * Cached when used, not before: the puzzles, and the runtime of the optional local language model (27 MB of WebAssembly
+ * that most players never need).
+ */
+const ON_DEMAND = /^(puzzles\/|assets\/(ort-wasm[\w.-]*\.(wasm|mjs)|localLlm\.worker-[\w-]+\.js)$)/;
 
 async function listFiles(directory: string, root = directory): Promise<string[]> {
   const files: string[] = [];

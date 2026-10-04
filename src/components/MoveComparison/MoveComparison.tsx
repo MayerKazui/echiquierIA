@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import { MoveAnalysis } from '../../types/chess';
 import { formatPvToFrench, frenchifyMoveText, toFrenchSan } from '../../utils/chessNotation';
-import { explainMove } from '../../utils/moveCoach';
+import { useCoach } from '../../hooks/useCoach';
+import { CoachSettings } from './CoachSettings';
 import { TacticalThreat } from '../../utils/tacticalThreats';
 import { toFrenchOpeningName } from '../../utils/openingNames';
 
@@ -76,6 +77,8 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
   showThreats = true,
   onToggleShowThreats,
 }) => {
+  const coach = useCoach(currentMove, onUpdateAiExplanation);
+
   if (!currentMove) {
     return (
       <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 min-h-[280px] flex flex-col items-center justify-center text-center text-slate-400">
@@ -154,11 +157,6 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
     if (mate !== null) return `M${Math.abs(mate)}`;
     const pawns = (cp / 100).toFixed(1);
     return cp > 0 ? `+${pawns}` : pawns;
-  };
-
-  // The coach works on the move and its analysis alone: no network, so the answer is immediate
-  const handleExplain = () => {
-    onUpdateAiExplanation(currentMove.ply, explainMove(currentMove));
   };
 
   const isAlternativeAvailable = Boolean(
@@ -547,18 +545,39 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
             </span>
           </div>
 
-          {!currentMove.aiExplanation && (
+          {coach.status.phase === 'idle' ? (
             <button
-              onClick={handleExplain}
+              onClick={coach.explain}
               disabled={isCoachDisabled}
               title={isCoachDisabled ? "Disponible quand l'analyse est terminée" : undefined}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium transition-colors shadow-sm cursor-pointer w-full sm:w-auto"
+              className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg disabled:opacity-50 text-xs font-medium transition-colors shadow-sm cursor-pointer w-full sm:w-auto ${
+                currentMove.aiExplanation
+                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                  : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+              }`}
             >
               <Lightbulb className="w-3.5 h-3.5" />
-              <span>Expliquer ce coup</span>
+              <span>{currentMove.aiExplanation ? 'Refaire avec ces réglages' : 'Expliquer ce coup'}</span>
             </button>
+          ) : (
+            <span aria-busy="true" className="inline-flex items-center gap-2 text-xs text-slate-300">
+              <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              {coach.status.phase === 'engine'
+                ? `Analyse à la profondeur ${coach.status.depth}…`
+                : coach.status.percent !== null && coach.status.percent < 100
+                  ? `Téléchargement du modèle… ${coach.status.percent} %`
+                  : `Rédaction par l’IA locale${coach.status.device === 'wasm' ? ' (processeur : patience)' : ''}…`}
+            </span>
           )}
         </div>
+
+        <CoachSettings
+          depth={coach.depth}
+          onDepthChange={coach.setDepth}
+          useModel={coach.useModel}
+          onUseModelChange={coach.setUseModel}
+          modelSupported={coach.modelSupported}
+        />
 
         {/* Announces the state of the explanation to screen readers */}
         <div role="status" className="sr-only">
@@ -630,6 +649,20 @@ export const MoveComparison: React.FC<MoveComparisonProps> = ({
                 </div>
               </div>
             )}
+
+            <p className="text-[11px] text-slate-400" data-testid="coach-source">
+              {currentMove.aiExplanation.source === 'model'
+                ? 'Phrases écrites par l’IA locale (expérimental) ; les coups, les chiffres et le plan viennent du moteur et des règles.'
+                : currentMove.aiExplanation.depth
+                  ? `Écrit par les règles de l’entraîneur, à partir d’une analyse à la profondeur ${currentMove.aiExplanation.depth}.`
+                  : 'Écrit par les règles de l’entraîneur, à partir de l’analyse de la partie.'}
+              {coach.note === 'rejected' &&
+                ' Le texte de l’IA locale ne collait pas aux faits : le texte des règles est conservé.'}
+              {coach.note === 'unsupported' &&
+                ' Cet appareil n’a pas de carte graphique compatible (WebGPU avec calcul en demi-précision) : l’IA locale ne peut pas y tourner, le texte des règles est conservé.'}
+              {coach.note === 'failed' &&
+                ' L’IA locale n’a pas pu répondre (téléchargement ou mémoire) : le texte des règles est conservé.'}
+            </p>
           </div>
         ) : null}
       </div>

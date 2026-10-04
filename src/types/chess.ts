@@ -48,6 +48,10 @@ export interface MoveAnalysis {
     whyPlayedIsBad: string;
     whyBestIsBetter: string;
     plan: string;
+    /** Who wrote the sentences: the rules of the coach (the default) or the local language model. */
+    source?: 'rules' | 'model';
+    /** Depth of the engine search the explanation was made from, when it was deeper than the game's analysis. */
+    depth?: number;
   };
 }
 

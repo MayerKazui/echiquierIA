@@ -28,7 +28,7 @@ coups brillants, trace la courbe d'évaluation et un entraîneur explique les mo
 - Mise en page : sur ordinateur l'échiquier est dimensionné sur la hauteur de la fenêtre, avec ses commandes de lecture, et un panneau à onglets (Coup / Liste) à côté du graphique d'évaluation
 - Échiquier interactif : exploration libre (« Et si j'avais joué… ? », glisser-déposer à la souris ou au doigt, choix de la pièce à la promotion), animation des coups dans les deux sens avec les captures, flèches et surbrillances au clic droit,
   contrôle de l'espace, menaces tactiques, lecture automatique (qui s'arrête sur les erreurs, réglable), raccourcis clavier
-- **Entraîneur pédagogique** (bouton « Expliquer ce coup ») : une explication en français écrite dans le navigateur à partir de l'analyse de Stockfish et de la position (`src/utils/moveCoach.ts`). Il part de faits lus sur l'échiquier : la tactique manquée ou jouée (fourchette, clouage, mat du couloir…), la pièce laissée en prise et qui la prend, l'avantage gâché, les principes d'ouverture, le Roi en finale ; il donne l'évaluation avant et après le coup, la suite attendue du moteur et un plan en trois étapes. Rien n'est envoyé nulle part, tout marche hors ligne, et deux fois le même coup donne le même texte
+- **Entraîneur pédagogique** (bouton « Expliquer ce coup ») : une explication en français écrite dans le navigateur à partir de l'analyse de Stockfish et de la position (`src/utils/moveCoach.ts`). Il part de faits lus sur l'échiquier : la tactique manquée ou jouée (fourchette, clouage, mat du couloir…), la pièce laissée en prise et qui la prend, l'avantage gâché, les principes d'ouverture, le Roi en finale ; il donne l'évaluation avant et après le coup, la suite attendue du moteur et un plan en trois étapes. Rien n'est envoyé nulle part, tout marche hors ligne, et deux fois le même coup donne le même texte. Dans « Réglages de l'entraîneur » : la **profondeur** de la recherche (celle de la partie, 12 « Standard », 14 « Poussé », 16, 18) : une recherche plus profonde donne les scores, le meilleur coup et **la réponse la plus forte de l'adversaire** au coup joué ; et, en option expérimentale, une **rédaction par une IA locale** (voir ci-dessous)
 
 ## Démarrage
 
@@ -42,22 +42,23 @@ bun run dev              # http://localhost:3000
 
 ## Commandes
 
-| Commande                 | Rôle                                                                                   |
-| ------------------------ | -------------------------------------------------------------------------------------- |
-| `bun run dev`            | Serveur de développement (Express + Vite, rechargement à chaud)                        |
-| `bun run build`          | Construit l'interface (`dist/`) et compile le serveur en `server.js`                   |
-| `bun run start`          | Sert `dist/` en production (`NODE_ENV=production`, via tsx) : lancer `build` avant     |
-| `bun run test`           | Tests unitaires et de composants (Vitest)                                              |
-| `bun run test:e2e`       | Tests de bout en bout (Playwright) : construit l'application et la teste en vrai       |
-| `bun run lint`           | ESLint                                                                                 |
-| `bun run typecheck`      | `tsc --noEmit` (mode `strict`)                                                         |
-| `bun run format`         | Formate avec Prettier (`format:check` pour seulement vérifier)                         |
-| `bun run check`          | lint + typecheck + format + tests, comme la CI                                         |
-| `bun run build:openings` | Régénère `public/openings.json` depuis `src/data/openings/*.tsv`                       |
-| `bun run build:puzzles`  | Régénère `public/puzzles/` depuis la base de puzzles Lichess (307 Mo)                  |
-| `bun run calibrate`      | Écart de la précision avec chess.com sur les parties de référence (`fetch`, `record`)  |
-| `bun run thresholds`     | Seuils posés à la main, mesurés sur de vraies parties (`accuracy`, `endgames`, `prep`) |
-| `bun run faultstats`     | Erreurs de référence par type et thème (`faultstats theme:fork` : exemples)            |
+| Commande                    | Rôle                                                                                           |
+| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| `bun run dev`               | Serveur de développement (Express + Vite, rechargement à chaud)                                |
+| `bun run build`             | Construit l'interface (`dist/`) et compile le serveur en `server.js`                           |
+| `bun run start`             | Sert `dist/` en production (`NODE_ENV=production`, via tsx) : lancer `build` avant             |
+| `bun run test`              | Tests unitaires et de composants (Vitest)                                                      |
+| `bun run test:e2e`          | Tests de bout en bout (Playwright) : construit l'application et la teste en vrai               |
+| `bun run lint`              | ESLint                                                                                         |
+| `bun run typecheck`         | `tsc --noEmit` (mode `strict`)                                                                 |
+| `bun run format`            | Formate avec Prettier (`format:check` pour seulement vérifier)                                 |
+| `bun run check`             | lint + typecheck + format + tests, comme la CI                                                 |
+| `bun run build:openings`    | Régénère `public/openings.json` depuis `src/data/openings/*.tsv`                               |
+| `bun run build:puzzles`     | Régénère `public/puzzles/` depuis la base de puzzles Lichess (307 Mo)                          |
+| `bun run calibrate`         | Écart de la précision avec chess.com sur les parties de référence (`fetch`, `record`)          |
+| `bun run thresholds`        | Seuils posés à la main, mesurés sur de vraies parties (`accuracy`, `endgames`, `prep`)         |
+| `bun run bench:coach-model` | Mesure un modèle de langage sur le rôle de l'IA locale (`bench:coach-model <modèle> <q4\|q8>`) |
+| `bun run faultstats`        | Erreurs de référence par type et thème (`faultstats theme:fork` : exemples)                    |
 
 La CI (GitHub Actions) exécute lint, typecheck, format, tests et build à chaque pull request, et dans un second job les tests de bout en bout.
 
@@ -105,6 +106,10 @@ WebAssembly). Il n'est pas copié dans le dépôt : `vite/stockfishPlugin.ts` le
 développement et l'ajoute à `dist/` au build. Comme il est mono-thread, il ne demande pas d'en-têtes COOP/COEP ;
 le parallélisme vient d'un worker par position analysée (nombre de cœurs − 1, entre 1 et 6). Si WebAssembly ou le
 moteur est indisponible, les positions sont évaluées par une heuristique simple.
+
+### IA locale de l'entraîneur (expérimental)
+
+Option désactivée par défaut : un modèle de langage (Qwen2.5 1,5 Md, environ 1,2 Go) tourne dans le navigateur (WebGPU, bibliothèque `@huggingface/transformers`, dans un Web Worker, chargée seulement à la première demande) et reformule les deux phrases d'explication du coach. Il ne décide de rien : il reçoit le texte des règles, jamais le score ni les lignes de coups, que le code réécrit lui-même autour de ses phrases. Sa réponse n'est gardée que si elle suit le format et ne dit rien que les faits ne disaient (`isGroundedIn` : coups, cases, chiffres, « pièce en case », aucun mot sur le score) ; sinon le texte des règles reste, avec une note qui le dit. Il demande un GPU avec calcul en demi-précision (`shader-f16`) : sans lui l'appareil le dit avant tout téléchargement. Le modèle est gardé par le navigateur (Cache API) ; le moteur d'inférence (27 Mo de WebAssembly) vient avec l'application et n'est mis en cache par le service worker qu'au premier usage. Pour essayer un autre modèle : `localStorage.chess_coach_model_id = "organisation/modèle"` (il peut alors tourner sur le processeur, très lentement).
 
 ### Sécurité du serveur
 

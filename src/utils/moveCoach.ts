@@ -7,6 +7,7 @@ import { phaseOfPosition, type GamePhase } from './gamePhase';
 import { VALUE, kingSquareOf, other, pieceSquares, winnable } from './tacticBoard';
 import { TACTIC_THEME_TEXT, tacticThemesOfMove, type TacticTheme } from './tacticThemes';
 import { toFrenchOpeningName } from './openingNames';
+import { winPercentOfEvaluation } from './moveAnalysis';
 import { analyzeTacticalThreatsForMove } from './tacticalThreats';
 
 /**
@@ -17,6 +18,36 @@ import { analyzeTacticalThreatsForMove } from './tacticalThreats';
  */
 
 export type CoachExplanation = NonNullable<MoveAnalysis['aiExplanation']>;
+
+/** One line of a deeper search: the score (White's side), the engine's move and the line that follows. */
+export interface DeepLine {
+  cp: number;
+  mate: number | null;
+  bestMoveUci: string;
+  pv: string[];
+}
+
+/** A deeper look at one move: the position before it (the engine's move) and after it (the answer to the move). */
+export interface DeepAnalysis {
+  depth: number;
+  before: DeepLine;
+  after: DeepLine;
+}
+
+/**
+ * The explanation in the pieces it is made of. The sentences (`problem`, `idea`, `plan`) say what is going on; the
+ * lines made of numbers and moves (`evalLine`, `replyLine`, `line`) are only ever written by the code from the engine's
+ * output, so that whatever rewrites the sentences cannot touch them.
+ */
+export interface CoachParts {
+  concept: string;
+  problem: string;
+  evalLine: string;
+  replyLine: string;
+  idea: string;
+  line: string;
+  plan: string;
+}
 
 const GOOD = new Set<MoveAnalysis['classification']>(['brilliant', 'great', 'best', 'excellent', 'good', 'book']);
 
@@ -486,10 +517,11 @@ function explainFaultSentence(
 }
 
 /** The mean cost of a move in words, from the evaluation seen by the player who moved it. */
-function evalSentence(move: MoveAnalysis): string {
+function evalSentence(move: MoveAnalysis, depth?: number): string {
   const before = moverEval(move.evalBefore, move.mateBefore, move.color);
   const after = moverEval(move.evalAfter, move.mateAfter, move.color);
-  return `Pour ${sideName(move.color)}, l'évaluation passe de ${before} à ${after}.`;
+  const lead = depth ? `À la profondeur ${depth}, pour` : 'Pour';
+  return `${lead} ${sideName(move.color)}, l'évaluation passe de ${before} à ${after}.`;
 }
 
 /* ---------- plan ---------- */
@@ -617,7 +649,7 @@ function afterBest(ctx: Context, phase: GamePhase | null): string {
 }
 
 /** Text for a good move. */
-function explainGoodMove(ctx: Context, phase: GamePhase | null): CoachExplanation {
+function explainGoodMove(ctx: Context, phase: GamePhase | null): CoachParts {
   const { move, played, best, playedSan, bestSan, mover, seed } = ctx;
   const themes = tacticThemesOfMove(move.fenBefore, move.uci);
   const picked = pickTheme(themes, played);
@@ -675,18 +707,20 @@ function explainGoodMove(ctx: Context, phase: GamePhase | null): CoachExplanatio
 
   return {
     concept,
-    whyPlayedIsBad: '',
-    whyBestIsBetter: parts.join(' '),
+    problem: '',
+    evalLine: '',
+    replyLine: '',
+    idea: parts.join(' '),
+    line: '',
     plan: steps.map((step, index) => `${index + 1}. ${step}`).join('\n'),
   };
 }
 
 /** Text for a move that cost something. */
-function explainBadMove(ctx: Context, phase: GamePhase | null): CoachExplanation {
+function explainBadMove(ctx: Context, phase: GamePhase | null, deep?: DeepAnalysis): CoachParts {
   const { move, best, bestSan, playedSan, mover, played } = ctx;
   const diagnosis = diagnoseFault(move);
   const { text, habit, kind } = explainFaultSentence(ctx, diagnosis);
-  const whyBad = `${text} ${evalSentence(move)}`;
 
   const themes = best ? tacticThemesOfMove(move.fenBefore, move.bestMoveUci) : [];
   const playedThemes = new Set(tacticThemesOfMove(move.fenBefore, move.uci));
@@ -709,7 +743,11 @@ function explainBadMove(ctx: Context, phase: GamePhase | null): CoachExplanation
   if (mateGiven) why.push(`Il garde le mat forcé en main.`);
 
   const frenchPv = move.pv.length > 0 ? formatPvToFrench(move.fenBefore, move.pv, 4, true) : '';
-  if (move.pv.length >= 2 && frenchPv) why.push(`Suite probable : ${frenchPv}.`);
+  const line = move.pv.length >= 2 && frenchPv ? `Suite probable : ${frenchPv}.` : '';
+  // What the opponent does after the move played: only a search of the position after it can say
+  const reply =
+    deep && played && deep.after.pv.length > 0 ? formatPvToFrench(played.after.fen(), deep.after.pv, 4, true) : '';
+  const replyLine = reply ? `Réponse la plus forte après ${playedSan} : ${reply}.` : '';
 
   const tokens =
     move.pv.length > 0 ? formatPvToFrench(move.fenBefore, move.pv, 3, false).split(' ').filter(Boolean) : [];
@@ -728,18 +766,47 @@ function explainBadMove(ctx: Context, phase: GamePhase | null): CoachExplanation
 
   return {
     concept,
-    whyPlayedIsBad: whyBad,
-    whyBestIsBetter: why.join(' '),
+    problem: text,
+    evalLine: evalSentence(move, deep?.depth),
+    replyLine,
+    idea: why.join(' '),
+    line,
     plan: steps.map((step, index) => `${index + 1}. ${step}`).join('\n'),
   };
 }
 
+/** The move with the numbers and the lines of a deeper search in place of those of the game's analysis. */
+function refined(move: MoveAnalysis, deep: DeepAnalysis): MoveAnalysis {
+  let bestMoveSan = move.bestMoveSan;
+  if (deep.before.bestMoveUci && deep.before.bestMoveUci !== move.bestMoveUci) {
+    bestMoveSan = play(move.fenBefore, deep.before.bestMoveUci)?.move.san ?? deep.before.bestMoveUci;
+  }
+  const winBefore = winPercentOfEvaluation(deep.before.cp, deep.before.mate);
+  const winAfter = winPercentOfEvaluation(deep.after.cp, deep.after.mate);
+  const sign = move.color === 'w' ? 1 : -1;
+  return {
+    ...move,
+    evalBefore: deep.before.cp,
+    mateBefore: deep.before.mate,
+    evalAfter: deep.after.cp,
+    mateAfter: deep.after.mate,
+    bestMoveUci: deep.before.bestMoveUci || move.bestMoveUci,
+    bestMoveSan,
+    pv: deep.before.pv.length > 0 ? deep.before.pv : move.pv,
+    centipawnLoss: Math.max(0, Math.round((deep.before.cp - deep.after.cp) * sign)),
+    winPercentBefore: Math.round(winBefore),
+    winPercentAfter: Math.round(winAfter),
+    winPercentLoss: Math.max(0, Math.round((winBefore - winAfter) * sign)),
+  };
+}
+
 /**
- * The coach's comment on a move: the idea (`concept`), why the move is bad (`whyPlayedIsBad`, empty for a good
- * move), why the engine's move (or the move itself, when it is good) is right (`whyBestIsBetter`) and a three-step plan
- * (`plan`, steps separated by line breaks). Everything is computed on the spot from the move and its analysis.
+ * The coach's comment on a move in its pieces. With `deep` (a search of the position before and after the move at a
+ * chosen depth) the scores, the engine's move and its line come from that search, and the answer to the move played
+ * is told too. Everything is computed on the spot.
  */
-export function explainMove(move: MoveAnalysis): CoachExplanation {
+export function coachParts(original: MoveAnalysis, deep?: DeepAnalysis): CoachParts {
+  const move = deep ? refined(original, deep) : original;
   const played = play(move.fenBefore, move.uci);
   const hasAlternative = Boolean(move.bestMoveUci) && move.bestMoveUci !== move.uci;
   const best = hasAlternative ? play(move.fenBefore, move.bestMoveUci) : null;
@@ -761,5 +828,21 @@ export function explainMove(move: MoveAnalysis): CoachExplanation {
     seed: `${move.fenBefore} ${move.uci}`,
     phase,
   };
-  return GOOD.has(move.classification) || !hasAlternative ? explainGoodMove(ctx, phase) : explainBadMove(ctx, phase);
+  return GOOD.has(move.classification) || !hasAlternative
+    ? explainGoodMove(ctx, phase)
+    : explainBadMove(ctx, phase, deep);
 }
+
+/** The pieces put together in the three boxes of the coach. */
+export function composeExplanation(parts: CoachParts): CoachExplanation {
+  return {
+    concept: parts.concept,
+    whyPlayedIsBad: [parts.problem, parts.evalLine, parts.replyLine].filter(Boolean).join(' '),
+    whyBestIsBetter: [parts.idea, parts.line].filter(Boolean).join(' '),
+    plan: parts.plan,
+  };
+}
+
+/** The coach's comment on a move: the idea, why the move is bad (empty for a good move), why the engine's move (or the move itself) is right, and a three-step plan. */
+export const explainMove = (move: MoveAnalysis, deep?: DeepAnalysis): CoachExplanation =>
+  composeExplanation(coachParts(move, deep));

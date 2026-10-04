@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MoveAnalysis } from '../../types/chess';
 import { MoveComparison } from './MoveComparison';
 
@@ -54,6 +54,13 @@ function renderMove(current: MoveAnalysis) {
   );
 }
 
+beforeEach(() => {
+  // The game's own analysis: no extra search, so the answer is immediate
+  localStorage.setItem('chess_coach_depth', '0');
+});
+
+afterEach(() => localStorage.clear());
+
 describe('MoveComparison: French notation', () => {
   it('writes the headings of the explanation with French piece letters', () => {
     const { container } = renderMove(move());
@@ -102,7 +109,7 @@ describe('MoveComparison: French notation', () => {
     expect(container.textContent).toContain('Coup théorique (Partie espagnole : défense de Berlin)');
   });
 
-  it('explains the move on the spot, with no network, when the button is pressed', () => {
+  it('explains the move on the spot, with no network, when the button is pressed', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const onUpdate = vi.fn();
     render(
@@ -122,7 +129,7 @@ describe('MoveComparison: French notation', () => {
       />
     );
     fireEvent.click(screen.getByRole('button', { name: /Expliquer ce coup/ }));
-    expect(onUpdate).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
     const [ply, explanation] = onUpdate.mock.calls[0];
     expect(ply).toBe(20);
     expect(explanation.concept).toBe('Fourchette');

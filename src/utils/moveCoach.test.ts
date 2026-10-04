@@ -283,3 +283,50 @@ describe('explainMove: form', () => {
     expect(noEngineMove.plan.split('\n')).toHaveLength(3);
   });
 });
+
+describe('explainMove: with a deeper search', () => {
+  const deep = (overrides: Partial<import('./moveCoach').DeepAnalysis> = {}): import('./moveCoach').DeepAnalysis => ({
+    depth: 16,
+    before: { cp: 520, mate: null, bestMoveUci: 'd5c7', pv: ['d5c7', 'e8d8', 'c7a8'] },
+    after: { cp: -30, mate: null, bestMoveUci: 'e8d7', pv: ['e8d7', 'd5c3'] },
+    ...overrides,
+  });
+
+  it('takes the scores from the search and names its depth', () => {
+    const text = explainMove(analysed(FORK, 'e1d2', 'd5c7'), deep());
+    expect(text.whyPlayedIsBad).toContain("À la profondeur 16, pour les Blancs, l'évaluation passe de +5,2 à -0,3.");
+  });
+
+  it('tells the strongest answer to the move played, in French and from the position after it', () => {
+    const text = explainMove(analysed(FORK, 'e1d2', 'd5c7'), deep());
+    expect(text.whyPlayedIsBad).toContain('Réponse la plus forte après Rd2 : 1... Rd7 2. Cc3.');
+  });
+
+  it("follows the deeper search when it changes the engine's move", () => {
+    // The game's analysis said Kd2 was best's rival; the deeper search prefers Kf2? no: it finds Nc7+ for sure
+    const text = explainMove(analysed(FORK, 'e1d2', 'e1f2'), deep());
+    expect(text.whyBestIsBetter).toContain('Cc7+ amène une fourchette');
+    expect(text.plan).toMatch(/^1\. Jouer Cc7\+ à la place de Rd2/);
+  });
+
+  it('writes the line of the search, not the one of the game', () => {
+    const text = explainMove(
+      analysed(FORK, 'e1d2', 'd5c7', { pv: ['d5c7'] }),
+      deep({ before: { cp: 520, mate: null, bestMoveUci: 'd5c7', pv: ['d5c7', 'e8f8', 'c7a8'] } })
+    );
+    expect(text.whyBestIsBetter).toContain('Suite probable : 1. Cc7+ Rf8 2. Cxa8.');
+  });
+
+  it('says nothing about an answer when the search has none, and keeps the explanation whole', () => {
+    const text = explainMove(
+      analysed(FORK, 'e1d2', 'd5c7'),
+      deep({ after: { cp: -30, mate: null, bestMoveUci: '', pv: [] } })
+    );
+    expect(text.whyPlayedIsBad).not.toContain('Réponse la plus forte');
+    expect(text.plan.split('\n')).toHaveLength(3);
+  });
+
+  it('does not change the explanation without a search', () => {
+    expect(explainMove(analysed(FORK, 'e1d2', 'd5c7')).whyPlayedIsBad).not.toContain('profondeur');
+  });
+});
