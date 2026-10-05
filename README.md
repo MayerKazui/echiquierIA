@@ -131,6 +131,10 @@ GitHub Pages ne sert que des fichiers statiques : l'analyse (Stockfish dans le n
 3. **Serveur** : variable d'environnement `ALLOWED_ORIGINS=https://<utilisateur>.github.io` (l'origine, sans le nom du dépôt). Sans elle, le serveur refuse les appels venus d'un autre site (403).
 4. L'interface est servie depuis `https://<utilisateur>.github.io/<dépôt>/` : le workflow construit avec `BASE_PATH=/<dépôt>/`. Pour tester en local : `BASE_PATH=/echiquierIA/ VITE_API_URL=http://localhost:3000 bunx vite build --outDir /tmp/site/echiquierIA`.
 
+## Crédits
+
+Les pièces de l'échiquier sont les SVG « dark (black) and light (white) » de la catégorie [SVG chess pieces](https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces) de Wikimedia Commons (`Chess_?dt45.svg` et `Chess_?lt45.svg`), dessinées par Colin M. L. Burnett et publiées sous licence triple GFDL / BSD / GPL. Les fichiers d'origine, non modifiés, sont dans [`src/components/ChessBoard/pieces`](src/components/ChessBoard/pieces).
+
 ## Suivi des améliorations
 
 Voir [`BILAN_ET_SUITES.md`](BILAN_ET_SUITES.md) : ce qui est fait, ce qui reste et les idées d'évolution.
