@@ -15,10 +15,14 @@ export interface ChooseMoveRequest {
 export interface EnginePlayerOptions {
   /** Creates the worker running `script` (default: `new Worker(script)`). */
   createWorker?: (script: string) => Worker;
+  /** How long the worker may sit idle before it is released (default IDLE_RELEASE_MS; 0 keeps it). */
+  idleReleaseMs?: number;
 }
 
 /** Longer than any thinking time of a level: a search that has not answered by then is dead. */
 const ANSWER_GRACE_MS = 8000;
+/** Between two moves of a game the worker is kept; a player who walked away does not keep its memory (~100 MB). */
+const IDLE_RELEASE_MS = 60_000;
 
 export class EngineUnavailableError extends Error {
   constructor(message = 'The engine is not available') {
@@ -43,6 +47,7 @@ export class EnginePlayer {
   /** Searches that were stopped and have not printed their `bestmove` yet: those answers are for nobody. */
   private stale = 0;
   private current: { resolve: (uci: string) => void; reject: (err: unknown) => void } | null = null;
+  private idleTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly options: EnginePlayerOptions = {}) {}
 
@@ -81,8 +86,23 @@ export class EnginePlayer {
     else pending.resolve(move);
   }
 
+  /** Releases the worker once nothing has been asked of it for a while (the next request starts another). */
+  private scheduleIdleRelease() {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = undefined;
+    const delay = this.options.idleReleaseMs ?? IDLE_RELEASE_MS;
+    if (delay <= 0 || !this.worker) return;
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = undefined;
+      if (this.current) return this.scheduleIdleRelease();
+      this.reset(abortError());
+    }, delay);
+  }
+
   /** Drops the worker (it is started again by the next request) and fails the search in progress. */
   private reset(reason: unknown) {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = undefined;
     const pending = this.current;
     this.current = null;
     this.stale = 0;
@@ -99,6 +119,7 @@ export class EnginePlayer {
   public chooseMove({ startFen, moves, level, moveTimeMs, signal }: ChooseMoveRequest): Promise<string> {
     if (signal?.aborted) return Promise.reject(abortError());
     const thinkMs = Math.min(level.moveTimeMs, moveTimeMs ?? level.moveTimeMs);
+    clearTimeout(this.idleTimer);
     let worker: Worker;
     try {
       worker = this.ensureWorker();
@@ -113,6 +134,7 @@ export class EnginePlayer {
       const finish = () => {
         clearTimeout(timer);
         signal?.removeEventListener('abort', onAbort);
+        this.scheduleIdleRelease();
       };
       const entry = {
         resolve: (uci: string) => {

@@ -28,7 +28,14 @@ export function isLocalModelSupported(): boolean {
 export const isUnsupportedDevice = (error: unknown): boolean =>
   error instanceof Error && error.message.includes(UNSUPPORTED_DEVICE);
 
+/**
+ * The model sits in memory (from several hundred MB to a few GB) for as long as the worker lives. A coach that is not
+ * asked for a while lets it go; the next text loads it again from the browser's cache, without downloading it.
+ */
+export const IDLE_RELEASE_MS = 120_000;
+
 let worker: Worker | null = null;
+let idleTimer: ReturnType<typeof setTimeout> | undefined;
 let nextId = 1;
 const pending = new Map<number, { resolve: (text: string) => void; reject: (error: Error) => void }>();
 let onProgress: ((progress: LocalProgress) => void) | null = null;
@@ -46,6 +53,7 @@ function ensureWorker(): Worker {
       pending.delete(message.id);
       if (message.type === 'result') entry?.resolve(message.text);
       else entry?.reject(new Error(message.message));
+      scheduleIdleRelease();
     }
   };
   worker.onerror = (event) => {
@@ -54,8 +62,21 @@ function ensureWorker(): Worker {
     pending.clear();
     worker?.terminate();
     worker = null;
+    clearTimeout(idleTimer);
   };
   return worker;
+}
+
+/** Lets the worker go when no text is being written and none was asked for during `IDLE_RELEASE_MS`. */
+function scheduleIdleRelease(): void {
+  clearTimeout(idleTimer);
+  idleTimer = undefined;
+  if (!worker) return;
+  idleTimer = setTimeout(() => {
+    idleTimer = undefined;
+    if (pending.size > 0) return scheduleIdleRelease();
+    releaseLocalModel();
+  }, IDLE_RELEASE_MS);
 }
 
 /**
@@ -63,6 +84,8 @@ function ensureWorker(): Worker {
  * deleted, so that it is not still taking the memory it was just taken out of the cache for.
  */
 export function releaseLocalModel(): void {
+  clearTimeout(idleTimer);
+  idleTimer = undefined;
   worker?.terminate();
   worker = null;
   const error = new DOMException('Aborted', 'AbortError');
@@ -85,6 +108,8 @@ export function generateLocally(
   onProgress = options.onProgress ?? null;
   onDevice = options.onDevice ?? null;
   const id = nextId++;
+  clearTimeout(idleTimer);
+  idleTimer = undefined;
   return new Promise<string>((resolve, reject) => {
     pending.set(id, { resolve, reject });
     options.signal?.addEventListener(
@@ -92,6 +117,7 @@ export function generateLocally(
       () => {
         pending.delete(id);
         reject(new DOMException('Aborted', 'AbortError'));
+        scheduleIdleRelease();
       },
       { once: true }
     );

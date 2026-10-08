@@ -95,6 +95,11 @@ const DEFAULT_WORKERS = 2;
 const CACHE_CAPACITY = 2000;
 /** How long a stopped worker has to report its `bestmove` before it is restarted. */
 const STOP_GRACE_MS = 1500;
+/**
+ * A worker costs about 100 MB (wasm instance, network and hash table) for as long as it lives. After this long without
+ * a search the pool is released; the next search starts it again (a second or so), the evaluations stay cached.
+ */
+const IDLE_RELEASE_MS = 60_000;
 
 /**
  * Number of engine workers for a machine: all logical cores but one (the page keeps a core),
@@ -124,6 +129,8 @@ export interface StockfishServiceOptions {
   createWorker?: (script: string) => Worker;
   /** Maximum number of cached evaluations. */
   cacheCapacity?: number;
+  /** How long the pool may sit idle before its workers are released (default IDLE_RELEASE_MS; 0 keeps them). */
+  idleReleaseMs?: number;
 }
 
 /** Keeps a worker error from reaching the console/window: the service recovers with its own fallbacks. */
@@ -142,6 +149,7 @@ export class StockfishService {
   private cache: LruCache<string, CachedEvaluation>;
 
   private started = false;
+  private idleTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly options: StockfishServiceOptions = {}) {
     this.cache = new LruCache(options.cacheCapacity ?? CACHE_CAPACITY);
@@ -156,6 +164,35 @@ export class StockfishService {
     if (this.started) return;
     this.started = true;
     this.initWorkers();
+    this.scheduleIdleRelease();
+  }
+
+  /** (Re)starts the countdown to the release of the pool; every search that ends, or begins, restarts it. */
+  private scheduleIdleRelease() {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = undefined;
+    const delay = this.options.idleReleaseMs ?? IDLE_RELEASE_MS;
+    if (delay <= 0 || this.workers.length === 0) return;
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = undefined;
+      if (this.taskQueue.length > 0 || this.workers.some((w) => w.busy)) return this.scheduleIdleRelease();
+      this.releaseWorkers();
+    }, delay);
+  }
+
+  /** Terminates the workers and forgets that the pool was started: the next search starts it again. */
+  private releaseWorkers() {
+    clearTimeout(this.idleTimer);
+    this.idleTimer = undefined;
+    for (const slot of this.workers) {
+      try {
+        slot.worker.terminate();
+      } catch {
+        // Already terminated
+      }
+    }
+    this.workers = [];
+    this.started = false;
   }
 
   private initWorkers() {
@@ -234,6 +271,7 @@ export class StockfishService {
   }
 
   private processQueue() {
+    this.scheduleIdleRelease();
     if (this.taskQueue.length === 0) return;
 
     // Find available worker slot
@@ -850,14 +888,7 @@ export class StockfishService {
   }
 
   public destroy() {
-    for (const slot of this.workers) {
-      try {
-        slot.worker.terminate();
-      } catch {
-        // ignore
-      }
-    }
-    this.workers = [];
+    this.releaseWorkers();
     // Nothing will run these searches any more: answer them so callers do not wait forever
     for (const task of this.taskQueue) task.resolve(this.evaluateHeuristic(task.fen));
     this.taskQueue = [];

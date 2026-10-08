@@ -110,3 +110,27 @@ describe('counts of the index', () => {
     expect(ratingCount(index, 1000, 1300)).toBe(3);
   });
 });
+
+describe('memory', () => {
+  const shardLoader = () => {
+    const load = vi.fn(async (path: string) =>
+      path === 'puzzles/index.json' ? index : { band: 0, puzzles: [encodePuzzle(make(path, 1000, []))] }
+    );
+    return load;
+  };
+
+  it('keeps the last shards and the index, and reads an older one again', async () => {
+    const load = shardLoader();
+    await loadPuzzleIndex(load);
+    for (const band of [400, 600, 800]) await loadBand(band, load);
+    expect(load).toHaveBeenCalledTimes(4);
+    await loadBand(400, load); // still kept
+    expect(load).toHaveBeenCalledTimes(4);
+
+    await loadBand(1000, load); // 600 is the oldest now: it goes
+    await loadBand(600, load);
+    expect(load.mock.calls.filter(([path]) => path === 'puzzles/600.json')).toHaveLength(2);
+    await loadPuzzleIndex(load);
+    expect(load.mock.calls.filter(([path]) => path === 'puzzles/index.json')).toHaveLength(1);
+  });
+});

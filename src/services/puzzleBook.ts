@@ -16,18 +16,29 @@ async function fetchJson(path: string): Promise<unknown> {
   return response.json();
 }
 
+const INDEX_PATH = 'puzzles/index.json';
+/** A shard is 2-3 MB of JSON and several times that once parsed: only the last ones asked for stay in memory. */
+const MAX_SHARDS = 3;
+
 const loaded = new Map<string, Promise<unknown>>();
 
-/** One load per file, kept for good once it worked; a failure is forgotten so that a later call tries again. */
+/**
+ * One load per file while it is kept; a failure is forgotten so that a later call tries again. The index stays; of the
+ * shards the last `MAX_SHARDS` used stay (the oldest is dropped, and read again from the browser's cache if needed).
+ */
 function once<T>(path: string, load: FetchJson): Promise<T> {
   let promise = loaded.get(path);
-  if (!promise) {
+  if (promise) {
+    loaded.delete(path); // asked for again: it becomes the most recent
+  } else {
     promise = load(path).catch((error) => {
       loaded.delete(path);
       throw error;
     });
-    loaded.set(path, promise);
   }
+  loaded.set(path, promise);
+  const shards = [...loaded.keys()].filter((key) => key !== INDEX_PATH);
+  for (const key of shards.slice(0, Math.max(0, shards.length - MAX_SHARDS))) loaded.delete(key);
   return promise as Promise<T>;
 }
 
@@ -37,7 +48,7 @@ export function resetPuzzleBook(): void {
 }
 
 export function loadPuzzleIndex(load: FetchJson = fetchJson): Promise<PuzzleIndex> {
-  return once<PuzzleIndex>('puzzles/index.json', load);
+  return once<PuzzleIndex>(INDEX_PATH, load);
 }
 
 /** The puzzles of a band, the damaged records left out. */

@@ -502,6 +502,62 @@ describe('evaluatePosition', () => {
   });
 });
 
+describe('releasing the idle pool', () => {
+  it('terminates the workers after a minute without a search', async () => {
+    const { service, workers } = setup({ workerCount: 2 });
+    const done = service.evaluatePosition(FEN_A, 10);
+    await vi.advanceTimersByTimeAsync(200);
+    await done;
+    await vi.advanceTimersByTimeAsync(59_000);
+    expect(workers.every((w) => !w.terminated)).toBe(true);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(workers).toHaveLength(2);
+    expect(workers.every((w) => w.terminated)).toBe(true);
+  });
+
+  it('starts a new pool for the next search, and keeps the evaluations it already has', async () => {
+    const { service, workers } = setup({ workerCount: 1 });
+    const first = service.evaluatePosition(FEN_A, 10);
+    await vi.advanceTimersByTimeAsync(200);
+    const evaluation = await first;
+    await vi.advanceTimersByTimeAsync(61_000);
+    expect(workers[0].terminated).toBe(true);
+
+    expect(await service.evaluatePosition(FEN_A, 10)).toBe(evaluation); // cached: no worker needed
+    expect(workers).toHaveLength(1);
+
+    const next = service.evaluatePosition(FEN_B, 10);
+    expect(workers).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(Number.isFinite((await next).cp)).toBe(true);
+  });
+
+  it('keeps the pool as long as searches are running', async () => {
+    const { service, workers } = setup({ workerCount: 1 }, { searchMs: 90_000 });
+    const search = service.evaluatePosition(FEN_A, 40);
+    await vi.advanceTimersByTimeAsync(65_000);
+    expect(workers[0].terminated).toBe(false);
+    await vi.advanceTimersByTimeAsync(30_000);
+    await search;
+  });
+
+  it('keeps the pool when the delay is 0', async () => {
+    const workers: FakeWorker[] = [];
+    const service = new StockfishService({
+      workerCount: 1,
+      idleReleaseMs: 0,
+      createWorker: (script) => {
+        const worker = new FakeWorker(script, { searchMs: 100, bestMoves: ['e2a6'] }, { searches: 0 });
+        workers.push(worker);
+        return worker as unknown as Worker;
+      },
+    });
+    service.warmUp();
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(workers[0].terminated).toBe(false);
+  });
+});
+
 describe('cancelling an evaluation', () => {
   it('rejects at once, without searching, when the signal is already aborted', async () => {
     const { service, workers } = setup({ workerCount: 1 });

@@ -153,4 +153,35 @@ describe('EnginePlayer', () => {
     await assertion;
     expect(workers[0].terminated).toBe(true);
   });
+
+  it('releases its worker once idle, and starts another for the next request', async () => {
+    const { player, workers } = setup();
+    const first = player.chooseMove(request());
+    workers[0].print('bestmove e7e5');
+    await first;
+    await vi.advanceTimersByTimeAsync(59_000);
+    expect(workers[0].terminated).toBe(false);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(workers[0].terminated).toBe(true);
+
+    const second = player.chooseMove(request());
+    expect(workers).toHaveLength(2);
+    workers[1].print('bestmove d7d5');
+    await expect(second).resolves.toBe('d7d5');
+  });
+
+  it('counts the idle time from the last answer', async () => {
+    const { player, workers } = setup();
+    const first = player.chooseMove(request());
+    workers[0].print('bestmove e7e5');
+    await first;
+    await vi.advanceTimersByTimeAsync(50_000);
+    const second = player.chooseMove(request());
+    workers[0].print('bestmove d7d5');
+    await second;
+    await vi.advanceTimersByTimeAsync(50_000); // 100 s after the first answer, 50 s after the last
+    expect(workers[0].terminated).toBe(false);
+    await vi.advanceTimersByTimeAsync(11_000);
+    expect(workers[0].terminated).toBe(true);
+  });
 });
